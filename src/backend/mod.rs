@@ -418,6 +418,13 @@ pub(crate) trait Backend: Send + Sync + 'static {
         session_id: &str,
         terminal_id: &str,
     ) -> Result<crate::agent_conversation::AgentConversation>;
+    /// The link minerve's own view draws the Minerve in a shell through, for one started for a
+    /// view - see `crate::native::minerve_pane`. Only a window on this machine has one.
+    #[cfg(not(target_arch = "wasm32"))]
+    /// With the link comes the line a task's run opens with, for the first view's box.
+    fn minerve_link(&self, _terminal_id: &str) -> Option<(minerve_gui::Link, Option<String>)> {
+        None
+    }
     /// Sends a prompt to the Minerve in a shell, refused while it is in a turn.
     fn submit_to_agent(&self, session_id: &str, terminal_id: &str, text: &str) -> Result<()>;
     fn close_terminal(&self, session_id: &str, terminal_id: &str) -> Result<()>;

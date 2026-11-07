@@ -50,6 +50,18 @@ impl TerminalRegistry {
         Ok(control.conversation())
     }
 
+    /// What a window needs to draw the Minerve in a shell with minerve's own view: every line
+    /// it says (the latest state first) and its control socket to write to. `None` for a shell
+    /// that is not a Minerve started for a view - see [`super::agent_control`].
+    pub(crate) fn minerve_link(
+        &self,
+        terminal_id: &str,
+    ) -> Option<(std::sync::mpsc::Receiver<String>, Arc<super::agent_control::AgentControl>)> {
+        let session = self.get(terminal_id)?;
+        let control = session.agent_control.as_ref()?;
+        Some((control.tap()?, Arc::clone(control)))
+    }
+
     /// Sends a prompt to the Minerve running in a shell - see [`super::agent_control`].
     pub(crate) fn submit_to_agent(&self, terminal_id: &str, text: &str) -> anyhow::Result<()> {
         let session = self

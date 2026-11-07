@@ -64,6 +64,31 @@ const TYPE_AHEAD_POLL: std::time::Duration = std::time::Duration::from_millis(20
 /// How much shell output we keep so a reopened tab can replay what it missed.
 const SCROLLBACK_LIMIT: usize = 256 * 1024;
 use output::Scrollback;
+
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! {
+    /// Set while a window that reads this machine (`LocalBackend`) asks for a shell on this
+    /// thread - see [`for_this_window`].
+    static FOR_THIS_WINDOW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `start` - which starts shells - for the window in this process: a Minerve it starts is
+/// `moon __minerve --serve`, drawn with minerve's own view - see [`agent_control`]. What another
+/// machine's window or a browser asks the same server for, over HTTP, is never on this thread
+/// with this set, and gets the terminal Minerve it can draw.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn for_this_window<T>(start: impl FnOnce() -> T) -> T {
+    let before = FOR_THIS_WINDOW.with(|flag| flag.replace(true));
+    let started = start();
+    FOR_THIS_WINDOW.with(|flag| flag.set(before));
+    started
+}
+
+/// Whether the shell being started is for the window in this process - see [`for_this_window`].
+#[cfg(not(target_arch = "wasm32"))]
+fn starting_for_this_window() -> bool {
+    FOR_THIS_WINDOW.with(std::cell::Cell::get)
+}
 const BROADCAST_CAPACITY: usize = 256;
 
 #[derive(Deserialize)]

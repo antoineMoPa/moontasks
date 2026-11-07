@@ -483,6 +483,8 @@ impl App {
         self.follow_shell_asks(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.follow_extensions(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.let_go_of_hidden_minerve_views();
         if std::mem::take(&mut self.model.project_pending) {
             self.load_project();
         }

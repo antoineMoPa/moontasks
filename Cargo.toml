@@ -46,6 +46,13 @@ uuid = "1"
 rhai = { version = "1.25.1", features = ["serde"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Minerve, served from moon's own executable (`moon __minerve`) and drawn in a pane - see
+# `native::minerve_pane`. Submodules, edited together with moon.
+minerve = { version = "0.7", path = "crates/minerve" }
+minerve-gui = { version = "0.2", path = "crates/minerve-egui" }
+# minerve's MCP client brings rustls's aws-lc-rs backend beside the ring one moon's TLS uses;
+# with two, rustls panics unless one is installed as the default - see `run()`.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 axum = { version = "0.8", features = ["json", "ws"] }
 getrandom_03 = { package = "getrandom", version = "0.3" }
 hmac = "0.12"

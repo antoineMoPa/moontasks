@@ -38,6 +38,7 @@ mod file_tree;
 mod files;
 mod finding;
 mod inspect_minerve;
+mod minerve_pane;
 mod launch;
 mod layout;
 mod open_from_shell;

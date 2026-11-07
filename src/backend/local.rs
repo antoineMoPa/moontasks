@@ -411,7 +411,9 @@ impl Backend for LocalBackend {
         task_id: &str,
         request: StartResourceRequest,
     ) -> Result<String> {
-        moontasks::service::start_resource(&self.state, session_id, task_id, request)
+        crate::terminal::for_this_window(|| {
+            moontasks::service::start_resource(&self.state, session_id, task_id, request)
+        })
     }
 
     fn resume_task_resource(
@@ -420,7 +422,9 @@ impl Backend for LocalBackend {
         task_id: &str,
         resource_id: &str,
     ) -> Result<String> {
-        moontasks::service::resume_resource(&self.state, session_id, task_id, resource_id)
+        crate::terminal::for_this_window(|| {
+            moontasks::service::resume_resource(&self.state, session_id, task_id, resource_id)
+        })
     }
 
     fn list_agent_sessions(
@@ -436,7 +440,9 @@ impl Backend for LocalBackend {
         task_id: &str,
         request: &AttachResourceRequest,
     ) -> Result<String> {
-        moontasks::service::attach_resource(&self.state, session_id, task_id, request)
+        crate::terminal::for_this_window(|| {
+            moontasks::service::attach_resource(&self.state, session_id, task_id, request)
+        })
     }
 
     fn stop_task_resource(&self, session_id: &str, task_id: &str, resource_id: &str) -> Result<()> {
@@ -517,7 +523,9 @@ impl Backend for LocalBackend {
     }
 
     fn create_terminal(&self, session_id: &str, command: Option<AgentKind>) -> Result<String> {
-        crate::terminal::start_workspace_shell(&self.state, session_id, command)
+        crate::terminal::for_this_window(|| {
+            crate::terminal::start_workspace_shell(&self.state, session_id, command)
+        })
     }
 
     fn create_terminal_in_folder(&self, session_id: &str, folder: &Path) -> Result<String> {
@@ -572,6 +580,16 @@ impl Backend for LocalBackend {
         terminal_id: &str,
     ) -> Result<crate::agent_conversation::AgentConversation> {
         self.state.terminals.agent_conversation(terminal_id)
+    }
+
+    fn minerve_link(&self, terminal_id: &str) -> Option<(minerve_gui::Link, Option<String>)> {
+        let (events, control) = self.state.terminals.minerve_link(terminal_id)?;
+        let opening_line = control.take_opening_line();
+        let link = minerve_gui::Link {
+            events,
+            send: Box::new(move |line| control.send_line(&line)),
+        };
+        Some((link, opening_line))
     }
 
     fn submit_to_agent(&self, _session_id: &str, terminal_id: &str, text: &str) -> Result<()> {

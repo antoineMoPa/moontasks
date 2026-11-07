@@ -663,8 +663,21 @@ impl PaneView<Pane> for App {
                 review::task_review::draw(self, ui, pane_id, &task_id);
             }
             Pane::Agents => review::draw_agents(self, ui),
-            Pane::Terminal { terminal_id, .. } => {
+            Pane::Terminal {
+                terminal_id,
+                command,
+                ..
+            } => {
                 let terminal_id = terminal_id.clone();
+                // A Minerve started for this window is drawn with minerve's own view.
+                #[cfg(not(target_arch = "wasm32"))]
+                if *command == Some(AgentKind::Minerve)
+                    && crate::native::minerve_pane::draw(self, ui, &terminal_id)
+                {
+                    return;
+                }
+                #[cfg(target_arch = "wasm32")]
+                let _ = command;
                 self.draw_terminal(ui, pane_id, &terminal_id);
             }
             Pane::File {

@@ -382,6 +382,8 @@ impl App {
                 display_wants_showing: false,
                 #[cfg(not(target_arch = "wasm32"))]
                 extension_panes: HashMap::new(),
+                #[cfg(not(target_arch = "wasm32"))]
+                minerve_views: Default::default(),
                 markdown_cache: Default::default(),
                 find: None,
                 terminal_with_keyboard: None,

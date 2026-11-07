@@ -20,7 +20,7 @@ use super::{
 };
 
 impl TerminalRegistry {
-    pub(crate) fn spawn(self: &Arc<Self>, spec: TerminalSpec) -> anyhow::Result<String> {
+    pub(crate) fn spawn(self: &Arc<Self>, mut spec: TerminalSpec) -> anyhow::Result<String> {
         let pty = native_pty_system().openpty(PtySize {
             rows: 24,
             cols: 80,
@@ -36,6 +36,15 @@ impl TerminalRegistry {
              started for nobody"
         );
         let runs_as = spec.runs_as.as_ref().map(|person| &person.unix_user);
+        // A window in this process draws Minerve's own view - see `crate::native::minerve_pane` -
+        // so Minerve is moon's `__minerve --serve` rather than its terminal one. Not as another
+        // Unix user, who has no control socket.
+        let serves_a_view = runs_as.is_none() && super::starting_for_this_window();
+        // Its pty is not drawn: the opening line goes in the view's box instead.
+        let opening_line = match serves_a_view && spec.program == TerminalProgram::Agent(AgentKind::Minerve) {
+            true => spec.type_ahead.take(),
+            false => None,
+        };
         let (program, mut arguments) = match &spec.program {
             TerminalProgram::LoginShell => {
                 let shell = match runs_as {
@@ -51,6 +60,10 @@ impl TerminalRegistry {
             TerminalProgram::Agent(AgentKind::Codex) => ("codex".to_string(), Vec::new()),
             TerminalProgram::Agent(AgentKind::OpenCode) => ("opencode".to_string(), Vec::new()),
             TerminalProgram::Agent(AgentKind::Pi) => ("pi".to_string(), Vec::new()),
+            TerminalProgram::Agent(AgentKind::Minerve) if serves_a_view => (
+                crate::minerve_executable()?.display().to_string(),
+                vec![crate::MINERVE_SUBCOMMAND.to_string(), "--serve".to_string()],
+            ),
             TerminalProgram::Agent(AgentKind::Minerve) => ("minerve".to_string(), Vec::new()),
         };
         // Every agent moon starts is told to say through the terminal when it wants a
@@ -107,7 +120,10 @@ impl TerminalRegistry {
         // socket is in.
         let agent_control = match (&spec.program, runs_as) {
             (TerminalProgram::Agent(AgentKind::Minerve), None) => {
-                let (control, listener) = AgentControl::listen()?;
+                let (control, listener) = AgentControl::listen(serves_a_view)?;
+                if let Some(line) = opening_line {
+                    control.set_opening_line(line.trim_end_matches('\r').to_string());
+                }
                 command.env(MINERVE_CONTROL_SOCKET_ENV_VAR, control.socket_path());
                 Some((control, listener))
             }

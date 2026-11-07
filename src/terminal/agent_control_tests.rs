@@ -10,7 +10,12 @@ use crate::agent_conversation::AgentMessageRole;
 
 /// An agent on the other end of a fresh control socket, the way Minerve connects to it.
 fn connected_agent() -> (Arc<AgentControl>, UnixStream) {
-    let (control, listener) = AgentControl::listen().unwrap();
+    connected_agent_serving(false)
+}
+
+/// The same, for a Minerve started with `--serve` for a window's view.
+fn connected_agent_serving(serves_a_view: bool) -> (Arc<AgentControl>, UnixStream) {
+    let (control, listener) = AgentControl::listen(serves_a_view).unwrap();
     control.read_in_background(listener, Weak::new());
     let agent = UnixStream::connect(control.socket_path()).unwrap();
     agent
@@ -101,7 +106,72 @@ fn another_protocol_version_stops_the_reading_and_says_why() {
 #[test]
 fn an_unreadable_line_stops_the_reading_and_says_why() {
     let (control, mut agent) = connected_agent();
-    write_lines(&mut agent, &[r#"{"type":"dance"}"#]);
+    // A type moon does not read is passed over - see the next test - but one it reads, said
+    // wrong, is another protocol.
+    write_lines(&mut agent, &[r#"{"type":"state","state":"dancing"}"#]);
     let conversation = wait_for(&control, |conversation| conversation.broken.is_some());
-    assert!(conversation.broken.unwrap().contains("dance"));
+    assert!(conversation.broken.unwrap().contains("dancing"));
+}
+
+#[test]
+fn what_serve_says_for_a_window_is_passed_over_and_the_conversation_goes_on() {
+    let (control, mut agent) = connected_agent_serving(true);
+    write_lines(
+        &mut agent,
+        &[
+            r#"{"type":"hello","version":1,"minerve_version":"0.7.0","features":["serve"]}"#,
+            r#"{"type":"transcript","messages":[["user","hi"]]}"#,
+            r#"{"type":"usage","summary":"Sent: 1k | Cost: $0.01"}"#,
+            r#"{"type":"state","state":"working"}"#,
+        ],
+    );
+    let conversation = wait_for(&control, |conversation| conversation.state.is_some());
+    assert_eq!(conversation.state, Some(AgentState::Working));
+    assert_eq!(conversation.broken, None);
+}
+
+#[test]
+fn a_view_tapping_in_late_gets_the_latest_state_first_then_every_line() {
+    let (control, mut agent) = connected_agent_serving(true);
+    write_lines(
+        &mut agent,
+        &[
+            r#"{"type":"hello","version":1}"#,
+            r#"{"type":"usage","summary":"old"}"#,
+            r#"{"type":"transcript","messages":[]}"#,
+            r#"{"type":"usage","summary":"new"}"#,
+            r#"{"type":"state","state":"waiting_for_input"}"#,
+        ],
+    );
+    wait_for(&control, |conversation| conversation.state.is_some());
+    let lines = control.tap().expect("a served Minerve can be tapped");
+    let first: Vec<String> = lines.try_iter().collect();
+    assert_eq!(
+        first,
+        [
+            r#"{"type":"hello","version":1}"#,
+            r#"{"type":"transcript","messages":[]}"#,
+            r#"{"type":"state","state":"waiting_for_input"}"#,
+            r#"{"type":"usage","summary":"new"}"#,
+        ]
+    );
+    write_lines(&mut agent, &[r#"{"type":"notice","notice":"n"}"#]);
+    let next = lines.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(next, r#"{"type":"notice","notice":"n"}"#);
+
+    // What the view writes reaches the agent as it wrote it.
+    control.send_line(r#"{"type":"get_intro"}"#);
+    let mut asked = String::new();
+    BufReader::new(agent.try_clone().unwrap()).read_line(&mut asked).unwrap();
+    assert_eq!(asked.trim_end(), r#"{"type":"get_intro"}"#);
+
+    // The view hears the agent hang up.
+    drop(agent);
+    assert!(lines.recv_timeout(Duration::from_secs(5)).is_err());
+}
+
+#[test]
+fn a_terminal_minerve_has_nothing_to_tap() {
+    let (control, _agent) = connected_agent();
+    assert!(control.tap().is_none());
 }

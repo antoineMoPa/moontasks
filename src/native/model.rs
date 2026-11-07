@@ -235,6 +235,10 @@ pub(crate) struct Model {
     /// The extensions open in tabs, keyed by the pane each one draws.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) extension_panes: HashMap<PaneId, crate::native::extension_pane::ExtensionPane>,
+    /// Minerve's own view of each Minerve shell a tab shows, by terminal id - see
+    /// [`crate::native::minerve_pane`].
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) minerve_views: crate::native::minerve_pane::MinerveViews,
     /// What the markdown renderer keeps between frames - loaded images above all - shared by
     /// every file pane that is previewing.
     pub(crate) markdown_cache: egui_commonmark::CommonMarkCache,

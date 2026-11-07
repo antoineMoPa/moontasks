@@ -72,6 +72,31 @@ mod web;
 /// a word to a window that is already open.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run() -> anyhow::Result<()> {
+    // Two crypto backends are linked (ring, and minerve's aws-lc-rs): rustls panics on the
+    // first TLS connection unless one is the default.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    // `moon __minerve ...` is minerve itself, linked into moon so one binary ships both: what a
+    // Minerve pane starts (see `native::minerve_pane`). Never a word moon's own command line knows.
+    if std::env::args().nth(1).as_deref() == Some(MINERVE_SUBCOMMAND) {
+        minerve::main_with_args(std::env::args_os().skip(1));
+        return Ok(());
+    }
     pass_keys::handoff::take_from_environment();
     cli::run()
+}
+
+/// The first argument that makes `moon` run as minerve, with minerve's own arguments after it.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const MINERVE_SUBCOMMAND: &str = "__minerve";
+
+/// The executable `moon __minerve` is run from: this one. A test runs from
+/// `target/<profile>/deps`, where the `moon` built beside it is.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn minerve_executable() -> std::io::Result<std::path::PathBuf> {
+    let exe = std::env::current_exe()?;
+    if cfg!(test) {
+        let beside = exe.parent().and_then(std::path::Path::parent).map(|dir| dir.join("moon"));
+        return beside.ok_or_else(|| std::io::Error::other("the test binary has no target folder"));
+    }
+    Ok(exe)
 }

@@ -28,6 +28,8 @@ pub(crate) mod web_account;
 // browser's window is never on.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod extension_pane;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod minerve_pane;
 pub(crate) mod file_pane;
 pub(crate) mod file_picker;
 pub(crate) mod file_tree;

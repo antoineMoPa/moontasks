@@ -22,3 +22,11 @@
 	path = crates/egui_command_palette
 	url = git@github.com:antoineMoPa/egui_command_palette.git
 	branch = main
+[submodule "crates/minerve"]
+	path = crates/minerve
+	url = git@github.com:antoineMoPa/minerve.git
+	branch = main
+[submodule "crates/minerve-egui"]
+	path = crates/minerve-egui
+	url = git@github.com:antoineMoPa/minerve-egui.git
+	branch = main
