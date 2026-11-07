@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#ffffff">
     <meta name="description" content="MoonTask is a local sprint board for organizing tasks, coding agents, shells, and review in one focused workspace.">
-    <meta property="og:title" content="moon-dev-tools - local tools for agentic software development">
+    <meta property="og:title" content="moontasks - agent multiplexer">
     <meta property="og:description" content="A local sprint board where every task keeps its notes, agents, shells, and review together.">
     <meta property="og:type" content="website">
     <meta property="og:image" content="https://antoinemopa.github.io/moon-dev-tools/assets/social-preview.png">
     <meta name="twitter:card" content="summary_large_image">
-    <title>moon-dev-tools - local tools for agentic software development</title>
+    <title>moontasks - agent multiplexer</title>
     <link rel="icon" href="assets/logos/moontasks-32.png" sizes="32x32">
     <link rel="apple-touch-icon" href="assets/logos/moontasks-128.png">
     <link rel="stylesheet" href="site.css">
@@ -19,24 +19,22 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header id="top">
-      <h1>moon-dev-tools</h1>
+      <h1>moontasks</h1>
     </header>
 
     <main id="main">
-      <video class="promo" src="assets/moon-dev-tools.mp4" poster="assets/moon-dev-tools-poster.jpg" width="1920" height="1080" controls playsinline preload="none"></video>
-
-      <section class="intro" aria-label="About moon dev tools">
-        <p>moon-dev-tools is the work environment that will <em>hopefully</em> restore focus to your agentic software development, let you ship hundreds of tasks, and review your code at lunar speed.</p>
+      <section class="intro" aria-label="About moontasks">
+        <p>moontasks is an agent multiplexer. It runs several coding agents at once, each attached to a task on a sprint board, and shows you which ones need you.</p>
       </section>
 
       <section id="about">
-        <h2>What is moon-dev-tools?</h2>
-        <p>You are probably dealing with messy terminal tabs and hundreds of disorganized agent conversations. moon-dev-tools is the solution to this problem.</p>
-        <p>moon-dev-tools is essentially an operating system for agentic software development. It lets you group shells and agents in tasks. If you know how to use a task board and how to use a terminal, you already know how to use moon-dev-tools.</p>
-        <p>Once a task is ready for review, you can review code straight from moon, ask agents to change code, then commit and push.</p>
+        <h2>What is moontasks?</h2>
+        <p>Agents running in loose terminal tabs are hard to keep track of. moontasks is an agent multiplexer: it puts each task's shells and agents in one place.</p>
+        <p>It runs Claude, Codex, OpenCode, Pi and Minerve. Each agent's card turns red when it is waiting for you or has finished, and the message it printed is kept in the window.</p>
+        <p>When a task is ready, review its code in moon, send comments back to an agent to change it, then commit and push.</p>
       </section>
 
-      <section id="workflow">
+      <section id="screens">
         <figure>
           <a href="assets/moontasks-workspace.png"><img src="assets/moontasks-workspace.png" alt="MoonTask showing a three-column task board beside a task shell" width="1400" height="800"></a>
           <figcaption>Moon window</figcaption>
@@ -49,7 +47,7 @@
 
       <section id="remote">
         <h2>Use remotely</h2>
-        <p>While it runs natively, moon-dev-tool uses a client/server model letting you do anything remotely from a web browser, using a wasm version of the app.</p>
+        <p>While it runs natively, moontasks uses a client/server model letting you do anything remotely from a web browser, using a wasm version of the app.</p>
         <p>Run <code>moon serve</code> in a repo on your server and open the link it prints.</p>
         <p>The server listens on localhost only. Reach it through an SSH tunnel, or start a Cloudflare tunnel from the Tools menu.</p>
         <p>Tools &gt; Cloudflare &gt; Start Tunnel</p>
@@ -66,7 +64,7 @@
 
       <section id="modular">
         <h2>Reusable pieces</h2>
-        <p>A few parts of moon-dev-tools could be helpful in other projects:</p>
+        <p>A few parts of moontasks could be helpful in other projects:</p>
         <dl>
           <dt><a href="https://crates.io/crates/egui_frames"><code>egui_frames</code></a></dt>
           <dd>Tabs, splits, and draggable panes with a serializable layout.</dd>
@@ -80,7 +78,7 @@
 
       <section id="install">
         <h2>Installation</h2>
-        <p>Install the moon dev tools suite: MoonTask, MoonReview, and MoonShell.</p>
+        <p>Install the moontasks suite: MoonTask, MoonReview, and MoonShell.</p>
         <div class="terminal-command">
           <code>curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moon-dev-tools/main/install.sh | sh</code>
           <button type="button" data-copy aria-label="Copy install command"><span class="copy-label" aria-live="polite">Copy</span></button>
