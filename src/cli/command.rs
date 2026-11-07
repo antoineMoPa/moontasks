@@ -583,7 +583,7 @@ pub(crate) fn help_text() -> String {
     format!(
         "{PROGRAM}
 
-lunar local dev tools.
+lunar dev tools.
 
 Usage:
 {windows}
