@@ -1,6 +1,6 @@
-# 🌚 moon-dev-tools
+# 🌚 moontasks
 
-`moon-dev-tools` brings task planning, agent workspaces, shells and code review together. It installs one executable, `moon`. 
+`moontasks` brings task planning, agent workspaces, shells and code review together. It installs one executable, `moon`. 
 
 It is usable both natively and in browsers, allowing to control
 remote workspaces.
@@ -30,7 +30,7 @@ comments to your local Claude, Codex, OpenCode, Pi or Minerve coding agent.
 Install the latest prebuilt release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moon-dev-tools/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moontasks/main/install.sh | sh
 ```
 
 This installs `moon` and the desktop launchers. If `~/.local/bin` is not already on
