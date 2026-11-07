@@ -122,7 +122,7 @@ mod tests {
 
     fn keys(name: &str) -> PassKeys {
         let dir =
-            std::env::temp_dir().join(format!("moonreview-tickets-{}-{name}", std::process::id()));
+            std::env::temp_dir().join(format!("moontasks-tickets-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         PassKeys::kept_at(&dir.join("secret")).expect("expected a secret")
     }

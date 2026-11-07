@@ -261,7 +261,7 @@ pub(crate) struct Model {
     pub(crate) opened_project: Option<String>,
     /// The project this window is on, once one is open. What the title bar says.
     pub(crate) project_path: Option<String>,
-    /// The targets the Project menu runs, as the repo's `.moonreview.json` has them. Read
+    /// The targets the Project menu runs, as the repo's `.moontasks.json` has them. Read
     /// when the review opens, and again whenever the configuration pane is opened or saves,
     /// because the file is one a person may also edit by hand.
     pub(crate) project: ProjectConfig,

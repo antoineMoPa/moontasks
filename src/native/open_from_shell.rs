@@ -88,7 +88,7 @@ impl App {
                 self.shell_asks = Some(asks);
             }
             // Not fatal: the window works, `moon open` just cannot reach this one.
-            Err(error) => eprintln!("[moonreview] `moon open` cannot reach this window: {error}"),
+            Err(error) => eprintln!("[moon] `moon open` cannot reach this window: {error}"),
         }
     }
 
@@ -111,12 +111,12 @@ impl App {
                 && let Some(repo_root) = &repo_root
             {
                 if let Err(error) = asks.on_project(&repo_root.display().to_string()) {
-                    eprintln!("[moonreview] could not write this window down: {error}");
+                    eprintln!("[moon] could not write this window down: {error}");
                 }
                 self.project_asks_reach_this_window_on = Some(repo_root.clone());
             }
             if came_forward && let Err(error) = asks.came_to_the_front() {
-                eprintln!("[moonreview] could not write this window down: {error}");
+                eprintln!("[moon] could not write this window down: {error}");
             }
             self.asked_files.extend(arrived);
             self.asked_shells.extend(asks.drain_shells());

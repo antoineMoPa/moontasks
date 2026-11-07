@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ZIG_MAJOR_MINOR="0.15"
-RUST_TOOLCHAIN="${MOONREVIEW_RUST_TOOLCHAIN:-stable}"
+RUST_TOOLCHAIN="${MOONTASKS_RUST_TOOLCHAIN:-${MOONREVIEW_RUST_TOOLCHAIN:-stable}}"
 
 require_command() {
     command_name="$1"

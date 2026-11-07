@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// The bar's id, and the top panel's.
-const BAR_ID: &str = "moonreview-menu-bar";
+const BAR_ID: &str = "moontasks-menu-bar";
 
 /// How far below the middle of its line the logo is drawn, in points, to sit level with the
 /// letters of "moon" beside it.

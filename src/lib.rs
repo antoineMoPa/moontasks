@@ -1,4 +1,4 @@
-//! moonreview - the whole application as one library, behind one executable.
+//! moon - the whole application as one library, behind one executable.
 //!
 //! `moon` opens a window on one of three things - a review, the task board, or a shell -
 //! which are three [`cli::Frame`]s over the same everything else; and it reaches the windows
@@ -75,14 +75,22 @@ pub fn run() -> anyhow::Result<()> {
     // Two crypto backends are linked (ring, and minerve's aws-lc-rs): rustls panics on the
     // first TLS connection unless one is the default.
     let _ = rustls::crypto::ring::default_provider().install_default();
+    settings::move_the_old_home_folder();
     // `moon __minerve ...` is minerve itself, linked into moon so one binary ships both: what a
     // Minerve pane starts (see `native::minerve_pane`). Never a word moon's own command line knows.
     if std::env::args().nth(1).as_deref() == Some(MINERVE_SUBCOMMAND) {
-        minerve::main_with_args(std::env::args_os().skip(1));
+        // Minerve reads its first argument as its own name.
+        minerve::main_with_args(std::iter::once("minerve".into()).chain(std::env::args_os().skip(2)));
         return Ok(());
     }
     pass_keys::handoff::take_from_environment();
     cli::run()
+}
+
+/// The variable `name` (a `MOONTASKS_*` one), or its `MOONTASKS_*` name from before moon was
+/// moontasks, which agents started by an older moon still have.
+pub(crate) fn moon_env_var_os(name: &str) -> Option<std::ffi::OsString> {
+    std::env::var_os(name).or_else(|| std::env::var_os(name.replacen("MOONTASKS_", "MOONREVIEW_", 1)))
 }
 
 /// The first argument that makes `moon` run as minerve, with minerve's own arguments after it.

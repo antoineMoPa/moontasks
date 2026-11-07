@@ -10,7 +10,7 @@
 //! Between them, Hack and egui's other bundled fonts miss most of what command line programs
 //! draw with: the box-drawing characters that make a table, the block elements that make a
 //! bar, and the braille patterns that make a spinner. All of those render as empty boxes,
-//! which is what a shell in moonreview looked like whenever a tool tried to draw anything.
+//! which is what a shell in moon looked like whenever a tool tried to draw anything.
 //! Rather than bundle a whole font for it, this borrows one the operating system already
 //! ships. The candidates are tried in order and every one that loads is appended to every
 //! family, so a character missing from the first is still found in the next.

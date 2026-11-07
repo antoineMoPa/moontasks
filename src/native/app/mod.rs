@@ -645,7 +645,9 @@ impl App {
 /// that belongs to the person rather than to the window, so it lives in
 /// [`crate::settings`] - one file, in the server's home directory, that they can read and edit.
 #[cfg(not(target_arch = "wasm32"))]
-const LAYOUT_STORAGE_KEY: &str = "moonreview-workspace-layout";
+const LAYOUT_STORAGE_KEY: &str = "moontasks-workspace-layout";
+/// The key it was saved under before moon was moontasks, read when the new one is not there.
+const OLD_LAYOUT_STORAGE_KEY: &str = "moonreview-workspace-layout";
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -723,13 +725,15 @@ impl App {
     /// arrangement is a far better outcome than one that refuses to open.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn restore_layout_from(&mut self, storage: Option<&dyn eframe::Storage>) {
-        let Some(encoded) = storage.and_then(|storage| storage.get_string(LAYOUT_STORAGE_KEY))
+        let Some(encoded) = storage.and_then(|storage| {
+            storage.get_string(LAYOUT_STORAGE_KEY).or_else(|| storage.get_string(OLD_LAYOUT_STORAGE_KEY))
+        })
         else {
             return;
         };
         match serde_json::from_str::<Layout<Pane>>(&encoded) {
             Ok(stored) => self.model.restored_layout = Some(stored),
-            Err(error) => eprintln!("[moonreview] ignoring a stored layout: {error}"),
+            Err(error) => eprintln!("[moon] ignoring a stored layout: {error}"),
         }
     }
 

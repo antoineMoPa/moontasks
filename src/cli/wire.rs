@@ -97,7 +97,7 @@ pub(super) fn run(command: WireCommand) -> Result<()> {
             Ok(())
         }
         WireCommand::Post { tags, message } => {
-            post(&tags, &message, std::env::var_os(TASK_DIR_ENV_VAR))
+            post(&tags, &message, crate::moon_env_var_os(TASK_DIR_ENV_VAR))
         }
     }
 }
@@ -250,7 +250,7 @@ mod tests {
     /// A repo with a board of two cards, `Fix the races` and `Bing bong`, and their ids.
     fn board(name: &str) -> (PathBuf, String, String) {
         let repo = std::env::temp_dir().join(format!(
-            "moonreview-wire-cli-{}-{name}-{}",
+            "moontasks-wire-cli-{}-{name}-{}",
             std::process::id(),
             store::new_uuid()
         ));

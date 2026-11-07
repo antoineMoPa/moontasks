@@ -65,14 +65,14 @@ impl RemoteBackend {
         let health = client
             .get(format!("{base_url}/healthz"))
             .send()
-            .with_context(|| format!("failed to reach a moonreview server at {base_url}"))?;
+            .with_context(|| format!("failed to reach a moon server at {base_url}"))?;
         if !health.status().is_success() {
             bail!("{base_url} answered {} for /healthz", health.status());
         }
         let admitted = client
             .get(format!("{base_url}/api/pass-key"))
             .send()
-            .with_context(|| format!("failed to reach a moonreview server at {base_url}"))?;
+            .with_context(|| format!("failed to reach a moon server at {base_url}"))?;
         if admitted.status() == StatusCode::UNAUTHORIZED {
             bail!(
                 "{base_url} did not accept the pass key ({}); run `moon generate-pass-key` on \
@@ -87,7 +87,7 @@ impl RemoteBackend {
         let about_me = client
             .get(format!("{base_url}/api/me"))
             .send()
-            .with_context(|| format!("failed to reach a moonreview server at {base_url}"))?;
+            .with_context(|| format!("failed to reach a moon server at {base_url}"))?;
         // A server from before people signed in has no such route, and asks it of nobody.
         if about_me.status() != reqwest::StatusCode::NOT_FOUND {
             let profile: ProfileView = about_me

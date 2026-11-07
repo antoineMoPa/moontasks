@@ -1,6 +1,6 @@
 # Moontasks
 
-`moontasks` opens a sprint board over the repo. `moonreview` and `moonshell` reach the same
+`moontasks` opens a sprint board over the repo. `moon` and `moonshell` reach the same
 board from the command palette, in a tab of their own.
 Each card is a task with an agent behind it: name a task, and `[start]` puts an agent to work
 on it in the repo.
@@ -164,7 +164,7 @@ Today is not a whole day, and has room for less as it goes by: the share of a da
 fits in the hours left, a day being eight hours long and ending at half past four - and never
 more than a day's work less what today has finished already. Once the day has ended there is
 no `today` line, and the column starts at `tomorrow`. When the day ends is the project's to
-say, under `the day ends at` in its settings: it is written to `.moonreview.json` as
+say, under `the day ends at` in its settings: it is written to `.moontasks.json` as
 `"day_ends_at": "21:00"`, so a project worked on in the evenings ends later than the day job.
 
 Today's line is yellow and the line of every day after it is blue, so a column that starts at
@@ -204,11 +204,11 @@ The board is a folder in the repo, which is the whole of its state:
     …                 # anything you or an agent puts here
 ```
 
-Nothing about it is moonreview's alone: create a task with `mkdir` and a `metadata.json`,
+Nothing about it is moon's alone: create a task with `mkdir` and a `metadata.json`,
 move a card by editing the file, and the board picks it up on its next read.
 
 A board is working state — running agents, scratch files, whatever an agent leaves in a task
-folder — so it ignores itself from the moment it is created, and opening moonreview in a repo
+folder — so it ignores itself from the moment it is created, and opening moon in a repo
 leaves `git status` exactly as it was. To share the board with the rest of the team instead,
 delete `.moontasks/.gitignore` and commit the folder; it will not come back.
 
@@ -274,7 +274,7 @@ stopped printing, which is it having drawn an input to type into and being sat w
 quarter of a second of silence, rather than a flat wait long enough for the slowest of the
 three. Three seconds is the point where it types anyway. Nothing sends it. A title that is the
 whole of what you wanted is one Enter away, and one that is not is there to be written over.
-The Enter is never moonreview's, so an agent that was still asking whether it trusts the
+The Enter is never moon's, so an agent that was still asking whether it trusts the
 folder loses the text rather than acting on it.
 
 If you get there first it types nothing at all. A title arriving in the middle of a sentence
@@ -294,9 +294,9 @@ task it is on and one that has to be told twice.
 ## What survives a restart
 
 The shells are the server's, so they outlive the window: closing it and opening it again
-finds the same agents still working. They do not outlive the server — a `moonreview serve`
+finds the same agents still working. They do not outlive the server — a `moon serve`
 that is restarted, or a native window that is quit, takes its shells with it. What survives is
 the record of every run, so the board comes back with each one marked as ended and `resume`
-available to start it again. For Claude that resumes the exact session, because moonreview
+available to start it again. For Claude that resumes the exact session, because moon
 gives it the session id when it starts it; Codex and OpenCode are resumed by their own
 reckoning of the most recent session in the repo.

@@ -1,4 +1,4 @@
-//! Moontasks: the sprint board moonreview runs agents from.
+//! Moontasks: the sprint board moon runs agents from.
 //!
 //! [`store`] is the `.moontasks` folder on disk and [`service`] is everything the board
 //! do to it.

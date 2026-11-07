@@ -73,7 +73,7 @@ impl ServerAsks {
                     // Taken out of the lock before the answer, which a start is waited on in.
                     let shells = shells.lock().expect("the shells lock").clone();
                     if let Err(error) = answer(stream, applications.as_ref(), shells.as_deref()) {
-                        eprintln!("[moonreview] could not answer a `moon` ask: {error}");
+                        eprintln!("[moon] could not answer a `moon` ask: {error}");
                     }
                 }
             })

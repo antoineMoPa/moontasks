@@ -145,7 +145,7 @@ pub(crate) fn brief_for(title: &str, task_dir: &str, tracker_url: &str) -> Strin
         false => format!("Task: {title}\nTask folder: {task_dir}\nTracker issue: {tracker_url}"),
     };
     format!(
-        "You are working on a task from moonreview's moontasks board.\n\
+        "You are working on a task from moon's moontasks board.\n\
          \n\
          {task}\n\
          \n\
@@ -169,7 +169,7 @@ pub(crate) fn brief_for(title: &str, task_dir: &str, tracker_url: &str) -> Strin
 /// changed by changing those files. The person who opened the shell says the rest.
 pub(crate) fn board_task_brief_for(board_dir: &str, home_dir: &str) -> String {
     format!(
-        "You were started from moonreview's moontasks board itself, not from one of its cards: \
+        "You were started from moon's moontasks board itself, not from one of its cards: \
          for work on the board, or for work no card is about.\n\
          \n\
          Board folder: {board_dir}\n\
@@ -299,7 +299,7 @@ pub(crate) fn agent_launch(agent: AgentKind) -> Option<&'static AgentLaunch> {
 /// The environment every process moontasks starts for a task is given, so anything running
 /// there - an agent, a shell the user opens, anything either of them starts - knows which
 /// task it is in and which server owns it.
-pub(crate) const TASK_ID_ENV_VAR: &str = "MOONREVIEW_TASK_ID";
-pub(crate) const TASK_DIR_ENV_VAR: &str = "MOONREVIEW_TASK_DIR";
-pub(crate) const SESSION_ID_ENV_VAR: &str = "MOONREVIEW_SESSION_ID";
-pub(crate) const SERVER_URL_ENV_VAR: &str = "MOONREVIEW_SERVER_URL";
+pub(crate) const TASK_ID_ENV_VAR: &str = "MOONTASKS_TASK_ID";
+pub(crate) const TASK_DIR_ENV_VAR: &str = "MOONTASKS_TASK_DIR";
+pub(crate) const SESSION_ID_ENV_VAR: &str = "MOONTASKS_SESSION_ID";
+pub(crate) const SERVER_URL_ENV_VAR: &str = "MOONTASKS_SERVER_URL";

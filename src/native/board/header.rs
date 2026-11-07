@@ -91,8 +91,8 @@ mod tests {
     #[test]
     fn the_board_agents_title_names_the_project_folder() {
         assert_eq!(
-            board_agent_title(Some("/Users/jameo/prog/moon-dev-tools")),
-            "Board moon-dev-tools agent"
+            board_agent_title(Some("/Users/jameo/prog/moontasks")),
+            "Board moontasks agent"
         );
     }
 

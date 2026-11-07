@@ -303,7 +303,7 @@ fn the_tracker_link_file_names_the_metadata_field() {
 /// A repo with nothing in it but what the test puts there.
 fn temp_repo(name: &str) -> PathBuf {
     let repo = std::env::temp_dir().join(format!(
-        "moonreview-task-files-{}-{name}-{}",
+        "moontasks-task-files-{}-{name}-{}",
         std::process::id(),
         store::new_uuid()
     ));

@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-PACKAGE="moon-review"
+PACKAGE="moontasks"
 WASM_TARGET="wasm32-unknown-unknown"
 
 # Each place the package is built, as the `cargo clean` arguments that name it: the native debug

@@ -2,16 +2,16 @@
 
 set -eu
 
-REPO="${MOONREVIEW_REPO:-antoineMoPa/moon-dev-tools}"
-INSTALL_DIR="${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}"
+REPO="${MOONTASKS_REPO:-${MOONREVIEW_REPO:-antoineMoPa/moontasks}}"
+INSTALL_DIR="${MOONTASKS_INSTALL_DIR:-${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}}"
 # The one executable: the three windows and the commands that reach them are all `moon`.
 PROGRAM="moon"
 INSTALL_PATH="${INSTALL_DIR}/${PROGRAM}"
-DOWNLOAD_BASE_URL="${MOONREVIEW_DOWNLOAD_BASE_URL:-}"
+DOWNLOAD_BASE_URL="${MOONTASKS_DOWNLOAD_BASE_URL:-${MOONREVIEW_DOWNLOAD_BASE_URL:-}}"
 
 need_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
-        echo "moon dev tools installer: missing required command: $1" >&2
+        echo "moontasks installer: missing required command: $1" >&2
         exit 1
     fi
 }
@@ -66,16 +66,16 @@ verify_platform() {
 
     case "${os}:${arch}" in
         Darwin:arm64)
-            echo "moonreview-aarch64-apple-darwin"
+            echo "moontasks-aarch64-apple-darwin"
             ;;
         Linux:x86_64 | Linux:amd64)
-            echo "moonreview-x86_64-unknown-linux-gnu"
+            echo "moontasks-x86_64-unknown-linux-gnu"
             ;;
         Linux:aarch64 | Linux:arm64)
-            echo "moonreview-aarch64-unknown-linux-gnu"
+            echo "moontasks-aarch64-unknown-linux-gnu"
             ;;
         *)
-            echo "moon dev tools installer supports macOS arm64, Linux amd64, and Linux arm64 only (detected ${os} ${arch})." >&2
+            echo "moontasks installer supports macOS arm64, Linux amd64, and Linux arm64 only (detected ${os} ${arch})." >&2
             exit 1
             ;;
     esac
@@ -105,7 +105,7 @@ CHECKSUM_NAME="${ARCHIVE_NAME}.sha256"
 
 SUM_CMD="$(checksum_cmd)"
 if [ -z "$SUM_CMD" ]; then
-    echo "moon dev tools installer: missing checksum tool (shasum or sha256sum)." >&2
+    echo "moontasks installer: missing checksum tool (shasum or sha256sum)." >&2
     exit 1
 fi
 
@@ -123,8 +123,16 @@ else
     CHECKSUM_URL="https://github.com/${REPO}/releases/latest/download/${CHECKSUM_NAME}"
 fi
 
-echo "Downloading moon dev tools from ${REPO}..."
-curl -fsSL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
+echo "Downloading moontasks from ${REPO}..."
+if ! curl -fsSL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}" 2>/dev/null; then
+    # Releases before the rename named their archives moonreview-<target>.
+    OLD_ARCHIVE_NAME="moonreview-${ASSET_BASENAME#moontasks-}.tar.gz"
+    ARCHIVE_URL="${ARCHIVE_URL%/*}/${OLD_ARCHIVE_NAME}"
+    CHECKSUM_URL="${CHECKSUM_URL%/*}/${OLD_ARCHIVE_NAME}.sha256"
+    ARCHIVE_NAME="$OLD_ARCHIVE_NAME"
+    CHECKSUM_NAME="${ARCHIVE_NAME}.sha256"
+    curl -fsSL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
+fi
 curl -fsSL "$CHECKSUM_URL" -o "${TMP_DIR}/${CHECKSUM_NAME}"
 
 (
@@ -136,7 +144,7 @@ mkdir -p "$INSTALL_DIR"
 tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
 
 if [ ! -f "${TMP_DIR}/${PROGRAM}" ]; then
-    echo "moon dev tools installer: the archive does not contain ${PROGRAM}." >&2
+    echo "moontasks installer: the archive does not contain ${PROGRAM}." >&2
     exit 1
 fi
 

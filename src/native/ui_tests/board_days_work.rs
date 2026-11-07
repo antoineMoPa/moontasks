@@ -19,7 +19,7 @@ const TOMORROW: &str = "tomorrow";
 
 /// A project whose day ends as it starts, so the day is over at any hour a test runs.
 fn end_the_day(fixture: &Fixture) {
-    fixture.write(".moonreview.json", "{ \"day_ends_at\": \"0:00\" }\n");
+    fixture.write(".moontasks.json", "{ \"day_ends_at\": \"0:00\" }\n");
 }
 
 /// Noon UTC on a day in November 2023, which is that day in every zone a board is read in.

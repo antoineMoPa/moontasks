@@ -99,8 +99,8 @@ fn run_claude(prompt: String, job: &DispatchJob, model: Option<&str>) -> Result<
         .wait_with_streamed_output_from_stdin(
             prompt.as_bytes(),
             "failed to write prompt to Claude",
-            "[moonreview] Claude stdout: ",
-            "[moonreview] Claude stderr: ",
+            "[moon] Claude stdout: ",
+            "[moon] Claude stderr: ",
             Arc::clone(&job.cancel_token),
             Arc::clone(&job.log),
         )?;
@@ -123,8 +123,8 @@ fn run_codex(prompt: String, job: &DispatchJob, model: Option<&str>) -> Result<S
         .wait_with_streamed_output_from_stdin(
             prompt.as_bytes(),
             "failed to write prompt to Codex",
-            "[moonreview] Codex stdout: ",
-            "[moonreview] Codex stderr: ",
+            "[moon] Codex stdout: ",
+            "[moon] Codex stderr: ",
             Arc::clone(&job.cancel_token),
             Arc::clone(&job.log),
         )?;
@@ -146,8 +146,8 @@ fn run_opencode(prompt: String, job: &DispatchJob, model: Option<&str>) -> Resul
         .wait_with_streamed_output_from_stdin(
             b"",
             "failed to write prompt to OpenCode",
-            "[moonreview] OpenCode stdout: ",
-            "[moonreview] OpenCode stderr: ",
+            "[moon] OpenCode stdout: ",
+            "[moon] OpenCode stderr: ",
             Arc::clone(&job.cancel_token),
             Arc::clone(&job.log),
         )?;
@@ -168,8 +168,8 @@ fn run_pi(prompt: String, job: &DispatchJob, model: Option<&str>) -> Result<Stri
         .wait_with_streamed_output_from_stdin(
             prompt.as_bytes(),
             "failed to write prompt to Pi",
-            "[moonreview] Pi stdout: ",
-            "[moonreview] Pi stderr: ",
+            "[moon] Pi stdout: ",
+            "[moon] Pi stderr: ",
             Arc::clone(&job.cancel_token),
             Arc::clone(&job.log),
         )?;
@@ -189,8 +189,8 @@ fn run_minerve(prompt: String, job: &DispatchJob, model: Option<&str>) -> Result
         .wait_with_streamed_output_from_stdin(
             prompt.as_bytes(),
             "failed to write prompt to Minerve",
-            "[moonreview] Minerve stdout: ",
-            "[moonreview] Minerve stderr: ",
+            "[moon] Minerve stdout: ",
+            "[moon] Minerve stderr: ",
             Arc::clone(&job.cancel_token),
             Arc::clone(&job.log),
         )?;
@@ -376,6 +376,9 @@ fn stream_reader<R: Read>(mut reader: R, prefix: &'static str, log: AgentLog) ->
 }
 
 pub(crate) fn command_exists(command: &str) -> Result<bool> {
+    if crate::shell_path::runs_bundled(command) {
+        return Ok(true);
+    }
     let path = crate::shell_path::tools_path_of_the_current_user()?;
     Ok(command_exists_on(path.as_ref(), command))
 }
@@ -392,7 +395,11 @@ fn command_exists_on(path: &std::ffi::OsStr, command: &str) -> bool {
 
 /// Which agents the user moon runs as has installed.
 pub(crate) fn detect_agent_availability() -> crate::api::AgentAvailability {
-    detect_agent_availability_on(crate::shell_path::installed_tools_path().as_ref())
+    crate::api::AgentAvailability {
+        // Built in: see `crate::shell_path::runs_bundled`.
+        minerve: true,
+        ..detect_agent_availability_on(crate::shell_path::installed_tools_path().as_ref())
+    }
 }
 
 /// Which agents are found on `path`, the login `PATH` of whoever would run them - a person's

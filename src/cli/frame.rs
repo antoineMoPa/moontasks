@@ -77,7 +77,7 @@ const FRAME_PROGRAMS: &[FrameProgram] = &[
     FrameProgram {
         frame: Frame::Review,
         subcommand: "review",
-        slug: "moonreview",
+        slug: "moon",
         display_name: "Moonreview",
         opens: "a review of the repo",
         asks_for_repo: "Which repo to review:",

@@ -501,7 +501,7 @@ fn draw_editor(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str, pa
             // out on an earlier frame - see [`crate::native::completing`]. The editor draws
             // the list and puts the chosen row in; this pane never touches the text.
             completions: editor.completing.on_offer(),
-            // What a Tab press puts in, as the repo's `.moonreview.json` has it - four spaces
+            // What a Tab press puts in, as the repo's `.moontasks.json` has it - four spaces
             // until it says otherwise. A fact about the repo, so it is read from the repo.
             indent,
             // What the server behind the file found wrong with it - see

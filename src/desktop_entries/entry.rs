@@ -306,7 +306,7 @@ mod tests {
     /// Read an entry of this text, as a file in a scratch folder of the test's own.
     fn read_text(test: &str, text: &str, session: &Session) -> Result<Option<InstalledApplication>> {
         let file = env::temp_dir().join(format!(
-            "moonreview-desktop-entry-{}-{test}.desktop",
+            "moontasks-desktop-entry-{}-{test}.desktop",
             std::process::id()
         ));
         fs::write(&file, text).expect("the entry's file");

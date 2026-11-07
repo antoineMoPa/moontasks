@@ -33,7 +33,7 @@ const BUILD_COMMAND: &str = "printf %s [the-build-command-ran]";
 fn what_is_typed_into_the_project_pane_is_what_the_palette_runs() {
     // Arrange: a repo with no project file at all, which is every repo the first time.
     let fixture = seeded_fixture("project-pane");
-    let project_file = fixture.root.join(".moonreview.json");
+    let project_file = fixture.root.join(".moontasks.json");
     assert!(
         !project_file.exists(),
         "the fixture starts with no project file"
@@ -601,7 +601,7 @@ fn the_project_pane_shows_when_the_day_ends() {
     use egui_kittest::kittest::Queryable as _;
 
     let fixture = seeded_fixture("project-pane-day-end");
-    fixture.write(".moonreview.json", "{ \"day_ends_at\": \"21:05\" }\n");
+    fixture.write(".moontasks.json", "{ \"day_ends_at\": \"21:05\" }\n");
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     let mut opened = false;
     let mut harness = Harness::builder()

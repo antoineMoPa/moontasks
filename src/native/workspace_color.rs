@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::native::theme::ThemeMode;
 
 /// A color a workspace can be marked with. Kept per project in
-/// `~/.moonreview/settings.json` on the machine the project is on, so it follows the project
+/// `~/.moontasks/settings.json` on the machine the project is on, so it follows the project
 /// to a window on any machine: which color a window is belongs to the person, not the repo.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

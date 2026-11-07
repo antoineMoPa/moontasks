@@ -69,7 +69,7 @@ fn toasts_stand_in_the_bottom_left_corner() {
 
     let toasts = harness
         .ctx
-        .memory(|memory| memory.area_rect("moonreview-toasts"))
+        .memory(|memory| memory.area_rect("moontasks-toasts"))
         .expect("expected the toasts to have been drawn");
     assert!(
         toasts.left() < 40.0 && toasts.right() < WINDOW.x / 2.0,

@@ -26,8 +26,8 @@ const MAP_STATUS_LETTER_TO_CHANGE_KIND: &[(char, FileChangeKind)] = &[
 /// The environment the run's shell is given: where to read the commit message from, and where
 /// to write down how the command went. Both are named rather than spelled out in the command,
 /// so what the pane shows is the command the user would have typed.
-const MESSAGE_VARIABLE: &str = "MOONREVIEW_RUN_MESSAGE";
-const STATUS_VARIABLE: &str = "MOONREVIEW_RUN_STATUS";
+const MESSAGE_VARIABLE: &str = "MOONTASKS_RUN_MESSAGE";
+const STATUS_VARIABLE: &str = "MOONTASKS_RUN_STATUS";
 
 /// The two files one review's run uses. They live in the temp dir rather than in the repo, so
 /// nothing a run needs can end up staged by the next one; a review runs one command at a time,
@@ -37,11 +37,11 @@ const STATUS_VARIABLE: &str = "MOONREVIEW_RUN_STATUS";
 /// written, and the status read and taken away, by a thread working as them, and the shell
 /// between the two runs as them - see [`crate::unix_users::as_user`].
 fn run_message_path(session_id: &str) -> std::path::PathBuf {
-    run_files_dir().join(format!("moonreview-run-{session_id}.message"))
+    run_files_dir().join(format!("moontasks-run-{session_id}.message"))
 }
 
 fn run_status_path(session_id: &str) -> std::path::PathBuf {
-    run_files_dir().join(format!("moonreview-run-{session_id}.status"))
+    run_files_dir().join(format!("moontasks-run-{session_id}.status"))
 }
 
 /// The temp dir every Unix user of a machine can write in.
@@ -459,7 +459,7 @@ mod tests {
         )
         .expect("expected a command");
 
-        assert_eq!(command, "git commit -F \"$MOONREVIEW_RUN_MESSAGE\"");
+        assert_eq!(command, "git commit -F \"$MOONTASKS_RUN_MESSAGE\"");
     }
 
     #[test]
@@ -639,7 +639,7 @@ mod tests {
             lines[1], "git push -u origin HEAD",
             "the command runs as itself"
         );
-        assert_eq!(lines[2], "echo $? > \"$MOONREVIEW_RUN_STATUS\"");
+        assert_eq!(lines[2], "echo $? > \"$MOONTASKS_RUN_STATUS\"");
         assert!(
             lines[0].starts_with("printf "),
             "the pane is shown what ran, printed {:?}",
@@ -656,7 +656,7 @@ mod tests {
     fn personal_run_records_status_then_discards_credentials_but_keeps_identity() {
         let script = run_script("git push", true, "/bin/sh");
         let lines: Vec<_> = script.lines().collect();
-        assert_eq!(lines[2], "echo $? > \"$MOONREVIEW_RUN_STATUS\"");
+        assert_eq!(lines[2], "echo $? > \"$MOONTASKS_RUN_STATUS\"");
         assert_eq!(
             lines[3],
             "unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN"
@@ -669,14 +669,14 @@ mod tests {
     #[test]
     fn a_command_the_script_prints_is_quoted_so_the_shell_leaves_it_alone() {
         let script = run_script(
-            "git commit -F \"$MOONREVIEW_RUN_MESSAGE\"",
+            "git commit -F \"$MOONTASKS_RUN_MESSAGE\"",
             false,
             "/bin/sh",
         );
 
         assert_eq!(
             script.lines().next(),
-            Some("printf '%s\\n' 'git commit -F \"$MOONREVIEW_RUN_MESSAGE\"'")
+            Some("printf '%s\\n' 'git commit -F \"$MOONTASKS_RUN_MESSAGE\"'")
         );
     }
 
@@ -730,7 +730,7 @@ mod tests {
 
     #[test]
     fn the_commit_state_of_a_repo_reads_what_is_staged() {
-        let root = std::env::temp_dir().join(format!("moonreview-commit-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("moontasks-commit-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("failed to create the fixture");
         git::run_git_no_output(&root, &["init", "--initial-branch=main"]).expect("failed to init");

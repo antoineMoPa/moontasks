@@ -3330,7 +3330,7 @@ dependencies = [
 
 [[package]]
 name = "minerve"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -3375,7 +3375,7 @@ dependencies = [
 
 [[package]]
 name = "minerve-gui"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "arboard",
  "dirs 6.0.0",
@@ -3410,7 +3410,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "moon-review"
+name = "moon_display"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "x11rb",
+]
+
+[[package]]
+name = "moon_launcher"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "x11rb",
+]
+
+[[package]]
+name = "moon_lsp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lsp-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "moon_toggle_switch"
+version = "0.1.0"
+dependencies = [
+ "egui",
+]
+
+[[package]]
+name = "moontasks"
 version = "0.60.0"
 dependencies = [
  "anyhow",
@@ -3470,39 +3503,6 @@ dependencies = [
  "webbrowser",
  "wry",
  "zeroize",
-]
-
-[[package]]
-name = "moon_display"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "x11rb",
-]
-
-[[package]]
-name = "moon_launcher"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "x11rb",
-]
-
-[[package]]
-name = "moon_lsp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "lsp-types",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "moon_toggle_switch"
-version = "0.1.0"
-dependencies = [
- "egui",
 ]
 
 [[package]]

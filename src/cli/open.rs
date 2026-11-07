@@ -338,7 +338,7 @@ mod tests {
     /// cannot collide.
     fn temporary_folder(name: &str) -> PathBuf {
         let folder = std::env::temp_dir().join(format!(
-            "moonreview-test-open-{}-{name}",
+            "moontasks-test-open-{}-{name}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&folder);

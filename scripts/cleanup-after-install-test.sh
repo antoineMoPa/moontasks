@@ -14,7 +14,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 PROGRAMS=(moon moonreview moontasks moonshell)
-INSTALL_DIR="${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${MOONTASKS_INSTALL_DIR:-${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}}"
 CARGO_BIN_DIR="${CARGO_INSTALL_ROOT:-$HOME/.cargo}/bin"
 
 if [ "$INSTALL_DIR" = "$CARGO_BIN_DIR" ]; then

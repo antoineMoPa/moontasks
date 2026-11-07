@@ -26,7 +26,7 @@ const DIRECTORY_CHARS: usize = 34;
 
 /// The staging dot of a file row, which is also the control that stages it.
 pub(crate) fn stage_dot_id(file_path: &str) -> egui::Id {
-    egui::Id::new(("moonreview-stage-dot", file_path))
+    egui::Id::new(("moontasks-stage-dot", file_path))
 }
 
 pub(crate) fn draw(app: &mut App, ui: &mut Ui, session_id: &str, palette: &Palette) {
@@ -490,7 +490,7 @@ fn draw_commits_section(
     });
     ui.add_space(3.0);
 
-    // "local changes" is the working-tree review, which is where moonreview starts.
+    // "local changes" is the working-tree review, which is where moon starts.
     if draw_commit_row(
         ui,
         "local changes",

@@ -104,7 +104,7 @@ fn tab_rects(app: &App) -> Vec<egui::Rect> {
 }
 
 /// A throwaway git repo with a commit and some uncommitted work, which is the situation
-/// moonreview exists for.
+/// moon exists for.
 pub(crate) struct Fixture {
     pub(crate) root: PathBuf,
 }
@@ -120,7 +120,7 @@ impl Fixture {
         // The repo's directory name is what the header shows, so it is fixed; only the
         // enclosing directory carries what makes this run unique.
         let enclosing =
-            std::env::temp_dir().join(format!("moonreview-ui-{}-{name}", std::process::id()));
+            std::env::temp_dir().join(format!("moontasks-ui-{}-{name}", std::process::id()));
         let root = enclosing.join("repo");
         let _ = fs::remove_dir_all(&enclosing);
         fs::create_dir_all(&root).expect("failed to create the fixture directory");

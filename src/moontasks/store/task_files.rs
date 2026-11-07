@@ -65,7 +65,7 @@ mod tests {
     /// A repo whose one task has `names` in its folder, made fresh for the test named `name`.
     fn repo_with_files(name: &str, names: &[&str]) -> std::path::PathBuf {
         let repo = std::env::temp_dir().join(format!(
-            "moonreview-task-files-{}-{name}",
+            "moontasks-task-files-{}-{name}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&repo);

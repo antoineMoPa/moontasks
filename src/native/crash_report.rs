@@ -1,6 +1,6 @@
 //! Crash report - a panic on the window's thread ends the process, and from the Dock its
 //! message goes to a stderr nobody reads. So it is also added to
-//! `~/.moonreview/moon crash reports.txt`, and the next window to open says what took the
+//! `~/.moontasks/moon crash reports.txt`, and the next window to open says what took the
 //! last one down.
 //!
 //! Only the main thread counts: a worker that panics takes its own job down, not the window.
@@ -37,7 +37,7 @@ pub(crate) fn install() {
             .open(&path)
             .and_then(|mut file| file.write_all(report.as_bytes()));
         if let Err(error) = written {
-            eprintln!("[moonreview] could not write the crash report to {path:?}: {error}");
+            eprintln!("[moon] could not write the crash report to {path:?}: {error}");
         }
     }));
 }
@@ -49,7 +49,7 @@ fn moon_frames(backtrace: &str) -> String {
         .iter()
         .enumerate()
         // The hook's own frame is this file writing the report, not where the panic was.
-        .filter(|(_, line)| line.contains("moonreview::") && !line.contains("crash_report::"))
+        .filter(|(_, line)| line.contains("moontasks::") && !line.contains("crash_report::"))
         .take(FRAMES_KEPT)
         .map(|(index, line)| {
             let at = lines
@@ -83,5 +83,5 @@ pub(crate) fn take_unshown() -> Option<String> {
 }
 
 fn reports_path() -> Option<PathBuf> {
-    Some(crate::settings::moonreview_dir()?.join(REPORTS_FILE_NAME))
+    Some(crate::settings::moontasks_dir()?.join(REPORTS_FILE_NAME))
 }

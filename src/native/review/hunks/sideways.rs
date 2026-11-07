@@ -128,7 +128,7 @@ fn drag_bar(
 
     let bar = ui.interact(
         track,
-        egui::Id::new(("moonreview-code-scroll-bar", hunk_id)),
+        egui::Id::new(("moontasks-code-scroll-bar", hunk_id)),
         Sense::drag(),
     );
     let mut scrolled = scroll_x;

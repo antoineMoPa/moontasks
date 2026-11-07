@@ -56,14 +56,14 @@ pub(crate) fn row_pitch(ui: &Ui) -> f32 {
 /// enclosing `Ui`, so it is the same wherever the line is drawn - which is also what lets the
 /// tests find a line and click it.
 pub(crate) fn diff_line_id(hunk_id: &str, index: usize) -> egui::Id {
-    egui::Id::new(("moonreview-diff-line", hunk_id, index))
+    egui::Id::new(("moontasks-diff-line", hunk_id, index))
 }
 
 /// The id of the bubble that opens a composer on the selected run. One selection at a time,
 /// so one per hunk - and derived from the hunk rather than from the `Ui`, for the same reason
 /// [`diff_line_id`] is: it is how the tests find the bubble and press it.
 pub(crate) fn comment_bubble_id(session_id: &str, hunk_id: &str) -> egui::Id {
-    egui::Id::new(("moonreview-comment-bubble", session_id, hunk_id))
+    egui::Id::new(("moontasks-comment-bubble", session_id, hunk_id))
 }
 
 /// Where a line's body text starts, matching what `draw_line_text` paints: the gutter, then
@@ -141,7 +141,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, session_id: &str, palette: &Palet
         return;
     };
     // A review of one unchanged file has nothing to diff, so the file opens in a tab of its
-    // own - `moonreview package.json` on a file nobody has touched is a request to read it.
+    // own - `moon package.json` on a file nobody has touched is a request to read it.
     if payload.hunks.is_empty()
         && let Some(path) = payload.full_file_path.as_deref()
     {

@@ -83,10 +83,10 @@ fn main() {
         .typescript(false)
         // The page's `init()` finds the module beside the script, as the CLI's output does.
         .omit_default_module_path(false)
-        .out_name("moonreview")
+        .out_name("moontasks")
         .generate(&dist)
         .unwrap_or_else(|error| panic!("wasm-bindgen could not bind {}: {error:#}", wasm.display()));
-    point_env_import_at_shim(&dist.join("moonreview.js"));
+    point_env_import_at_shim(&dist.join("moontasks.js"));
     for (published, source) in PAGE_FILES {
         let published = dist.join(published);
         fs::create_dir_all(published.parent().expect("a published file is in a folder"))
@@ -181,7 +181,7 @@ fn compile_wasm(
     target_dir
         .join(WASM_TARGET)
         .join(wasm_folder)
-        .join("moonreview.wasm")
+        .join("moontasks.wasm")
 }
 
 /// Install the wasm32 standard library when the toolchain has none, so a first build needs

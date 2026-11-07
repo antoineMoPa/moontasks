@@ -6,15 +6,15 @@ containers, to start, stop and restart them, open a shell in one, or follow its 
 logs of every running container at once; and `users` (`Tools › Users`) lists who is in this
 machine's moon server - every pass key and browser login, with the address it last came from -
 to kick one out, or everyone at once by making a new secret. Any `.rhai` file in
-`~/.moonreview/extensions/` is another, offered in the command palette (`⌘⇧P`) under its file
+`~/.moontasks/extensions/` is another, offered in the command palette (`⌘⇧P`) under its file
 name.
 
 A file there with the same name as a shipped one takes its place, which is how a shipped one is
 changed without building `moon` again:
 
 ```bash
-mkdir -p ~/.moonreview/extensions
-cp extensions/files.rhai ~/.moonreview/extensions/
+mkdir -p ~/.moontasks/extensions
+cp extensions/files.rhai ~/.moontasks/extensions/
 ```
 
 The copy is yours from then on: it no longer follows the shipped one as `moon` is updated, and
@@ -25,7 +25,7 @@ says about it.
 
 ## Writing one
 
-A script in `~/.moonreview/extensions/` is read again every time it is saved, with its pane open
+A script in `~/.moontasks/extensions/` is read again every time it is saved, with its pane open
 beside the editor. The pane keeps its state across the change, and `init` is run again on the
 side: a field it answers with that the state has not got is added, and an `every` it sets takes
 effect. The fields the state already has keep their values - to start from scratch, run
@@ -158,5 +158,5 @@ Extensions run on the machine the window is on, so a window on a `--remote` proj
 
 Everything above, with your permissions: run any program, reach any address, read any folder -
 and write anywhere, through a program it runs. Nothing asks first, and a pane put back when a
-window opens starts its script straight away. Put in `~/.moonreview/extensions/` only what you
+window opens starts its script straight away. Put in `~/.moontasks/extensions/` only what you
 would run in a shell yourself.

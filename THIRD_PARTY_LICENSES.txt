@@ -2452,9 +2452,9 @@ lru 0.12.5 (MIT)
     Copyright (c) 2016 Jerome Froelich
 matchit 0.8.4 (MIT AND BSD-3-Clause)
     Copyright (c) 2022 Ibraheem Ahmed
-minerve 0.7.0 (MIT)
+minerve 0.8.0 (MIT)
     Copyright (c) 2025 Antoine M-P
-minerve-gui 0.2.0 (MIT)
+minerve-gui 0.3.0 (MIT)
     Copyright (c) 2026 Antoine M-P
 miniz_oxide 0.8.9 (MIT OR Zlib OR Apache-2.0)
     Copyright 2013-2014 RAD Game Tools and Valve Software

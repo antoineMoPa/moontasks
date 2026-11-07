@@ -93,10 +93,10 @@ jobs:
         run: bash scripts/_internal/build-release.sh ${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
-          name: moonreview-${{ matrix.target }}
+          name: moontasks-${{ matrix.target }}
           # The folder named in full, so the artifact holds the files without it, and the upload
           # job can hand them to the release as they are.
-          path: target/release-artifacts/${{ steps.version.outputs.tag }}/moonreview-${{ matrix.target }}.tar.gz*
+          path: target/release-artifacts/${{ steps.version.outputs.tag }}/moontasks-${{ matrix.target }}.tar.gz*
           if-no-files-found: error
           retention-days: 7
   upload:

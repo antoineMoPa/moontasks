@@ -46,7 +46,7 @@ pub(crate) fn serve(name: &str) -> Served {
 fn serve_with(name: &str, users: Users) -> Served {
     let key = users.keys().generate();
     let root =
-        std::env::temp_dir().join(format!("moonreview-server-{}-{name}", std::process::id()));
+        std::env::temp_dir().join(format!("moontasks-server-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("failed to create the fixture directory");
     run_git_no_output(&root, &["init"]).expect("failed to init the fixture repo");

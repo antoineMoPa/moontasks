@@ -8,7 +8,7 @@ with it.
 What goes in:
 
 - every crate the release targets link, found by walking `cargo metadata`'s resolve from the
-  `moon-review` package through its normal and build dependencies (never dev ones), with the
+  `moontasks` package through its normal and build dependencies (never dev ones), with the
   license files each crate ships;
 - what reaches the executable without being a crate, listed in NOT_CRATES below.
 
@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "THIRD_PARTY_LICENSES.txt"
-ROOT_PACKAGE = "moon-review"
+ROOT_PACKAGE = "moontasks"
 
 # The targets the release is built for - see .github/workflows/release.yml.
 RELEASE_TARGETS = [

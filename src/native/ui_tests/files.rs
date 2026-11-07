@@ -245,7 +245,7 @@ fn a_markdown_page_shows_the_pictures_beside_it() {
 }
 
 /// Pointed at a file nobody has touched, the review shows the file itself rather than an
-/// empty diff - `moonreview package.json` is a request to read it.
+/// empty diff - `moon package.json` is a request to read it.
 #[test]
 fn an_unchanged_file_opens_as_the_file_itself() {
     let fixture = Fixture::new("unchanged-file");

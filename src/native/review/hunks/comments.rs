@@ -305,7 +305,7 @@ pub(super) fn draw_composer(
                     // poll refresh, a hunk staged, a comment card appearing - would hand the
                     // box a new id and take the keyboard away mid-sentence.
                     .id(egui::Id::new((
-                        "moonreview-composer",
+                        "moontasks-composer",
                         session_id,
                         hunk.id.as_str(),
                         hash_of(anchor),

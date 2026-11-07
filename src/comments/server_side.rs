@@ -132,7 +132,7 @@ pub(crate) fn spawn_comment_dispatch(state: AppState, job: DispatchJob) {
         });
 
         eprintln!(
-            "[moonreview] dispatch start agent={} repo={} comments={}",
+            "[moon] dispatch start agent={} repo={} comments={}",
             job.agent.label(),
             job.repo_path.display(),
             job.targets.len(),
@@ -142,18 +142,18 @@ pub(crate) fn spawn_comment_dispatch(state: AppState, job: DispatchJob) {
         let result = run_agent_for_the_sender().and_then(|ran| ran);
         let canceled = job.cancel_token.load(Ordering::SeqCst);
         match &result {
-            Ok(detail) => append_to_agent_log(&job.log, &format!("\n[moonreview] {detail}\n")),
-            Err(error) => append_to_agent_log(&job.log, &format!("\n[moonreview] {error}\n")),
+            Ok(detail) => append_to_agent_log(&job.log, &format!("\n[moon] {detail}\n")),
+            Err(error) => append_to_agent_log(&job.log, &format!("\n[moon] {error}\n")),
         }
         match &result {
             Ok(detail) => eprintln!(
-                "[moonreview] dispatch done agent={} comments={} detail={}",
+                "[moon] dispatch done agent={} comments={} detail={}",
                 job.agent.label(),
                 job.targets.len(),
                 detail
             ),
             Err(error) => eprintln!(
-                "[moonreview] dispatch failed agent={} comments={} error={}",
+                "[moon] dispatch failed agent={} comments={} error={}",
                 job.agent.label(),
                 job.targets.len(),
                 error

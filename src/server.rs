@@ -537,7 +537,7 @@ pub(crate) async fn run_server() -> Result<()> {
     let _shell_asks = crate::instances::server::ServerAsks::listen(Arc::new(state.clone()))
         .inspect(|asks| asks.shells_held_by(state.clone(), users.profiles.clone()))
         .inspect_err(|error| {
-            eprintln!("[moonreview] the `moon` typed in a shell cannot reach this server: {error}")
+            eprintln!("[moon] the `moon` typed in a shell cannot reach this server: {error}")
         });
 
     let ticket = users.keys().login_ticket(SERVE_TICKET_LIFETIME);
@@ -631,7 +631,7 @@ const STOP_WARNING: Duration = Duration::from_secs(30);
 async fn stop_asked_for() {
     let interrupted = async {
         if let Err(error) = tokio::signal::ctrl_c().await {
-            eprintln!("[moonreview] failed to listen for shutdown signal: {error}");
+            eprintln!("[moon] failed to listen for shutdown signal: {error}");
         }
     };
     if !crate::unix_users::each_person_has_one() {
@@ -651,7 +651,7 @@ async fn stop_asked_for() {
 async fn warn_of_the_stop(terminals: &crate::terminal::TerminalRegistry) {
     let seconds = STOP_WARNING.as_secs();
     eprintln!(
-        "[moonreview] stopping in {seconds} seconds, which ends everyone's agents; \
+        "[moon] stopping in {seconds} seconds, which ends everyone's agents; \
          interrupt again to stop now"
     );
     terminals.say_in_every_shell(&format!(
@@ -684,7 +684,7 @@ async fn shutdown_signal(
                     .unwrap_or(SERVER_LIFETIME);
                 if idle_for >= SERVER_LIFETIME {
                     eprintln!(
-                        "[moonreview] shutting down after {} minutes of inactivity",
+                        "[moon] shutting down after {} minutes of inactivity",
                         SERVER_LIFETIME.as_secs() / 60
                     );
                     return;

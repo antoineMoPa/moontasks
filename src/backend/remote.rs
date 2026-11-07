@@ -1,6 +1,6 @@
-//! Remote backend - reviews a repo on another machine, over its `moonreview serve` HTTP API.
+//! Remote backend - reviews a repo on another machine, over its `moon serve` HTTP API.
 //!
-//! `moonreview serve` on the far side is the whole server contract, so no extra daemon is
+//! `moon serve` on the far side is the whole server contract, so no extra daemon is
 //! involved.
 
 mod addresses;

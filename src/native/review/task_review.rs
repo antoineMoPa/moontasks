@@ -194,7 +194,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, task_id: &str) {
 
 /// The minimap strip's widget id, derived from the task so the tests can find it.
 pub(crate) fn strip_id(task_id: &str) -> egui::Id {
-    egui::Id::new(("moonreview-task-minimap", task_id))
+    egui::Id::new(("moontasks-task-minimap", task_id))
 }
 
 /// The sessions are found by repo and shared with any other review of it, so a session says

@@ -10,11 +10,13 @@ use serde::{Deserialize, Serialize};
 use super::{AgentKind, BlameOf, DEFAULT_PORT};
 
 pub(crate) const DEFAULT_HOST: &str = "127.0.0.1";
-const HOST_ENV_VAR: &str = "MOONREVIEW_HOST";
-const PORT_ENV_VAR: &str = "MOONREVIEW_PORT";
+const HOST_ENV_VAR: &str = "MOONTASKS_HOST";
+const PORT_ENV_VAR: &str = "MOONTASKS_PORT";
 
 pub(crate) fn bind_host() -> String {
-    env::var(HOST_ENV_VAR).unwrap_or_else(|_| DEFAULT_HOST.to_string())
+    crate::moon_env_var_os(HOST_ENV_VAR)
+        .and_then(|value| value.into_string().ok())
+        .unwrap_or_else(|| DEFAULT_HOST.to_string())
 }
 
 pub(crate) fn client_host() -> String {
@@ -24,15 +26,15 @@ pub(crate) fn client_host() -> String {
     }
 }
 
-/// The port the server is asked to listen on: `MOONREVIEW_PORT`, or [`DEFAULT_PORT`]. Where
+/// The port the server is asked to listen on: `MOONTASKS_PORT`, or [`DEFAULT_PORT`]. Where
 /// it ends up listening may be a port or two up - see [`record_bound_port`].
 pub(crate) fn port() -> Result<u16> {
-    match env::var(PORT_ENV_VAR) {
-        Ok(raw) => raw
-            .parse::<u16>()
+    match crate::moon_env_var_os(PORT_ENV_VAR) {
+        Some(raw) => raw
+            .to_str()
+            .and_then(|raw| raw.parse::<u16>().ok())
             .with_context(|| format!("{PORT_ENV_VAR} must be a valid TCP port")),
-        Err(env::VarError::NotPresent) => Ok(DEFAULT_PORT),
-        Err(error) => Err(error).with_context(|| format!("failed to read {PORT_ENV_VAR}")),
+        None => Ok(DEFAULT_PORT),
     }
 }
 

@@ -68,8 +68,8 @@ pub(crate) enum CommitAction {
 /// The environment the run's shell is given: where to read the commit message from, and where
 /// to write down how the command went. Both are named rather than spelled out in the line that
 /// is typed, so what the user reads on that line is the command they would have typed.
-const MESSAGE_VARIABLE: &str = "MOONREVIEW_RUN_MESSAGE";
-const STATUS_VARIABLE: &str = "MOONREVIEW_RUN_STATUS";
+const MESSAGE_VARIABLE: &str = "MOONTASKS_RUN_MESSAGE";
+const STATUS_VARIABLE: &str = "MOONTASKS_RUN_STATUS";
 
 /// The two files one review's run uses. They live in the temp dir rather than in the repo, so
 /// nothing a run needs can end up staged by the next one; a review runs one command at a time,
@@ -373,7 +373,7 @@ mod tests {
         )
         .expect("expected a command");
 
-        assert_eq!(command, "git commit -F \"$MOONREVIEW_RUN_MESSAGE\"");
+        assert_eq!(command, "git commit -F \"$MOONTASKS_RUN_MESSAGE\"");
     }
 
     #[test]

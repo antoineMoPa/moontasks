@@ -213,7 +213,7 @@ fn a_kick_names_a_user_the_server_has_seen() {
 #[test]
 fn kicking_everyone_is_a_new_secret_that_refuses_every_old_key_and_admits_new_ones() {
     let secret =
-        std::env::temp_dir().join(format!("moonreview-users-kick-all-{}", std::process::id()));
+        std::env::temp_dir().join(format!("moontasks-users-kick-all-{}", std::process::id()));
     let _ = std::fs::remove_file(&secret);
     let _ = std::fs::remove_file(secret.with_file_name(format!(
         "{}.kicked",

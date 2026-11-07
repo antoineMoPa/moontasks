@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn an_empty_query_keeps_every_command() {
         let commands = vec![
-            command("review", "Open the moon-dev-tools review"),
+            command("review", "Open the moontasks review"),
             command("terminal", "Open a new shell"),
         ];
 

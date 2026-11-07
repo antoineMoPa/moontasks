@@ -107,7 +107,7 @@ fn a_key_of_another_secret_or_a_malformed_authorization_is_refused() {
     let client = bare_client();
     let url = format!("{}{CHECK}", served.base_url);
     let other_secret = std::env::temp_dir().join(format!(
-        "moonreview-server-other-secret-{}",
+        "moontasks-server-other-secret-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_file(&other_secret);
@@ -246,7 +246,7 @@ fn the_page_is_the_login_page_until_the_browser_has_a_key() {
         .read_to_string(&mut unpacked)
         .expect("the page should be gzip");
     assert!(
-        unpacked.contains("moonreview.js"),
+        unpacked.contains("moontasks.js"),
         "a logged-in browser should be given the window"
     );
 

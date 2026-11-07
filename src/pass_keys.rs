@@ -6,7 +6,7 @@
 //! request that was meant for it apart from one that was not.
 //!
 //! A key is `<id>.<mac>`: sixteen random bytes, and their HMAC-SHA256 under a secret this
-//! machine keeps in `~/.moonreview/pass-key-secret`, both base64url without padding. Checking
+//! machine keeps in `~/.moontasks/pass-key-secret`, both base64url without padding. Checking
 //! one is recomputing the MAC, so the server remembers nothing about the keys it has handed out:
 //! there can be any number, each window or browser holding its own. Taking every key back is
 //! making a new secret - `Tools › Users` does, through `POST /api/users/kick-all`, and the
@@ -41,7 +41,7 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-/// The file under `~/.moonreview` the secret is kept in.
+/// The file under `~/.moontasks` the secret is kept in.
 const SECRET_FILE_NAME: &str = "pass-key-secret";
 const SECRET_LENGTH: usize = 32;
 const ID_LENGTH: usize = 16;
@@ -58,7 +58,7 @@ pub(crate) struct PassKeys {
 }
 
 impl PassKeys {
-    /// The keys of this machine: the secret in `~/.moonreview`, made on the first call that
+    /// The keys of this machine: the secret in `~/.moontasks`, made on the first call that
     /// needs it. Under test it is a scratch file instead - see [`secret_path`].
     pub(crate) fn for_this_machine() -> Result<Self> {
         Self::kept_at(&secret_path()?)
@@ -155,13 +155,13 @@ pub(crate) fn secret_path() -> Result<PathBuf> {
     #[cfg(test)]
     {
         Ok(std::env::temp_dir().join(format!(
-            "moonreview-test-{SECRET_FILE_NAME}-{}",
+            "moontasks-test-{SECRET_FILE_NAME}-{}",
             std::process::id()
         )))
     }
     #[cfg(not(test))]
     {
-        Ok(crate::settings::moonreview_dir()
+        Ok(crate::settings::moontasks_dir()
             .context("no home directory to keep the pass-key secret in")?
             .join(SECRET_FILE_NAME))
     }
@@ -248,7 +248,7 @@ mod tests {
 
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "moonreview-pass-keys-{}-{name}",
+            "moontasks-pass-keys-{}-{name}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);

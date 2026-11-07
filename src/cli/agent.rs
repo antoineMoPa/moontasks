@@ -406,7 +406,7 @@ mod tests {
     /// A repo with a board of two cards, `Fix the races` and `Bing bong`, and their ids.
     fn board(name: &str) -> (PathBuf, String, String) {
         let repo = std::env::temp_dir().join(format!(
-            "moonreview-agent-cli-{}-{name}-{}",
+            "moontasks-agent-cli-{}-{name}-{}",
             std::process::id(),
             store::new_uuid()
         ));

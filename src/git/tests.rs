@@ -25,7 +25,7 @@ struct TestDir {
 impl TestDir {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "moonreview-test-{}-{}",
+            "moontasks-test-{}-{}",
             std::process::id(),
             NEXT_ID.fetch_add(1, Ordering::Relaxed)
         ));
@@ -227,7 +227,7 @@ fn initial_staged_changes_are_available_before_first_commit() {
     assert!(!history_has_more);
 }
 
-/// `moonreview main..feature` reviews everything on one branch that is not on the other.
+/// `moon main..feature` reviews everything on one branch that is not on the other.
 /// The range goes to git as it was typed; nothing here has to understand it.
 #[test]
 fn a_file_in_the_working_tree_can_be_written_back() {

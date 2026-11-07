@@ -504,7 +504,7 @@ filename src/lib.rs
     impl TestRepo {
         fn new(name: &str) -> Self {
             let path = std::env::temp_dir()
-                .join(format!("moonreview-blame-{}-{name}", std::process::id()));
+                .join(format!("moontasks-blame-{}-{name}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).expect("failed to create the test repo directory");
             run_git_no_output(&path, &["init"]).expect("failed to init");

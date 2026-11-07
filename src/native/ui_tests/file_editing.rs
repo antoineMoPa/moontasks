@@ -226,7 +226,7 @@ fn the_save_button_and_the_chord_write_the_file() {
     );
 }
 
-/// Tab indents by what the repo's `.moonreview.json` asks for, rather than by the tab
+/// Tab indents by what the repo's `.moontasks.json` asks for, rather than by the tab
 /// character egui's text area would type. The whole way through: the file is read as the
 /// review opens, carried on the model, and handed to the editor as it is drawn.
 #[test]
@@ -235,7 +235,7 @@ fn pressing_tab_indents_the_way_the_repo_asks() {
 
     let fixture = Fixture::new("file-tab-indent");
     fixture.write("src/lib.rs", "one\n");
-    fixture.write(".moonreview.json", r#"{ "indent": { "spaces": 2 } }"#);
+    fixture.write(".moontasks.json", r#"{ "indent": { "spaces": 2 } }"#);
     fixture.commit("Add the library");
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);

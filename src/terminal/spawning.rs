@@ -64,6 +64,11 @@ impl TerminalRegistry {
                 crate::minerve_executable()?.display().to_string(),
                 vec![crate::MINERVE_SUBCOMMAND.to_string(), "--serve".to_string()],
             ),
+            // Built in, for this process's own user: see `crate::shell_path::runs_bundled`.
+            TerminalProgram::Agent(AgentKind::Minerve) if runs_as.is_none() => (
+                crate::minerve_executable()?.display().to_string(),
+                vec![crate::MINERVE_SUBCOMMAND.to_string()],
+            ),
             TerminalProgram::Agent(AgentKind::Minerve) => ("minerve".to_string(), Vec::new()),
         };
         // Every agent moon starts is told to say through the terminal when it wants a

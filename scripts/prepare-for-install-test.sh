@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PROGRAMS=(moon moonreview moontasks moonshell)
-INSTALL_DIR="${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${MOONTASKS_INSTALL_DIR:-${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}}"
 CARGO_BIN_DIR="${CARGO_INSTALL_ROOT:-$HOME/.cargo}/bin"
 
 for program in "${PROGRAMS[@]}"; do

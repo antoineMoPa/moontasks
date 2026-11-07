@@ -190,7 +190,7 @@ fn escape_regex(term: &str) -> String {
 #[cfg(test)]
 fn repo_with_an_ignored_file(name: &str) -> std::path::PathBuf {
     let repo = std::env::temp_dir().join(format!(
-        "moonreview-search-{name}-{}-{}",
+        "moontasks-search-{name}-{}-{}",
         std::process::id(),
         crate::moontasks::store::new_uuid()
     ));

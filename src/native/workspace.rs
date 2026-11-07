@@ -1,7 +1,7 @@
 //! Workspace - tracks which panes are open, where they go, and the shells behind them.
 //!
 //! `egui_frames` draws the arrangement and answers the pointer; `egui_tty` is what a shell pane
-//! holds. What is left here is everything only moonreview can decide: where a new pane belongs,
+//! holds. What is left here is everything only moon can decide: where a new pane belongs,
 //! what closing one costs, and which shell a tab is showing.
 
 mod opening;
@@ -195,7 +195,7 @@ impl App {
         ui.add_space(top_inset);
         self.model.columns_fit = holds_two_columns(ui.available_width());
 
-        // The workspace draws moonreview's own panes, so the view it needs is this app: both it
+        // The workspace draws moon's own panes, so the view it needs is this app: both it
         // and the arrangement are lent out for the call and put back straight after.
         self.model.pane_in_front = self.active_pane_id();
         let mut frames = std::mem::take(&mut self.frames);

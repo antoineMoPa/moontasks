@@ -11,10 +11,19 @@ use super::{
 };
 use crate::api::AppState;
 
-const PROJECT_FILE_NAME: &str = ".moonreview.json";
+const PROJECT_FILE_NAME: &str = ".moontasks.json";
+/// What it was called before moon was moontasks: read while the new one is not there, and
+/// removed when the new one is written.
+const OLD_PROJECT_FILE_NAME: &str = ".moonreview.json";
 
 fn project_path(repo_path: &Path) -> PathBuf {
     repo_path.join(PROJECT_FILE_NAME)
+}
+
+fn readable_project_path(repo_path: &Path) -> PathBuf {
+    let path = project_path(repo_path);
+    let old = repo_path.join(OLD_PROJECT_FILE_NAME);
+    if !path.exists() && old.exists() { old } else { path }
 }
 
 /// The repo's file as it may be found on disk: the targets it has now, or the one `build` and
@@ -74,14 +83,14 @@ impl ProjectFile {
 /// with an empty Project menu is worth more than one that refuses to open, and this file is
 /// hand-editable, so a half-typed one is an ordinary thing to find.
 pub(crate) fn read_project(repo_path: &Path) -> ProjectConfig {
-    let path = project_path(repo_path);
+    let path = readable_project_path(repo_path);
     let Ok(text) = std::fs::read_to_string(&path) else {
         return ProjectConfig::default();
     };
     match serde_json::from_str::<ProjectFile>(&text) {
         Ok(file) => file.project(repo_path),
         Err(error) => {
-            eprintln!("[moonreview] ignoring {}: {error}", path.display());
+            eprintln!("[moon] ignoring {}: {error}", path.display());
             ProjectConfig::default()
         }
     }
@@ -91,7 +100,9 @@ pub(crate) fn write_project(repo_path: &Path, commands: &ProjectConfig) -> Resul
     let path = project_path(repo_path);
     let text = serde_json::to_string_pretty(commands).context("failed to encode the commands")?;
     std::fs::write(&path, format!("{text}\n"))
-        .with_context(|| format!("failed to write {}", path.display()))
+        .with_context(|| format!("failed to write {}", path.display()))?;
+    let _ = std::fs::remove_file(repo_path.join(OLD_PROJECT_FILE_NAME));
+    Ok(())
 }
 
 /// The commands of the repo one review is open on. Both frontends ask through this, so the
@@ -156,7 +167,7 @@ mod tests {
 
     fn scratch_repo(name: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("moonreview-project-{}-{name}", std::process::id()));
+            std::env::temp_dir().join(format!("moontasks-project-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("failed to make the scratch repo");
         dir
     }
@@ -186,7 +197,7 @@ mod tests {
             .with_day_ending_at(TimeOfDay::new(21, 5));
         write_project(&repo, &config).expect("failed to write the configuration");
 
-        let written = std::fs::read_to_string(repo.join(".moonreview.json"))
+        let written = std::fs::read_to_string(repo.join(".moontasks.json"))
             .expect("expected the project file");
         assert!(
             written.contains(r#""day_ends_at": "21:05""#),
@@ -243,6 +254,18 @@ mod tests {
         std::fs::write(project_path(&repo), r#"{ "indent": { "spaces": 2 } }"#)
             .expect("failed to write the file");
         assert_eq!(read_project(&repo).indent(), Indent::Spaces(2));
+    }
+
+    #[test]
+    fn a_file_of_the_old_name_is_read_until_the_new_one_is_written() {
+        let repo = scratch_repo("old-name");
+        let old = repo.join(OLD_PROJECT_FILE_NAME);
+        std::fs::write(&old, r#"{ "indent": "tab" }"#).expect("failed to write the file");
+        assert_eq!(read_project(&repo).indent(), Indent::Tab);
+
+        write_project(&repo, &read_project(&repo)).expect("failed to write the project");
+        assert!(!old.exists(), "the old file goes once the new one is written");
+        assert_eq!(read_project(&repo).indent(), Indent::Tab);
     }
 
     #[test]

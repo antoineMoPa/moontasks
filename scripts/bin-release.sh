@@ -40,7 +40,7 @@ sh -n install.sh
 
 LOCAL_TARGET="$(bash scripts/_internal/host-target.sh)"
 bash scripts/_internal/build-release.sh "$LOCAL_TARGET"
-local_archive="target/release-artifacts/$TAG/moonreview-${LOCAL_TARGET}.tar.gz"
+local_archive="target/release-artifacts/$TAG/moontasks-${LOCAL_TARGET}.tar.gz"
 gh release upload "$TAG" "$local_archive" "$local_archive.sha256" --clobber
 
 newest_run_id() {
@@ -69,7 +69,7 @@ downloaded_dir="target/release-artifacts/$TAG/downloaded"
 rm -rf "$downloaded_dir"
 gh release download "$TAG" --dir "$downloaded_dir"
 for target_triple in "${TARGET_TRIPLES[@]}"; do
-    archive_name="moonreview-${target_triple}.tar.gz"
+    archive_name="moontasks-${target_triple}.tar.gz"
     (cd "$downloaded_dir" && shasum -a 256 -c "$archive_name.sha256")
     if [ "$(tar -tzf "$downloaded_dir/$archive_name")" != "moon" ]; then
         echo "$archive_name holds something other than just moon" >&2

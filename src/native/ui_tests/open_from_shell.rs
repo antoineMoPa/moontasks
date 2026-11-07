@@ -293,7 +293,7 @@ fn a_folder_a_shell_asked_for_comes_up_in_the_file_picker() {
     fixture.write("src/lib.rs", "pub fn one() {}\n");
     fixture.commit("Add the library");
     let folder =
-        std::env::temp_dir().join(format!("moonreview-ui-{}-open-folder", std::process::id()));
+        std::env::temp_dir().join(format!("moontasks-ui-{}-open-folder", std::process::id()));
     let _ = std::fs::remove_dir_all(&folder);
     std::fs::create_dir_all(folder.join("notes")).expect("expected a folder");
     std::fs::write(folder.join("hostname"), "moonos\n").expect("expected a file");

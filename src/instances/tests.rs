@@ -127,7 +127,7 @@ fn the_window_holding_the_file_beats_the_one_in_front() {
 fn the_records_live_beside_the_settings() {
     let dir = home_instances_dir().expect("expected a directory");
 
-    assert!(dir.ends_with(".moonreview/instances"), "got {dir:?}");
+    assert!(dir.ends_with(".moontasks/instances"), "got {dir:?}");
 }
 
 /// A moon listens beside the records, in its own home, and that is where its shells find it.
@@ -136,8 +136,8 @@ fn the_records_live_beside_the_settings() {
 /// believes for that server's process and no other.
 #[test]
 fn a_server_whose_shells_run_as_other_unix_users_listens_where_they_all_reach_it() {
-    let records = || Some(PathBuf::from("/home/someone/.moonreview/instances"));
-    let beside_the_records = Some(PathBuf::from("/home/someone/.moonreview/instances/7.sock"));
+    let records = || Some(PathBuf::from("/home/someone/.moontasks/instances"));
+    let beside_the_records = Some(PathBuf::from("/home/someone/.moontasks/instances/7.sock"));
     let shared = PathBuf::from("/run/moon/7.sock");
 
     assert_eq!(socket_path_from(7, false, None, records()), beside_the_records);
@@ -148,7 +148,7 @@ fn a_server_whose_shells_run_as_other_unix_users_listens_where_they_all_reach_it
     );
     assert_eq!(
         socket_path_from(8, false, Some(shared), records()),
-        Some(PathBuf::from("/home/someone/.moonreview/instances/8.sock"))
+        Some(PathBuf::from("/home/someone/.moontasks/instances/8.sock"))
     );
 }
 
@@ -585,7 +585,7 @@ fn a_window_that_closes_takes_its_record_away() {
 /// A directory to stand in for a project, named after the test so two cannot collide.
 fn temporary_project(name: &str) -> PathBuf {
     let project = std::env::temp_dir().join(format!(
-        "moonreview-test-project-{}-{name}",
+        "moontasks-test-project-{}-{name}",
         std::process::id()
     ));
     std::fs::create_dir_all(&project).expect("expected a project directory");

@@ -1,7 +1,7 @@
 //! Panes - the kinds of pane the workspace has, and how the window draws each.
 //!
 //! The arrangement itself - frames, tabs, splits, drags - belongs to `egui_frames`. This is
-//! moonreview's side of it: the four kinds of pane the window has, and the
+//! moon's side of it: the four kinds of pane the window has, and the
 //! [`egui_frames::PaneView`] that names their tabs and draws their bodies.
 
 use egui::{Color32, Response, Sense, Stroke, Ui, vec2};
@@ -126,7 +126,7 @@ pub(crate) enum Pane {
     Submodules,
     /// The two commands the Project menu runs, and where they are set.
     Project,
-    /// The person's own settings, the ones `~/.moonreview/settings.json` keeps for every
+    /// The person's own settings, the ones `~/.moontasks/settings.json` keeps for every
     /// project - see [`crate::native::settings_pane`].
     Settings,
     /// Everything the window has said, with the time it said it - what a click on the status

@@ -38,6 +38,6 @@ git push --follow-tags
 # A draft until bin-release.sh has every target's archive on it, so install.sh, which reads the
 # latest release, never meets one with an archive missing.
 gh release create "v$NEXT_VERSION" --verify-tag --draft --title "v$NEXT_VERSION" \
-    --notes "moon dev tools $NEXT_VERSION"
+    --notes "moontasks $NEXT_VERSION"
 bash scripts/_internal/clean-builds-of-package.sh
 bash scripts/bin-release.sh

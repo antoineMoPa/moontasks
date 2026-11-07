@@ -176,7 +176,7 @@ fn a_file_outside_the_repo_opens_and_saves_and_says_when_it_may_not() {
     let fixture = Fixture::new("file-picker-outside");
     fixture.write("src/lib.rs", "pub fn one() {}\n");
     fixture.commit("Add the library");
-    let folder = std::env::temp_dir().join(format!("moonreview-ui-{}-etc", std::process::id()));
+    let folder = std::env::temp_dir().join(format!("moontasks-ui-{}-etc", std::process::id()));
     let _ = std::fs::remove_dir_all(&folder);
     std::fs::create_dir_all(&folder).expect("expected a folder");
     let folder = folder

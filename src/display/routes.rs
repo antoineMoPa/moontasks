@@ -99,7 +99,7 @@ pub(crate) async fn socket(
     let last_activity = std::sync::Arc::clone(&state.last_activity);
     Ok(upgrade.on_upgrade(move |socket| async move {
         if let Err(error) = watching::watch(socket, running, users, user, last_activity).await {
-            eprintln!("[moonreview] the display's socket ended: {error}");
+            eprintln!("[moon] the display's socket ended: {error}");
         }
     }))
 }

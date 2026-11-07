@@ -1,7 +1,7 @@
 //! Palette history - what was run from the command palette, per project: the newest
 //! [`HISTORY_KEPT`] commands, files, lines, lines of shell and quick tasks, one entry per thing.
 //!
-//! Kept in `~/.moonreview/palette-history.json`, one list per project path. The file is the
+//! Kept in `~/.moontasks/palette-history.json`, one list per project path. The file is the
 //! server's, the way `settings.json` is - see [`crate::settings`]: every window on the server
 //! reads its project's list through its backend, and adds to it one [`HistoryRecord`] at a
 //! time, which the server applies to what the file says then. A file of its own rather than a
@@ -138,7 +138,7 @@ pub(crate) fn path() -> Option<PathBuf> {
     }
     #[cfg(not(test))]
     {
-        Some(crate::settings::moonreview_dir()?.join(HISTORY_FILE_NAME))
+        Some(crate::settings::moontasks_dir()?.join(HISTORY_FILE_NAME))
     }
 }
 

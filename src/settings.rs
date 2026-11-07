@@ -1,4 +1,4 @@
-//! User settings - loads and stores `~/.moonreview/settings.json`: the choices that belong to
+//! User settings - loads and stores `~/.moontasks/settings.json`: the choices that belong to
 //! the person rather than to a repo.
 //!
 //! A review's session is new on every launch, and the arrangement of panes belongs to the
@@ -28,7 +28,10 @@ use serde::{Deserialize, Serialize};
 use crate::{api::AgentKind, native::workspace_color::WorkspaceColor};
 
 #[cfg(not(target_arch = "wasm32"))]
-const SETTINGS_DIR_NAME: &str = ".moonreview";
+const SETTINGS_DIR_NAME: &str = ".moontasks";
+/// What it was called before moon was moontasks - see [`move_the_old_home_folder`].
+#[cfg(not(target_arch = "wasm32"))]
+const OLD_SETTINGS_DIR_NAME: &str = ".moonreview";
 #[cfg(not(target_arch = "wasm32"))]
 const SETTINGS_FILE_NAME: &str = "settings.json";
 
@@ -46,7 +49,7 @@ pub(crate) struct Settings {
     pub(crate) recent_projects: Vec<String>,
     /// The color each project's window is marked with, by the project's path. It is the
     /// person's way of telling their projects apart rather than a fact about the repo, so it
-    /// is kept here rather than in the repo's `.moonreview.json`, where it would be committed
+    /// is kept here rather than in the repo's `.moontasks.json`, where it would be committed
     /// to everyone else working on it.
     ///
     /// A project that is not in the map is one nobody has marked, which is
@@ -216,19 +219,32 @@ impl Settings {
     }
 }
 
-/// `~/.moonreview`: where everything that is the person's rather than a repo's is kept - this
+/// `~/.moontasks`: where everything that is the person's rather than a repo's is kept - this
 /// file, and the extensions they write (see [`crate::extensions`]).
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn moonreview_dir() -> Option<PathBuf> {
+pub(crate) fn moontasks_dir() -> Option<PathBuf> {
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .filter(|home| !home.is_empty())?;
     Some(PathBuf::from(home).join(SETTINGS_DIR_NAME))
 }
 
+/// Moves `~/.moonreview` (its name before moon was moontasks) to `~/.moontasks`, once: when the old one is there and the new one is
+/// not. A window of an older moon still running writes to the old one again; that is left be.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn move_the_old_home_folder() {
+    let Some(new) = moontasks_dir() else { return };
+    let old = new.with_file_name(OLD_SETTINGS_DIR_NAME);
+    if old.is_dir() && !new.exists() {
+        if let Err(error) = std::fs::rename(&old, &new) {
+            eprintln!("[moon] could not move {} to {}: {error}", old.display(), new.display());
+        }
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn home_settings_path() -> Option<PathBuf> {
-    Some(moonreview_dir()?.join(SETTINGS_FILE_NAME))
+    Some(moontasks_dir()?.join(SETTINGS_FILE_NAME))
 }
 
 /// The file this run reads and writes.
@@ -249,7 +265,7 @@ pub(crate) fn path() -> Option<PathBuf> {
     }
 }
 
-/// A scratch file of the test running on this thread, for a file kept under `~/.moonreview`
+/// A scratch file of the test running on this thread, for a file kept under `~/.moontasks`
 /// - see [`path`]. Cargo names each test's thread after the test, which is the isolation this
 /// needs.
 #[cfg(test)]
@@ -267,7 +283,7 @@ pub(crate) fn test_scratch_file(kept: &str) -> PathBuf {
         })
         .collect();
     std::env::temp_dir().join(format!(
-        "moonreview-test-{kept}-{}-{test}.json",
+        "moontasks-test-{kept}-{}-{test}.json",
         std::process::id()
     ))
 }
@@ -283,7 +299,7 @@ pub(crate) fn load() -> Settings {
         return Settings::default();
     };
     read_at(&path).unwrap_or_else(|error| {
-        eprintln!("[moonreview] ignoring {}: {error:#}", path.display());
+        eprintln!("[moon] ignoring {}: {error:#}", path.display());
         Settings::default()
     })
 }
@@ -310,7 +326,7 @@ pub(crate) fn served(state: &crate::api::AppState) -> Settings {
     };
     let _held = CHANGING.lock().expect("the settings lock");
     read_at(path).unwrap_or_else(|error| {
-        eprintln!("[moonreview] ignoring {}: {error:#}", path.display());
+        eprintln!("[moon] ignoring {}: {error:#}", path.display());
         Settings::default()
     })
 }
@@ -367,7 +383,7 @@ mod tests {
     fn settings_live_in_a_dot_directory_of_the_home_directory() {
         let path = home_settings_path().expect("expected a settings path");
 
-        assert!(path.ends_with(".moonreview/settings.json"), "got {path:?}");
+        assert!(path.ends_with(".moontasks/settings.json"), "got {path:?}");
     }
 
     /// The window writes as it runs, so a test run must not be able to reach the real file.

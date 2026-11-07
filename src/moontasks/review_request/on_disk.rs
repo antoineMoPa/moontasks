@@ -268,7 +268,7 @@ fn reviewed_by(repo_path: &Path, request: &ReviewRequest) -> Reviewed {
     let joined = repo_path.join(&request.path_under_repo);
     let repo = crate::git::canonicalize_repo(&joined).unwrap_or(joined);
     // The row is named after the repo, not after wherever its branch is checked out: a worktree
-    // is a directory named after a task, and `pending moon-dev-tools review` is what the person
+    // is a directory named after a task, and `pending moontasks review` is what the person
     // is looking for on the card.
     let name = repo
         .file_name()

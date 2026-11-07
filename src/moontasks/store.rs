@@ -1,6 +1,6 @@
 //! The `.moontasks` folder: one directory per task, and the `metadata.json` inside it.
 //!
-//! The folder is the task. moonreview writes it, but nothing here assumes moonreview is the
+//! The folder is the task. moon writes it, but nothing here assumes moon is the
 //! only writer - a task can be created, renamed or moved between columns with a text editor,
 //! and the board picks the change up on its next poll.
 

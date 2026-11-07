@@ -524,7 +524,7 @@ fn a_terminal_pane_runs_a_shell_and_shows_its_output() {
         egui_tty::Terminal::new(attachment).expect("expected the terminal emulator to start");
 
     // A login shell prints a prompt first; the marker is what this waits for.
-    pane.send(b"printf 'moonreview-ok\\n'\n")
+    pane.send(b"printf 'moontasks-ok\\n'\n")
         .expect("expected to write to the shell");
 
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -533,14 +533,14 @@ fn a_terminal_pane_runs_a_shell_and_shows_its_output() {
         pane.poll();
         screen = pane.visible_text().expect("expected to read the grid");
         // Twice: once as the echoed command, once as its output.
-        if screen.matches("moonreview-ok").count() >= 2 {
+        if screen.matches("moontasks-ok").count() >= 2 {
             break;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
 
     assert!(
-        screen.contains("moonreview-ok"),
+        screen.contains("moontasks-ok"),
         "the shell's output never reached the terminal grid; screen was:\n{screen}"
     );
     assert!(!pane.has_exited(), "the shell should still be running");

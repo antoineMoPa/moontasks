@@ -591,7 +591,7 @@ pub(crate) fn apply(ctx: &egui::Context, mode: ThemeMode, color: WorkspaceColor)
     style.spacing.scroll.bar_width = 9.0;
     style.spacing.scroll.floating = true;
 
-    // moonreview picks its own palette, so the same style applies whichever theme the
+    // moon picks its own palette, so the same style applies whichever theme the
     // desktop reports - the app's light/dark switch is the only thing that changes it.
     ctx.all_styles_mut(|target| *target = style.clone());
     apply_window_theme(ctx, mode);

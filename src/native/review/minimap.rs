@@ -44,7 +44,7 @@ pub(crate) fn fits_beside(pane_width: f32) -> bool {
 /// The strip's widget id. Derived from the review rather than from the enclosing `Ui`, which
 /// is what lets the tests find the strip and press it.
 pub(crate) fn strip_id(session_id: &str) -> egui::Id {
-    egui::Id::new(("moonreview-minimap", session_id))
+    egui::Id::new(("moontasks-minimap", session_id))
 }
 
 /// Where the diff's scroll area was on its last draw.

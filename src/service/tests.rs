@@ -30,7 +30,7 @@ impl Drop for ServedRepo {
 
 fn served_repo(name: &str) -> ServedRepo {
     let enclosing = std::env::temp_dir().join(format!(
-        "moonreview-outside-{}-{}-{name}",
+        "moontasks-outside-{}-{}-{name}",
         std::process::id(),
         NEXT_ID.fetch_add(1, Ordering::Relaxed)
     ));
@@ -246,7 +246,7 @@ fn writing_to_a_file_a_language_server_named_is_still_refused() {
 #[test]
 fn unchanged_file_path_only_selects_clean_local_files() {
     let repo_path = std::env::temp_dir().join(format!(
-        "moonreview-service-test-{}-{}",
+        "moontasks-service-test-{}-{}",
         std::process::id(),
         NEXT_ID.fetch_add(1, Ordering::Relaxed)
     ));
@@ -300,7 +300,7 @@ fn unchanged_file_path_only_selects_clean_local_files() {
 #[test]
 fn a_folder_that_is_no_repo_opens_with_an_empty_review() {
     let enclosing = std::env::temp_dir().join(format!(
-        "moonreview-no-repo-{}-{}",
+        "moontasks-no-repo-{}-{}",
         std::process::id(),
         NEXT_ID.fetch_add(1, Ordering::Relaxed)
     ));

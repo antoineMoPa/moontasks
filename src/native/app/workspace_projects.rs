@@ -49,7 +49,7 @@ impl App {
         }
         if saved.spaces.len() != self.spaces.count() {
             eprintln!(
-                "[moonreview] ignoring the saved projects: {} spaces saved, {} in the window",
+                "[moon] ignoring the saved projects: {} spaces saved, {} in the window",
                 saved.spaces.len(),
                 self.spaces.count()
             );
@@ -65,7 +65,7 @@ impl App {
                 if !on_this_machine || Path::new(project).is_dir() {
                     return Some(project.clone());
                 }
-                eprintln!("[moonreview] not reopening {project}: its folder is gone");
+                eprintln!("[moon] not reopening {project}: its folder is gone");
                 None
             })
             .collect();

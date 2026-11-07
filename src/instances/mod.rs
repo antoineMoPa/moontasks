@@ -2,7 +2,7 @@
 //!
 //! `moon open <file>` is meant to land in a window that is already open rather than start
 //! another one, so every window writes down where it is and listens on a socket of its own:
-//! `~/.moonreview/instances/<pid>.json` says which project the window with that pid is on
+//! `~/.moontasks/instances/<pid>.json` says which project the window with that pid is on
 //! and when it was last in front, and `<pid>.sock` beside it is where it is asked to open a
 //! file. Both are written when the window opens a project and taken away when it closes; a
 //! window that was killed leaves them behind, and the next read clears those out.
@@ -48,7 +48,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{api::AgentKind, terminal::Shown, unix_users::Person};
 
-const SETTINGS_DIR_NAME: &str = ".moonreview";
+const SETTINGS_DIR_NAME: &str = ".moontasks";
 const INSTANCES_DIR_NAME: &str = "instances";
 
 /// The pid of the window a shell was started by, which is how a `moon open` typed in one of

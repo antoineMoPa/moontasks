@@ -176,7 +176,7 @@ impl ShellAsks {
                         &agents,
                         &applications,
                     ) {
-                        eprintln!("[moonreview] could not answer a `moon` ask: {error}");
+                        eprintln!("[moon] could not answer a `moon` ask: {error}");
                         continue;
                     }
                     // The file lands in a tab on the next frame, and a window nobody is

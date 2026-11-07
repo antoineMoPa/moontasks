@@ -68,7 +68,7 @@ pub(super) fn offered_in(folders: &[PathBuf], session: &Session) -> Vec<Installe
                 Ok(Some(application)) => offered.push(application),
                 Ok(None) => {}
                 // One package's broken file is no reason to offer nothing of the others'.
-                Err(error) => eprintln!("[moonreview] ignoring {}: {error:#}", file.display()),
+                Err(error) => eprintln!("[moon] ignoring {}: {error:#}", file.display()),
             }
         }
     }
@@ -88,7 +88,7 @@ fn collect_entry_files(folder: &Path, id_of_folder: &str, files: &mut Vec<(Strin
         // Most machines have no folder at most of the places `XDG_DATA_DIRS` names.
         Err(error) if error.kind() == io::ErrorKind::NotFound => return,
         Err(error) => {
-            eprintln!("[moonreview] not reading {}: {error}", folder.display());
+            eprintln!("[moon] not reading {}: {error}", folder.display());
             return;
         }
     };
@@ -116,7 +116,7 @@ mod tests {
     impl Scratch {
         fn new(test: &str) -> Self {
             let folder = env::temp_dir().join(format!(
-                "moonreview-desktop-entries-{}-{test}",
+                "moontasks-desktop-entries-{}-{test}",
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&folder);

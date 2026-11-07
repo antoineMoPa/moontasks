@@ -2,7 +2,7 @@ use super::*;
 
 fn temp_repo(name: &str) -> PathBuf {
     let path = std::env::temp_dir().join(format!(
-        "moonreview-tasks-{}-{name}-{}",
+        "moontasks-tasks-{}-{name}-{}",
         std::process::id(),
         new_uuid()
     ));
@@ -249,7 +249,7 @@ fn a_directory_without_metadata_is_not_a_task() {
     fs::remove_dir_all(repo).expect("failed to remove the test repo");
 }
 
-/// A board is working state, so opening moonreview in a repo must not put anything in
+/// A board is working state, so opening moon in a repo must not put anything in
 /// somebody's `git status`.
 #[test]
 fn a_new_board_ignores_itself() {

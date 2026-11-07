@@ -40,10 +40,10 @@ pub(super) fn pass_key() -> String {
     of_this_test_run().generate()
 }
 
-/// Start a `moonreview serve` on a free port, over a throwaway repo with pending changes.
+/// Start a `moon serve` on a free port, over a throwaway repo with pending changes.
 pub(super) fn serve_a_repo(name: &str) -> ServedRepo {
     let root =
-        std::env::temp_dir().join(format!("moonreview-remote-{}-{name}", std::process::id()));
+        std::env::temp_dir().join(format!("moontasks-remote-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("failed to create the fixture directory");
 
@@ -656,7 +656,7 @@ fn an_unreachable_address_fails_with_the_address_in_the_message() {
 fn a_wrong_pass_key_fails_at_connect_saying_how_to_get_one() {
     let served = serve_a_repo("wrong-key");
     let other_secret = std::env::temp_dir().join(format!(
-        "moonreview-remote-other-secret-{}",
+        "moontasks-remote-other-secret-{}",
         std::process::id()
     ));
     let _ = fs::remove_file(&other_secret);

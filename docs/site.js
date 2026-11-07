@@ -1,5 +1,5 @@
 const copyButton = document.querySelector("[data-copy]");
-const installCommand = "curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moon-dev-tools/main/install.sh | sh";
+const installCommand = "curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moontasks/main/install.sh | sh";
 
 copyButton?.addEventListener("click", async () => {
   try {

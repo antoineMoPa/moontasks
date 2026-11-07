@@ -174,7 +174,7 @@ impl App {
         let text = format!("{}-", bindings::describe(prefix));
         let palette = self.palette_of();
 
-        egui::Area::new("moonreview-armed-prefix".into())
+        egui::Area::new("moontasks-armed-prefix".into())
             .anchor(Align2::LEFT_BOTTOM, vec2(14.0, -14.0))
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -202,7 +202,7 @@ impl App {
         let palette = self.palette_of();
         let screen = ctx.viewport_rect();
 
-        egui::Area::new("moonreview-toasts".into())
+        egui::Area::new("moontasks-toasts".into())
             .anchor(Align2::LEFT_BOTTOM, vec2(14.0, -14.0 - clear_of))
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {

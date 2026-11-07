@@ -1,9 +1,9 @@
-//! Project settings - `<repo>/.moonreview.json`, which holds the targets a project is built
+//! Project settings - `<repo>/.moontasks.json`, which holds the targets a project is built
 //! and run as, and how its files are indented.
 //!
 //! Which command builds a repo, and whether its code is written in tabs or in spaces, are
 //! facts about the repo rather than about whoever opened it, so they are kept with the repo
-//! rather than in `~/.moonreview/settings.json` alongside the choices that belong to a person.
+//! rather than in `~/.moontasks/settings.json` alongside the choices that belong to a person.
 //! It is one small file at the root, in a format anyone can open and edit, and it can be
 //! committed so everyone working on the repo gets the same commands and the same
 //! indentation.
@@ -22,8 +22,8 @@ use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
 /// The run command that is not a line of shell: it asks the window to start this program
-/// again, which is how a project that builds this very program is "run" - moonreview cannot
-/// run a new moonreview from a shell and cleanly close the one showing that shell. Only the
+/// again, which is how a project that builds this very program is "run" - moon cannot
+/// run a new moon from a shell and cleanly close the one showing that shell. Only the
 /// window can restart itself, so the server refuses to type this into a terminal.
 pub(crate) const RESTART_RUN_COMMAND: &str = "@restart";
 

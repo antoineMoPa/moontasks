@@ -27,7 +27,7 @@ pub(crate) fn launch_local(open: OpenSessionRequest, frame: crate::cli::Frame) -
     let served_state = state.clone();
     // No idle timeout: the window decides how long this process lives, not the clock.
     thread::Builder::new()
-        .name("moonreview-server".to_string())
+        .name("moontasks-server".to_string())
         .spawn(move || {
             let runtime = match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -35,14 +35,14 @@ pub(crate) fn launch_local(open: OpenSessionRequest, frame: crate::cli::Frame) -
             {
                 Ok(runtime) => runtime,
                 Err(error) => {
-                    eprintln!("[moonreview] could not start the review server: {error}");
+                    eprintln!("[moon] could not start the review server: {error}");
                     return;
                 }
             };
             if let Err(error) = runtime.block_on(server::serve(served_state)) {
                 // A busy port is the common case, and it is not fatal: the window works
                 // either way, it just cannot also be reached from another machine.
-                eprintln!("[moonreview] review server unavailable: {error}");
+                eprintln!("[moon] review server unavailable: {error}");
             }
         })
         .context("failed to start the review server thread")?;
@@ -54,7 +54,7 @@ pub(crate) fn launch_local(open: OpenSessionRequest, frame: crate::cli::Frame) -
     })
 }
 
-/// Review a repo on another machine through its `moonreview serve`, let in with `pass_key`.
+/// Review a repo on another machine through its `moon serve`, let in with `pass_key`.
 pub(crate) fn launch_remote(
     target: &str,
     pass_key: String,
@@ -120,7 +120,7 @@ fn run_window(launch: Launch, manages_the_session: bool) -> Result<()> {
             .with_title(title)
             .with_inner_size([1440.0, 900.0])
             .with_min_inner_size([720.0, 420.0])
-            .with_app_id("moonreview")
+            .with_app_id("moontasks")
             // No title bar of its own on macOS: the content runs to the top of the window and
             // the tab strip is the header, with the traffic lights floating over its left end -
             // see [`traffic_lights_inset`].
@@ -136,8 +136,9 @@ fn run_window(launch: Launch, manages_the_session: bool) -> Result<()> {
         ..Default::default()
     };
 
+    move_the_old_window_storage();
     eframe::run_native(
-        "moonreview",
+        "moontasks",
         options,
         Box::new(|creation| {
             let mut app = app::App::new(creation.egui_ctx.clone(), launch);
@@ -167,4 +168,17 @@ fn run_window(launch: Launch, manages_the_session: bool) -> Result<()> {
         }),
     )
     .map_err(|error| anyhow::anyhow!("the window could not be opened: {error}"))
+}
+
+/// Moves eframe's storage - the window's place and the saved workspace - from where it was kept
+/// before moon was moontasks, once: when the old folder is there and the new one is not.
+fn move_the_old_window_storage() {
+    let (Some(old), Some(new)) = (eframe::storage_dir("moonreview"), eframe::storage_dir("moontasks")) else {
+        return;
+    };
+    if old.is_dir() && !new.exists() {
+        if let Err(error) = std::fs::rename(&old, &new) {
+            eprintln!("[moon] could not move {} to {}: {error}", old.display(), new.display());
+        }
+    }
 }

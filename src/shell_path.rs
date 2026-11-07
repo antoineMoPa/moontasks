@@ -17,6 +17,13 @@ use std::{env, process::Command, sync::OnceLock};
 
 use anyhow::Result;
 
+/// Whether `program` is run from moon itself rather than looked for: Minerve is built in, and
+/// what this process's own user runs is `moon __minerve`. A person's own Unix user runs the
+/// `minerve` they installed, since this binary need not be one they can run.
+pub(crate) fn runs_bundled(program: &str) -> bool {
+    program == "minerve" && crate::unix_users::current_user().is_none()
+}
+
 /// The shell the user's account is set up with, which is the one that reads their profile.
 pub(crate) fn login_shell() -> String {
     env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
@@ -45,6 +52,11 @@ pub(crate) fn tools_path_of_the_current_user() -> Result<String> {
 /// there, and what a person installed in their home is not on it. Anywhere else the command
 /// is this process's own user's, and is given [`installed_tools_path`].
 pub(crate) fn installed_tool(program: &str) -> Result<Command> {
+    if runs_bundled(program) {
+        let mut command = Command::new(crate::minerve_executable()?);
+        command.arg(crate::MINERVE_SUBCOMMAND).env("PATH", installed_tools_path());
+        return Ok(command);
+    }
     let mut command = crate::unix_users::command(program)?;
     if crate::unix_users::current_user().is_none() {
         command.env("PATH", installed_tools_path());

@@ -38,7 +38,7 @@ fn a_commit_run_is_told_which_terminal_to_ask_for_a_passphrase_on() {
         printed.contains("[/dev/"),
         "the shell should have been told its own tty, printed {printed:?}"
     );
-    // A run moonreview started on the user's behalf belongs to the review that started it,
+    // A run moon started on the user's behalf belongs to the review that started it,
     // and is none of the workspace's shells.
     assert!(
         !registry.terminal_ids().contains(&terminal_id),
@@ -97,7 +97,7 @@ fn type_ahead_is_typed_into_the_shell_and_left_unsent() {
             env: Vec::new(),
             owner: None,
             name: None,
-            type_ahead: Some("moonreview-typed-this".to_string()),
+            type_ahead: Some("moontasks-typed-this".to_string()),
             runs_as: None,
         })
         .expect("expected a shell");
@@ -116,7 +116,7 @@ fn type_ahead_is_typed_into_the_shell_and_left_unsent() {
             .chars()
             .filter(|character| !character.is_whitespace())
             .collect();
-        if printed.contains("moonreview-typed-this") {
+        if printed.contains("moontasks-typed-this") {
             break;
         }
     }
@@ -124,7 +124,7 @@ fn type_ahead_is_typed_into_the_shell_and_left_unsent() {
     registry.remove(&terminal_id);
 
     assert!(
-        printed.contains("moonreview-typed-this"),
+        printed.contains("moontasks-typed-this"),
         "the shell never echoed what was typed at it, printed: {printed:?}"
     );
     // A prompt is drawn and then nothing more, so the text goes in on that silence rather
@@ -156,7 +156,7 @@ fn a_reply_to_the_program_is_not_somebody_typing() {
             env: Vec::new(),
             owner: None,
             name: None,
-            type_ahead: Some("moonreview-typed-this".to_string()),
+            type_ahead: Some("moontasks-typed-this".to_string()),
             runs_as: None,
         })
         .expect("expected a shell");
@@ -175,14 +175,14 @@ fn a_reply_to_the_program_is_not_somebody_typing() {
             .chars()
             .filter(|character| !character.is_whitespace())
             .collect();
-        if printed.contains("moonreview-typed-this") {
+        if printed.contains("moontasks-typed-this") {
             break;
         }
     }
     registry.remove(&terminal_id);
 
     assert!(
-        printed.contains("moonreview-typed-this"),
+        printed.contains("moontasks-typed-this"),
         "the title should still have been typed, printed: {printed:?}"
     );
 }
@@ -194,7 +194,7 @@ fn fake_claude(script: &str) -> std::path::PathBuf {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = std::env::temp_dir().join(format!(
-        "moonreview-fake-agent-{}",
+        "moontasks-fake-agent-{}",
         crate::moontasks::store::new_uuid()
     ));
     std::fs::create_dir_all(&dir).expect("failed to create the fake agent's folder");
@@ -446,7 +446,7 @@ fn a_shell_someone_has_typed_into_is_left_alone() {
             env: Vec::new(),
             owner: None,
             name: None,
-            type_ahead: Some("moonreview-typed-this".to_string()),
+            type_ahead: Some("moontasks-typed-this".to_string()),
             runs_as: None,
         })
         .expect("expected a shell");
@@ -463,7 +463,7 @@ fn a_shell_someone_has_typed_into_is_left_alone() {
     registry.remove(&terminal_id);
 
     assert!(
-        !printed.contains("moonreview-typed-this"),
+        !printed.contains("moontasks-typed-this"),
         "the title was typed over what was being written, printed: {printed:?}"
     );
 }
@@ -838,7 +838,7 @@ fn a_shell_pages_utf8_text_as_characters_rather_than_escapes() {
     }
 
     let dir = std::env::temp_dir().join(format!(
-        "moonreview-pager-{}",
+        "moontasks-pager-{}",
         crate::moontasks::store::new_uuid()
     ));
     std::fs::create_dir_all(&dir).expect("failed to create the folder to page from");
@@ -894,7 +894,7 @@ fn opencode_is_started_with_a_config_naming_this_task_s_brief() {
         },
     };
 
-    let repo = std::env::temp_dir().join("moonreview-opencode-brief");
+    let repo = std::env::temp_dir().join("moontasks-opencode-brief");
     let _ = std::fs::remove_dir_all(&repo);
     std::fs::create_dir_all(&repo).expect("failed to create the fixture directory");
     crate::git::run_git_no_output(&repo, &["init"]).expect("failed to init the fixture repo");

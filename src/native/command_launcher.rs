@@ -137,7 +137,7 @@ pub(crate) enum Asked {
 /// The box is the same box whether it holds the command or what ctrl+r is looking for, so the
 /// keyboard stays in it when one is swapped for the other.
 fn line_id() -> egui::Id {
-    egui::Id::new("moonreview-command-launcher-line")
+    egui::Id::new("moontasks-command-launcher-line")
 }
 
 /// Draw the line in place of the strip's own contents, and answer what it asked for.

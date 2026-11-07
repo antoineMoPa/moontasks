@@ -2,5 +2,5 @@
 //! that reach a window which is already open.
 
 fn main() -> anyhow::Result<()> {
-    moonreview::run()
+    moontasks::run()
 }

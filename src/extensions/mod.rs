@@ -20,7 +20,7 @@
 //! something in a toast.
 //!
 //! Three are shipped in the executable - `files`, `docker` and `users`, out of `extensions/` at
-//! the top of this repo - and every `.rhai` file in `~/.moonreview/extensions/` is one more, or
+//! the top of this repo - and every `.rhai` file in `~/.moontasks/extensions/` is one more, or
 //! takes the place of the shipped one of the same name. A file there is read again whenever it changes,
 //! and the pane keeps its state across the change, so an extension is written with the pane it
 //! draws open beside it.
@@ -78,7 +78,7 @@ const SHIPPED: &[Shipped] = &[
 /// What a script's file is called.
 const EXTENSION: &str = "rhai";
 
-/// Where the person's own extensions are kept: `~/.moonreview/extensions`.
+/// Where the person's own extensions are kept: `~/.moontasks/extensions`.
 ///
 /// None under test, so a test sees the shipped extensions and nothing that happens to be
 /// installed on the machine running it.
@@ -89,7 +89,7 @@ fn user_dir() -> Option<PathBuf> {
     }
     #[cfg(not(test))]
     {
-        Some(crate::settings::moonreview_dir()?.join("extensions"))
+        Some(crate::settings::moontasks_dir()?.join("extensions"))
     }
 }
 

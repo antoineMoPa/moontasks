@@ -85,7 +85,7 @@ pub(crate) fn start_resource(
     }
 
     // A shell is not written down: nothing survives its pty, so a record of one from a run of
-    // moonreview that has ended is a card entry with nowhere to go. The registry lists the
+    // moon that has ended is a card entry with nowhere to go. The registry lists the
     // ones that are open, and that is the whole life of a shell.
     if request.kind == TaskResourceKind::Agent {
         metadata.resources.push(TaskResource {
@@ -462,7 +462,7 @@ pub(crate) fn stop_resource(
 /// Everything an agent's command line and environment can be filled in with, for one run.
 ///
 /// Built once per start, because most of it is a file that has just been written into the
-/// task folder and the rest is where this run of moonreview is answering.
+/// task folder and the rest is where this run of moon is answering.
 pub(super) struct Fillings {
     pub(super) values: Vec<(&'static str, String)>,
 }

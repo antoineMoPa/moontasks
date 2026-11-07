@@ -194,7 +194,7 @@ fn list(repo_path: &Path, today: Date) -> Result<String> {
 }
 
 pub(super) fn move_task(column: &str) -> Result<()> {
-    print!("{}", move_card(column, env::var_os(TASK_DIR_ENV_VAR))?);
+    print!("{}", move_card(column, crate::moon_env_var_os(TASK_DIR_ENV_VAR))?);
     Ok(())
 }
 
@@ -273,7 +273,7 @@ mod tests {
     /// A repo whose board has the three columns named, the last of them sorted by title.
     fn board(name: &str) -> PathBuf {
         let repo = std::env::temp_dir().join(format!(
-            "moonreview-tasks-cli-{}-{name}-{}",
+            "moontasks-tasks-cli-{}-{name}-{}",
             std::process::id(),
             store::new_uuid()
         ));
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "`moon tasks move` is run from a task's shell, and this is not one: \
-             MOONREVIEW_TASK_DIR is not set"
+             MOONTASKS_TASK_DIR is not set"
         );
 
         // The name the board shows, not the one it is written down under, and letter for

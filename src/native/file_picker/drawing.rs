@@ -37,7 +37,7 @@ const KEYS_NOTE: &str =
     "enter opens or picks · tab completes · backspace goes up · / or ~ starts over · esc cancels";
 
 /// The line's own id, so its caret can be read before it is drawn and placed after.
-const LINE_ID: &str = "moonreview-file-picker-line";
+const LINE_ID: &str = "moontasks-file-picker-line";
 
 /// The rows under the line as it stands. None until its folder has been listed.
 pub(super) fn rows_of(picker: &FilePicker) -> Vec<Row> {
@@ -126,7 +126,7 @@ pub(crate) fn draw(app: &mut App, ctx: &egui::Context) {
     let mut chosen = (accept && !rows.is_empty()).then_some(picker.highlighted);
 
     let screen = ctx.viewport_rect();
-    let area = egui::Area::new("moonreview-file-picker".into())
+    let area = egui::Area::new("moontasks-file-picker".into())
         .order(egui::Order::Foreground)
         .anchor(Align2::CENTER_TOP, vec2(0.0, screen.height() * 0.12))
         .show(ctx, |ui| {

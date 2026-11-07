@@ -27,7 +27,7 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 /// Where a window started through `open` finds the file its key was handed off in.
 pub(crate) const PASS_KEY_FILE_ENV_VAR: &str = "MOON_PASS_KEY_FILE";
 
-/// The folder under `~/.moonreview` the files are written to.
+/// The folder under `~/.moontasks` the files are written to.
 const HANDOFF_DIR_NAME: &str = "handoff";
 
 /// How old a handoff has to be for its window to be taken as never having started. Starting a
@@ -167,18 +167,18 @@ fn delete_stale_handoffs(dir: &Path, now: SystemTime) -> Result<()> {
 }
 
 /// Where handoffs are written. Under test, a scratch folder of the test process's own, as with
-/// the secret - a test run must never write into the real `~/.moonreview`.
+/// the secret - a test run must never write into the real `~/.moontasks`.
 fn handoff_dir() -> Result<PathBuf> {
     #[cfg(test)]
     {
         Ok(std::env::temp_dir().join(format!(
-            "moonreview-test-{HANDOFF_DIR_NAME}-{}",
+            "moontasks-test-{HANDOFF_DIR_NAME}-{}",
             std::process::id()
         )))
     }
     #[cfg(not(test))]
     {
-        Ok(crate::settings::moonreview_dir()
+        Ok(crate::settings::moontasks_dir()
             .context("no home directory to hand a pass key off in")?
             .join(HANDOFF_DIR_NAME))
     }
@@ -190,7 +190,7 @@ mod tests {
 
     fn scratch(name: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("moonreview-handoff-{}-{name}", std::process::id()));
+            std::env::temp_dir().join(format!("moontasks-handoff-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir
     }

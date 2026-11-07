@@ -58,14 +58,14 @@ EOF
 
 require_zig
 
-echo "Building moon dev tools $TAG for $TARGET_TRIPLE..."
+echo "Building moontasks $TAG for $TARGET_TRIPLE..."
 cargo build --release --locked
 
 # Only this release's archives are kept: the earlier releases have theirs on GitHub.
 find "$ROOT_DIR/target/release-artifacts" -mindepth 1 -maxdepth 1 ! -name "$TAG" -exec rm -rf {} + 2>/dev/null || true
 mkdir -p "$OUTPUT_DIR"
 
-archive_name="moonreview-${TARGET_TRIPLE}.tar.gz"
+archive_name="moontasks-${TARGET_TRIPLE}.tar.gz"
 stage_dir="$OUTPUT_DIR/stage/${TARGET_TRIPLE}"
 rm -rf "$stage_dir"
 mkdir -p "$stage_dir"

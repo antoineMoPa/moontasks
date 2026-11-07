@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn claudes_open_sessions_are_read_from_its_own_records() {
         let home = std::env::temp_dir().join(format!(
-            "moonreview-open-sessions-{}-claude",
+            "moontasks-open-sessions-{}-claude",
             std::process::id()
         ));
         let sessions = home.join(".claude/sessions");

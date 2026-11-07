@@ -341,7 +341,7 @@ pub(crate) async fn terminal_socket(
 
     Ok(upgrade.on_upgrade(move |socket| async move {
         if let Err(error) = attach_terminal(socket, session, users, user, stream).await {
-            eprintln!("[moonreview] terminal attachment ended: {error}");
+            eprintln!("[moon] terminal attachment ended: {error}");
         }
     }))
 }

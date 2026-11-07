@@ -5,7 +5,7 @@
 //! file after it. So the line is worth an arrow up the first time it is ever opened, and what
 //! it started itself is still the nearest thing.
 //!
-//! What the strip started is kept in `~/.moonreview/launched_commands`, a command to a line
+//! What the strip started is kept in `~/.moontasks/launched_commands`, a command to a line
 //! with the oldest first - the shape of a shell's own history file, and for the same reason: it
 //! can be read, and it can be pruned by hand. The shell's file is only ever read - see
 //! [`super::shell_history`].

@@ -370,7 +370,7 @@ fn dragging_over_a_shell_selects_its_text() {
         .with_label(terminal_id.clone());
 
     // Enough marked-up lines to fill the grid, so wherever the drag lands it lands on one.
-    pane.send(b"i=0; while [ $i -lt 200 ]; do printf 'moonreviewline%s\\n' $i; i=$((i+1)); done\n")
+    pane.send(b"i=0; while [ $i -lt 200 ]; do printf 'moontasksline%s\\n' $i; i=$((i+1)); done\n")
         .expect("expected to write to the shell");
 
     let launch = Launch {
@@ -446,7 +446,7 @@ fn dragging_over_a_shell_selects_its_text() {
         seen.lock()
             .expect("poisoned")
             .screen
-            .matches("moonreviewline")
+            .matches("moontasksline")
             .count()
             > 5
     });
@@ -484,7 +484,7 @@ fn dragging_over_a_shell_selects_its_text() {
     // Where the sweep started is a few cells in from the left, so what comes back is the
     // tail of the marker rather than the whole of it.
     assert!(
-        selected.contains("reviewline"),
+        selected.contains("tasksline"),
         "the drag should have selected the line it swept, got {selected:?}"
     );
     assert!(
@@ -507,14 +507,14 @@ fn dragging_over_a_shell_selects_its_text() {
     harness
         .input_mut()
         .events
-        .push(egui::Event::Paste("moonreviewpaste".to_string()));
+        .push(egui::Event::Paste("moontaskspaste".to_string()));
     harness.step();
     harness.run_steps(2);
     let pasted = settle(&mut harness, || {
         seen.lock()
             .expect("poisoned")
             .screen
-            .contains("moonreviewpaste")
+            .contains("moontaskspaste")
     });
     assert!(
         pasted,

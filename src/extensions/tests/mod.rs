@@ -27,7 +27,7 @@ struct Scratch {
 impl Scratch {
     fn new(name: &str) -> Self {
         let dir = std::env::temp_dir().join(format!(
-            "moonreview-extension-{}-{name}",
+            "moontasks-extension-{}-{name}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);

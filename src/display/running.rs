@@ -392,7 +392,7 @@ impl Running {
             });
         if waiting.is_err() {
             // No thread to wait on: a desktop left running empty is the lesser harm.
-            eprintln!("[moonreview] could not wait to end an empty display");
+            eprintln!("[moon] could not wait to end an empty display");
         }
     }
 

@@ -177,7 +177,7 @@ struct Shared {
 }
 
 impl Users {
-    /// The users of this machine's server: the secret in `~/.moonreview` and the kicks kept
+    /// The users of this machine's server: the secret in `~/.moontasks` and the kicks kept
     /// beside it.
     pub(crate) fn for_this_machine() -> Result<Self> {
         Self::kept_at(&crate::pass_keys::secret_path()?)
@@ -460,7 +460,7 @@ mod tests {
 
     fn scratch(name: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("moonreview-users-{}-{name}", std::process::id()));
+            std::env::temp_dir().join(format!("moontasks-users-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir.join("pass-key-secret")
     }

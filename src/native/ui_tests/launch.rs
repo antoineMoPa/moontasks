@@ -36,7 +36,7 @@ fn the_review_window_draws_the_diff_it_was_opened_on() {
 }
 
 /// The agent belongs to the person reviewing, not to a session that is new every launch, so it
-/// is written to the server's `~/.moonreview/settings.json` and asked for again on the way up.
+/// is written to the server's `~/.moontasks/settings.json` and asked for again on the way up.
 #[test]
 fn the_agent_the_last_run_ended_on_comes_back() {
     let fixture = seeded_fixture("agent-memory");
@@ -277,7 +277,7 @@ fn the_launch_screen_shows_the_logo_of_its_own_executable() {
 }
 
 /// The screen a window waits on while its repo opens wears the same logo, and says what that
-/// window is opening rather than naming moonreview from a moontasks window.
+/// window is opening rather than naming moon from a moontasks window.
 #[test]
 fn the_opening_screen_shows_the_logo_of_its_own_executable() {
     use egui_kittest::kittest::Queryable as _;
@@ -412,10 +412,10 @@ fn a_project_under_the_home_directory_is_titled_with_a_tilde() {
 
     let titled = crate::native::app::window_title(
         crate::cli::Frame::Tasks,
-        Some(&format!("{home}/prog/moonreview")),
+        Some(&format!("{home}/prog/moon")),
     );
 
-    assert_eq!(titled, "🌚 moon tasks | ~/prog/moonreview");
+    assert_eq!(titled, "🌚 moon tasks | ~/prog/moon");
 }
 
 /// The three executables are the same window opened on three different things, which is the
@@ -542,7 +542,7 @@ fn a_recent_project_opens_from_the_middle_of_its_row() {
 #[test]
 fn a_new_project_is_made_and_opened_from_the_launch_screen() {
     let enclosing =
-        std::env::temp_dir().join(format!("moonreview-ui-{}-new-project", std::process::id()));
+        std::env::temp_dir().join(format!("moontasks-ui-{}-new-project", std::process::id()));
     let _ = fs::remove_dir_all(&enclosing);
     fs::create_dir_all(&enclosing).expect("failed to create the enclosing folder");
     let folder = enclosing.join("sun");
@@ -595,7 +595,7 @@ fn the_shell_and_the_board_open_on_a_folder_that_is_no_repo() {
         (crate::cli::Frame::Tasks, PaneKind::Tasks),
     ] {
         let enclosing = std::env::temp_dir().join(format!(
-            "moonreview-ui-{}-no-repo-{expected:?}",
+            "moontasks-ui-{}-no-repo-{expected:?}",
             std::process::id()
         ));
         let folder = enclosing.join("notes");

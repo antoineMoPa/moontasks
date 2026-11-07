@@ -76,7 +76,7 @@ impl App {
         let palette = self.palette_of();
         let line = self.status_line();
 
-        let pressed = egui::Panel::bottom("moonreview-status-bar")
+        let pressed = egui::Panel::bottom("moontasks-status-bar")
             .exact_size(BAR_HEIGHT)
             .resizable(false)
             // It is a strip to read, not an edge to pull on.

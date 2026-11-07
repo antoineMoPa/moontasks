@@ -226,7 +226,7 @@ pub(crate) fn draw(app: &mut App, ctx: &egui::Context) {
     // Whether the query box is the thing being typed into, this frame or the one before.
     let mut has_keyboard = find.has_keyboard;
 
-    egui::Area::new("moonreview-find".into())
+    egui::Area::new("moontasks-find".into())
         .order(egui::Order::Foreground)
         .fixed_pos(egui::pos2(
             rect.max.x - OUTER_WIDTH - INSET,

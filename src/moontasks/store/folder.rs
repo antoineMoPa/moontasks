@@ -349,13 +349,13 @@ fn checkout_linked_from(folder: &Path) -> Result<Option<PathBuf>> {
 ///
 /// A board is working state - running agents, scratch files, whatever an agent leaves in a
 /// task folder - and none of that belongs in someone's `git status` by default. The file
-/// ignores the whole folder including itself, so a repo where moonreview has been opened
+/// ignores the whole folder including itself, so a repo where moon has been opened
 /// looks exactly like one where it has not.
 ///
 /// Someone who wants the board shared can delete this file and commit the folder, which is
 /// why it is written once and never rewritten.
 const TASKS_GITIGNORE: &str = "\
-# Written by moonreview when it created this board.
+# Written by moon when it created this board.
 #
 # A task folder holds running state - shells, agent sessions, scratch files - so by default
 # none of it is committed and none of it shows up in `git status`.

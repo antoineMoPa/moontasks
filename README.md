@@ -191,7 +191,7 @@ The task board works the same way round: `.moontasks` is the remote repo's folde
 agents run there, so closing the window leaves them working and reopening it finds them.
 
 
-The server binds `127.0.0.1` unless `MOONREVIEW_HOST` says otherwise, and speaks plain HTTP.
+The server binds `127.0.0.1` unless `MOONTASKS_HOST` says otherwise, and speaks plain HTTP.
 
 
 Warning: Do not expose that port to the Internet or send a pass key over an unencrypted remote
@@ -223,7 +223,7 @@ week. After that it asks again.
 browser login, with the address it last came from - and kicks one out, or everyone at once by
 making a new secret: every pass key and login there was stops working, shells included, and
 `moon generate-pass-key` mints keys of the new secret from then on. A kick is remembered in
-`~/.moonreview/pass-key-secret.kicked`, so it outlives the server.
+`~/.moontasks/pass-key-secret.kicked`, so it outlives the server.
 
 **Account** connects GitHub for personal commit/push identity.
 
@@ -237,7 +237,7 @@ Run from this checkout:
 
 ```bash
 MOON_GITHUB_CLIENT_ID=your_client_id \
-MOONREVIEW_HOST=127.0.0.1 MOONREVIEW_PORT=42001 \
+MOONTASKS_HOST=127.0.0.1 MOONTASKS_PORT=42001 \
 cargo run --locked --bin moon -- serve --logs
 ```
 
@@ -280,7 +280,7 @@ In one terminal, connect and start Moon on the remote machine:
 ```bash
 ssh you@dev-box
 cd /home/you/project
-MOONREVIEW_HOST=127.0.0.1 MOONREVIEW_PORT=42000 moon serve
+MOONTASKS_HOST=127.0.0.1 MOONTASKS_PORT=42000 moon serve
 ```
 
 local machine, start the tunnel:

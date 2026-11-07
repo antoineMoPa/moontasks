@@ -1,7 +1,7 @@
 //! Settings pane - the person's own settings, the ones kept for every project: the agent
 //! moon hands its AI jobs to, and the model that agent runs with.
 //!
-//! The file is `~/.moonreview/settings.json` on the server - see [`crate::settings`] - and
+//! The file is `~/.moontasks/settings.json` on the server - see [`crate::settings`] - and
 //! each pick here is one [`crate::settings::SettingsChange`] sent to it. "Project
 //! Settings…" is the other page, for what is kept in the repo.
 //!

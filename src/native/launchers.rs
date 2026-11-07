@@ -131,7 +131,7 @@ mod platform {
     /// else installed is not ours to open.
     pub(super) fn installed_launcher(frame: Frame) -> Option<PathBuf> {
         let bundle_name = format!("{}.app", frame.display_name());
-        let identifier = format!("com.moonreview.{}", frame.slug());
+        let identifier = format!("com.moontasks.{}", frame.slug());
         for candidate in APPLICATIONS_DIRS {
             let dir = match candidate.strip_prefix("~/") {
                 Some(under_home) => match super::home() {
@@ -152,7 +152,7 @@ mod platform {
     pub(super) fn write_launcher(frame: Frame, executable: &Path) -> Result<PathBuf> {
         let bundle_name = format!("{}.app", frame.display_name());
         let bundle = applications_dir()?.join(&bundle_name);
-        let identifier = format!("com.moonreview.{}", frame.slug());
+        let identifier = format!("com.moontasks.{}", frame.slug());
         refuse_foreign_bundle(&bundle, &identifier)?;
 
         let macos_dir = bundle.join("Contents/MacOS");
@@ -244,12 +244,14 @@ mod platform {
 
         let plist = bundle.join("Contents/Info.plist");
         let existing = fs::read_to_string(&plist).unwrap_or_default();
-        if existing.contains(identifier) {
+        // One made before moon was moontasks is ours too, and is written over.
+        let old_identifier = identifier.replacen("com.moontasks.", "com.moonreview.", 1);
+        if existing.contains(identifier) || existing.contains(&old_identifier) {
             return Ok(());
         }
 
         bail!(
-            "{} already exists and is not a moonreview launcher; move it aside first",
+            "{} already exists and is not a moontasks launcher; move it aside first",
             bundle.display()
         );
     }
@@ -381,7 +383,7 @@ Exec={executable} {subcommand} %f
 Icon={program}
 Terminal=false
 Categories=Development;RevisionControl;
-StartupWMClass=moonreview
+StartupWMClass=moontasks
 ",
             display_name = frame.display_name(),
             opens = frame.opens(),

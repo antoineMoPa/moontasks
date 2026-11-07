@@ -196,7 +196,7 @@ mod tests {
     /// A repo with a board in it and nothing on the board.
     fn temp_repo(name: &str) -> PathBuf {
         let repo = std::env::temp_dir().join(format!(
-            "moonreview-wire-{}-{name}-{}",
+            "moontasks-wire-{}-{name}-{}",
             std::process::id(),
             store::new_uuid()
         ));

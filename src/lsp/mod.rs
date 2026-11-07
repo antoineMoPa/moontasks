@@ -103,7 +103,7 @@ impl LanguageServers {
 /// asking.
 fn registry_on(search_path: String) -> LspRegistry {
     LspRegistry::new(search_path).identifying_as(moon_lsp::ClientIdentity::new(
-        "moonreview",
+        "moon",
         env!("CARGO_PKG_VERSION"),
     ))
 }
