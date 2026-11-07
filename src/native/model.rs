@@ -213,6 +213,9 @@ pub(crate) struct Model {
     pub(crate) commit_panes: HashMap<String, crate::native::commit_pane::CommitPane>,
     /// The files open in tabs of their own, keyed by the pane showing each one.
     pub(crate) file_editors: HashMap<PaneId, crate::native::file_pane::FileEditor>,
+    /// The tree of files beside every file tab, and back / forward through the files shown -
+    /// see [`crate::native::file_tree`].
+    pub(crate) file_tree: crate::native::file_tree::FileTree,
     /// The dated entry `Tools › Work Log` asked for, by the tab it is to go into, while that
     /// tab's text is still on its way - see [`crate::native::work_log`]. The tab is opened
     /// by the answer to a call that makes the file, which has no editor to put it in yet.

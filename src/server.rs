@@ -240,6 +240,10 @@ fn protected_routes() -> Router<Served> {
         .route("/api/session/{session_id}/file-at", get(session_file_at))
         .route("/api/session/{session_id}/files", get(find_session_files))
         .route(
+            "/api/session/{session_id}/folder",
+            get(folder_routes::repo_folder),
+        )
+        .route(
             "/api/session/{session_id}/content",
             get(search_session_contents),
         )

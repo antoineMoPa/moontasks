@@ -32,6 +32,24 @@ pub(crate) enum EntryKind {
     File,
 }
 
+/// One folder of a review's repo, as the tree beside a file tab lists it - see
+/// `crate::service::repo_folder`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RepoFolderListing {
+    /// The folder, from the repo's root, with no `/` at either end: `""` for the root.
+    pub(crate) folder: String,
+    /// Folders first, then files, each alphabetical ignoring case.
+    pub(crate) entries: Vec<RepoEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RepoEntry {
+    pub(crate) name: String,
+    pub(crate) kind: EntryKind,
+    /// Whether git ignores it - `target/`, `node_modules/`. The tree hides these unless asked.
+    pub(crate) ignored: bool,
+}
+
 /// The folder a project started from nothing is made at - an absolute path nothing is at yet.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct NewProjectFolderRequest {

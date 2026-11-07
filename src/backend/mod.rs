@@ -174,6 +174,13 @@ pub(crate) trait Backend: Send + Sync + 'static {
     /// itself - see [`crate::native::file_picker`]. The folder is named from `/`, or from `~`
     /// for the home of whoever the server runs as.
     fn list_folder(&self, folder: &str) -> Result<crate::api::folders::FolderListing>;
+    /// One folder of the session's repo, by its path from the root, with what git ignores
+    /// marked - for the tree beside a file tab.
+    fn repo_folder(
+        &self,
+        session_id: &str,
+        folder: &str,
+    ) -> Result<crate::api::folders::RepoFolderListing>;
     /// Make a new folder on that disk with a git repo in it, for a project started from
     /// nothing. The path is absolute, and nothing is at it yet.
     fn create_project_folder(&self, path: &str) -> Result<()>;

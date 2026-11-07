@@ -6,13 +6,16 @@
 
 use axum::{
     Extension, Json,
-    extract::{Query, State},
+    extract::{Path as AxumPath, Query, State},
 };
 
 use crate::{
     api::{
         AppError, AppState, FolderQuery,
-        folders::{FilePlaced, FolderListing, NewProjectFolderRequest, PlaceFileRequest},
+        folders::{
+            FilePlaced, FolderListing, NewProjectFolderRequest, PlaceFileRequest,
+            RepoFolderListing,
+        },
     },
     service,
 };
@@ -36,6 +39,21 @@ pub(super) async fn list_folder(
     // workers, which also carry every shell's socket.
     let person = profiles.session_owner(&user)?.person;
     let listing = for_person(person, move || service::list_folder(&query.path)).await?;
+    Ok(Json(listing))
+}
+
+/// `GET /api/session/{id}/folder?path=`: one folder of a review's repo, for the tree beside a
+/// file tab. Only under the repo, by a path from its root - see [`service::repo_folder`].
+pub(super) async fn repo_folder(
+    AxumPath(session_id): AxumPath<String>,
+    Query(query): Query<FolderQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<RepoFolderListing>, AppError> {
+    mark_activity(&state);
+    let listing = crate::server::session_work(state, session_id, move |state, session_id| {
+        service::repo_folder(state, session_id, &query.path)
+    })
+    .await?;
     Ok(Json(listing))
 }
 

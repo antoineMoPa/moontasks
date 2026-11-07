@@ -163,6 +163,15 @@ impl Backend for RemoteBackend {
         self.get(&format!("/api/folder?path={encoded}"))
     }
 
+    fn repo_folder(
+        &self,
+        session_id: &str,
+        folder: &str,
+    ) -> Result<crate::api::folders::RepoFolderListing> {
+        let encoded = urlencode(folder);
+        self.get(&format!("/api/session/{session_id}/folder?path={encoded}"))
+    }
+
     fn create_project_folder(&self, path: &str) -> Result<()> {
         self.post(
             "/api/folder/new-project",

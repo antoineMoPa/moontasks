@@ -159,6 +159,14 @@ impl Backend for LocalBackend {
         service::list_folder(folder)
     }
 
+    fn repo_folder(
+        &self,
+        session_id: &str,
+        folder: &str,
+    ) -> Result<crate::api::folders::RepoFolderListing> {
+        service::repo_folder(&self.state, session_id, folder)
+    }
+
     fn create_project_folder(&self, path: &str) -> Result<()> {
         service::create_project_folder(path)
     }

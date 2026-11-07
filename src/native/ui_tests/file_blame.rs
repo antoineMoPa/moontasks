@@ -59,6 +59,9 @@ fn a_file_tab_shows_who_last_touched_each_stretch_of_it() {
     );
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    // This is about the blame beside the lines, whose places the pointer below is put at: the
+    // tree of files has its own tests, in `file_tree`.
+    app.model.file_tree.shown = false;
     let opened = Arc::new(AtomicBool::new(false));
     let opened_in_ui = Arc::clone(&opened);
     let toggled = Arc::new(AtomicBool::new(false));

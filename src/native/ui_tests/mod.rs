@@ -34,6 +34,7 @@ mod file_encrypted;
 mod file_language_servers;
 mod file_picker;
 mod file_written_elsewhere;
+mod file_tree;
 mod files;
 mod finding;
 mod inspect_minerve;

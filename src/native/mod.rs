@@ -30,6 +30,7 @@ pub(crate) mod web_account;
 pub(crate) mod extension_pane;
 pub(crate) mod file_pane;
 pub(crate) mod file_picker;
+pub(crate) mod file_tree;
 pub(crate) mod find;
 pub(crate) mod fonts;
 pub(crate) mod formatting;

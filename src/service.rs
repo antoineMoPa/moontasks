@@ -8,6 +8,7 @@ mod comments;
 mod encrypted_files;
 mod files;
 mod folders;
+mod repo_folders;
 mod staging;
 #[cfg(test)]
 mod tests;
@@ -23,6 +24,7 @@ pub(crate) use files::{
     session_file, session_file_at, write_session_file,
 };
 pub(crate) use folders::{create_project_folder, list_folder, place_file, place_file_for_profile};
+pub(crate) use repo_folders::repo_folder;
 pub(crate) use staging::{
     discard_hunk, discard_hunks, stage_all, stage_file, stage_hunk, stage_selection, unstage_file,
     unstage_hunk,

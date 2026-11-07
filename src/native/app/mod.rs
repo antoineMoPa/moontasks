@@ -374,6 +374,7 @@ impl App {
                 connection,
                 commit_panes: HashMap::new(),
                 file_editors: HashMap::new(),
+                file_tree: Default::default(),
                 work_log_entries_waiting: HashMap::new(),
                 #[cfg(target_arch = "wasm32")]
                 page_qr: Default::default(),

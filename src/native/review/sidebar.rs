@@ -175,7 +175,7 @@ fn wear_asked_staging(asked_staging: &HashMap<String, bool>, files: &mut [Sideba
     }
 }
 
-fn stage_status_color(status: FileStageStatus, palette: &Palette) -> Color32 {
+pub(crate) fn stage_status_color(status: FileStageStatus, palette: &Palette) -> Color32 {
     match status {
         FileStageStatus::Staged => palette.staged,
         FileStageStatus::Unstaged => palette.unstaged,

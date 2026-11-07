@@ -36,7 +36,33 @@ const ENCRYPTED_NOTE: &str = "encrypted · gpg";
 const RELOAD_CONFIRM_LABEL: &str = "[reload · discard edits]";
 
 impl App {
+    /// A file tab: the tree of the repo's files down its left when it is shown - see
+    /// [`crate::native::file_tree`] - and the file in what is left.
     pub(crate) fn draw_file_pane(
+        &mut self,
+        ui: &mut Ui,
+        pane_id: PaneId,
+        session_id: &str,
+        file_path: &str,
+        revision: Option<&str>,
+    ) {
+        if !self.model.file_tree.shown {
+            self.draw_file_body(ui, pane_id, session_id, file_path, revision);
+            return;
+        }
+        let full = ui.available_rect_before_wrap();
+        let body_rect = self.draw_file_tree(ui, full, pane_id, session_id, file_path);
+        let mut body = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt(("file-body", pane_id))
+                .max_rect(body_rect)
+                .layout(*ui.layout()),
+        );
+        self.draw_file_body(&mut body, pane_id, session_id, file_path, revision);
+        ui.allocate_rect(full, egui::Sense::hover());
+    }
+
+    fn draw_file_body(
         &mut self,
         ui: &mut Ui,
         pane_id: PaneId,
@@ -282,6 +308,23 @@ impl App {
                             );
                         }
                         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                            // First, so it is where it is whether the tree is shown or not:
+                            // the tree is shared by every file tab, so put away here it is put
+                            // away on all of them.
+                            let tree_shown = self.model.file_tree.shown;
+                            if widgets::quiet_button(
+                                ui,
+                                if tree_shown { "[hide files]" } else { "[files]" },
+                            )
+                            .on_hover_text(if tree_shown {
+                                "Put the tree of the repo's files away, on every file tab"
+                            } else {
+                                "Show the repo's files in a tree beside the text, on every file tab"
+                            })
+                            .clicked()
+                            {
+                                self.model.file_tree.shown = !tree_shown;
+                            }
                             ui.add(
                                 egui::Label::new(RichText::new(&shown_path).strong())
                                     .truncate()

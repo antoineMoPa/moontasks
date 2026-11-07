@@ -778,6 +778,8 @@ impl App {
             Action::FormatFile => crate::native::formatting::start_in_front(self),
             Action::CodeActions => crate::native::code_actions::start_in_front(self),
             Action::ToggleBlame => crate::native::blame::toggle_in_front(self),
+            Action::GoBack => self.step_through_files(-1),
+            Action::GoForward => self.step_through_files(1),
         }
     }
 

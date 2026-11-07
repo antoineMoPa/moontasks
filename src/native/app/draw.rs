@@ -544,6 +544,9 @@ impl App {
         self.draw_page_qr(ctx);
         self.draw_toasts(ctx, crate::native::status_bar::BAR_HEIGHT);
 
+        // The file in front into the back / forward history, before any action this frame
+        // brings another one forward.
+        crate::native::file_tree::follow(self, ctx);
         // A place a language server named, gone to or listed now the tree is drawn.
         crate::native::places::follow(self);
         #[cfg(target_arch = "wasm32")]

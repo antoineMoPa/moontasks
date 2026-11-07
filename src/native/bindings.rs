@@ -69,6 +69,10 @@ pub(crate) enum Action {
     /// Go to the next space of the window, wrapping round - see [`crate::native::app`]'s spaces.
     NextSpace,
     PreviousSpace,
+    /// Back to the file shown before, through the window's history of them - see
+    /// [`crate::native::file_tree::history`].
+    GoBack,
+    GoForward,
 }
 
 /// One press: a key and the modifiers held with it.
@@ -277,6 +281,17 @@ pub(crate) const BINDINGS: &[Binding] = &[
     },
     // Ctrl+Alt with the arrows steps through the spaces, which is where classic gnome and xfce
     // put it, and a chord a shell program is not sent.
+    // Where a browser and Xcode put back and forward. A shell is not sent ⌘ chords.
+    Binding {
+        action: Action::GoBack,
+        chord: &[press(Modifiers::COMMAND, Key::OpenBracket)],
+        reach: Reach::Anywhere,
+    },
+    Binding {
+        action: Action::GoForward,
+        chord: &[press(Modifiers::COMMAND, Key::CloseBracket)],
+        reach: Reach::Anywhere,
+    },
     Binding {
         action: Action::NextSpace,
         chord: &[press(CTRL_ALT, Key::ArrowRight)],
