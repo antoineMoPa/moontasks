@@ -39,6 +39,8 @@ pub(super) enum MoonCommand {
     },
     /// Write the desktop launcher of each frame, so the OS offers them too.
     InstallLaunchers,
+    /// Delete what the install script wrote: the executable and the launchers.
+    Uninstall,
     /// A pass key for this machine's server so it can be piped - see
     /// [`crate::pass_keys`].
     GeneratePassKey,
@@ -152,6 +154,7 @@ pub(crate) fn run() -> Result<()> {
             runtime.block_on(server::run_server())
         }
         MoonCommand::InstallLaunchers => install_launchers(),
+        MoonCommand::Uninstall => uninstall(),
         MoonCommand::GeneratePassKey => {
             println!(
                 "{}",
@@ -249,7 +252,8 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
         "wire" => Ok(MoonCommand::Wire(wire::parse(&rest, asks_for_help)?)),
         // So do the agents, for theirs.
         "agent" => Ok(MoonCommand::Agent(agent::parse(&rest, asks_for_help)?)),
-        "list" | "serve" | "licenses" | "install-launchers" | "generate-pass-key" | "desktop"
+        "list" | "serve" | "licenses" | "install-launchers" | "uninstall" | "generate-pass-key"
+        | "desktop"
             if asks_for_help =>
         {
             Ok(MoonCommand::Help)
@@ -273,6 +277,10 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
         "install-launchers" => match rest.is_empty() {
             true => Ok(MoonCommand::InstallLaunchers),
             false => bail!("`{PROGRAM} install-launchers` takes nothing else"),
+        },
+        "uninstall" => match rest.is_empty() {
+            true => Ok(MoonCommand::Uninstall),
+            false => bail!("`{PROGRAM} uninstall` takes nothing else"),
         },
         "generate-pass-key" => match rest.is_empty() {
             true => Ok(MoonCommand::GeneratePassKey),
@@ -349,6 +357,26 @@ fn install_launchers() -> Result<()> {
         "The OS lists them from {}; rerun this after moving the executable.",
         launchers::destination_hint()
     );
+    Ok(())
+}
+
+/// `uninstall` from a terminal: the same deleting the window's menu item does, with what went
+/// printed line by line. Typing the command is the yes the menu item asks for twice.
+fn uninstall() -> Result<()> {
+    let uninstalled = crate::native::uninstalling::uninstall_moon()?;
+    for path in &uninstalled.removed {
+        println!("Removed {}", path.display());
+    }
+    if uninstalled.removed.is_empty() {
+        println!("Nothing the install script wrote was found.");
+    }
+    if let Some(left) = &uninstalled.left_in_place {
+        println!(
+            "{} was installed another way and is left in place.",
+            left.display()
+        );
+    }
+    println!("Settings, boards and each repo's .moontasks folder are left as they are.");
     Ok(())
 }
 
@@ -600,6 +628,7 @@ Usage:
   {PROGRAM} serve [--logs]
   {PROGRAM} desktop [<folder>]        start as x11 desktop env
   {PROGRAM} install-launchers         add mac os launchers
+  {PROGRAM} uninstall                 remove installed moon and its launchers
   {PROGRAM} generate-pass-key
   {PROGRAM} licenses                  show licenses
   {PROGRAM} --version

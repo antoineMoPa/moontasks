@@ -115,4 +115,53 @@ impl App {
                 .error(format!("could not write the launchers: {error}")),
         }
     }
+
+    /// Take the installed executable and its launchers off this machine - on the second ask.
+    ///
+    /// The first ask only says what would go, and arms the second for as long as that is on
+    /// screen, the way a quit over running shells is asked twice. The window stays up after:
+    /// a process keeps the executable it started with, deleted or not.
+    pub(super) fn uninstall_moon(&mut self) {
+        use crate::native::uninstalling;
+
+        let armed = self
+            .uninstall_armed_until
+            .take()
+            .is_some_and(|until| Instant::now() < until);
+        if !armed {
+            self.uninstall_armed_until = Some(Instant::now() + QUIT_CONFIRM_WINDOW);
+            let executable = match uninstalling::find_install_script_executable_path() {
+                Ok(path) => path.display().to_string(),
+                Err(_) => crate::cli::PROGRAM.to_string(),
+            };
+            self.model.error(format!(
+                "uninstall moon again to remove {executable} and the launchers"
+            ));
+            return;
+        }
+
+        match uninstalling::uninstall_moon() {
+            Ok(uninstalled) => {
+                let mut said = match uninstalled.removed.as_slice() {
+                    [] => "nothing the install script wrote was found".to_string(),
+                    removed => format!(
+                        "removed {}",
+                        removed
+                            .iter()
+                            .map(|path| path.display().to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                };
+                if let Some(left) = &uninstalled.left_in_place {
+                    said.push_str(&format!(
+                        " - this window runs {}, which was installed another way and is left",
+                        left.display()
+                    ));
+                }
+                self.model.info(said);
+            }
+            Err(error) => self.model.error(format!("could not uninstall: {error:#}")),
+        }
+    }
 }

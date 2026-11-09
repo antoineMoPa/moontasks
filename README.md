@@ -36,6 +36,9 @@ curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moontasks/main/install.
 This installs `moon` and the desktop launchers. If `~/.local/bin` is not already on
 your `PATH`, add it in your shell configuration.
 
+To take both away again, run `moon uninstall` - or pick **Window › Uninstall moon** twice.
+Settings, boards and each repo's `.moontasks` folder are left as they are.
+
 ## Build from source
 
 Requirements:

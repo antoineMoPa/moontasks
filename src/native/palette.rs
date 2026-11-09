@@ -109,6 +109,9 @@ pub(crate) enum CommandAction {
     // picker: none of them is anything a browser's window can do.
     #[cfg(not(target_arch = "wasm32"))]
     InstallLaunchers,
+    /// Take the installed executable and its launchers off this machine, on the second ask.
+    #[cfg(not(target_arch = "wasm32"))]
+    UninstallMoon,
     /// Another window of one of the three programs, on its launch screen.
     #[cfg(not(target_arch = "wasm32"))]
     NewWindow(crate::cli::Frame),

@@ -286,6 +286,16 @@ fn parse_install_launchers_command() {
     );
 }
 
+#[test]
+fn parse_uninstall_command() {
+    assert_eq!(
+        parse_command(None, vec!["uninstall".to_string()]).expect("expected it to parse"),
+        MoonCommand::Uninstall
+    );
+    parse_command(None, vec!["uninstall".to_string(), "extra".to_string()])
+        .expect_err("expected an argument after uninstall to be rejected");
+}
+
 /// `install-launchers` takes nothing, so an argument after it is a mistake rather than a
 /// path to review.
 #[test]

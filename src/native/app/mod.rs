@@ -223,6 +223,9 @@ pub(crate) struct App {
     window_title: String,
     /// Until when a quit that was warned about goes through unasked.
     quit_armed_until: Option<Instant>,
+    /// Until when a second ask to uninstall is the yes the first one asked for.
+    #[cfg(not(target_arch = "wasm32"))]
+    uninstall_armed_until: Option<Instant>,
     // `moon open`'s, down to `window_is_in_front` - see `open_from_shell`. A browser has no
     // shell to type it in.
     /// The socket a `moon open` typed in a shell reaches this window on, and the record
@@ -476,6 +479,8 @@ impl App {
             // What `run` opened the window with, so the first frame has nothing to say.
             window_title: window_title(launch.frame, None),
             quit_armed_until: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            uninstall_armed_until: None,
             // Started by the window itself - see the field.
             #[cfg(not(target_arch = "wasm32"))]
             shell_asks: None,

@@ -48,6 +48,19 @@ pub(crate) fn installed_launcher(frame: Frame) -> Option<PathBuf> {
     platform::installed_launcher(frame)
 }
 
+/// Take away the launcher of each of the three windows, and say which ones were there to take.
+///
+/// Only a launcher this program wrote goes: an application of the same name that came from
+/// somewhere else is left where it is.
+pub(crate) fn remove_installed_launchers() -> Result<Vec<PathBuf>> {
+    let mut removed = Vec::new();
+    for frame in FRAMES {
+        removed.extend(platform::remove_launchers(*frame)?);
+    }
+
+    Ok(removed)
+}
+
 /// Where the launchers go, said in one line - the tail of what the CLI and the window report.
 pub(crate) fn destination_hint() -> String {
     platform::destination_hint()
@@ -88,6 +101,9 @@ mod platform {
         (b"ic09", 512),
         (b"ic14", 512),
     ];
+
+    /// The tool that tells Launch Services of a bundle that was written, or of one about to go.
+    const LSREGISTER: &str = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
     pub(super) fn destination_hint() -> String {
         match applications_dir() {
@@ -148,6 +164,46 @@ mod platform {
         None
     }
 
+    /// Delete this frame's bundle from every one of [`APPLICATIONS_DIRS`] it is in. A bundle
+    /// that is someone else's is not found by [`find_bundles_of_frame`], so it stays.
+    pub(super) fn remove_launchers(frame: Frame) -> Result<Vec<PathBuf>> {
+        let mut removed = Vec::new();
+        for bundle in find_bundles_of_frame(frame) {
+            // Launch Services is told first, while the bundle is still there to be read:
+            // Spotlight would otherwise keep offering an application that is gone.
+            let _ = std::process::Command::new(LSREGISTER)
+                .arg("-u")
+                .arg(&bundle)
+                .status();
+            fs::remove_dir_all(&bundle)
+                .with_context(|| format!("failed to remove {}", bundle.display()))?;
+            removed.push(bundle);
+        }
+        Ok(removed)
+    }
+
+    /// Every bundle of this frame that carries our identifier, in all of
+    /// [`APPLICATIONS_DIRS`]: an earlier run may have left one in each.
+    fn find_bundles_of_frame(frame: Frame) -> Vec<PathBuf> {
+        let bundle_name = format!("{}.app", frame.display_name());
+        let identifier = format!("com.moontasks.{}", frame.slug());
+        let mut bundles = Vec::new();
+        for candidate in APPLICATIONS_DIRS {
+            let dir = match candidate.strip_prefix("~/") {
+                Some(under_home) => match super::home() {
+                    Ok(home) => home.join(under_home),
+                    Err(_) => continue,
+                },
+                None => PathBuf::from(candidate),
+            };
+            let bundle = dir.join(&bundle_name);
+            if bundle.is_dir() && refuse_foreign_bundle(&bundle, &identifier).is_ok() {
+                bundles.push(bundle);
+            }
+        }
+        bundles
+    }
+
     /// Build `<display name>.app` around the installed executable.
     pub(super) fn write_launcher(frame: Frame, executable: &Path) -> Result<PathBuf> {
         let bundle_name = format!("{}.app", frame.display_name());
@@ -201,12 +257,10 @@ mod platform {
 
         // Launch Services reads a bundle when it is first opened, but a bundle rewritten in
         // place can leave it holding the old plist, and Spotlight showing nothing.
-        let _ = std::process::Command::new(
-            "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
-        )
-        .arg("-f")
-        .arg(&bundle)
-        .status();
+        let _ = std::process::Command::new(LSREGISTER)
+            .arg("-f")
+            .arg(&bundle)
+            .status();
 
         remove_bundles_elsewhere(&bundle_name, &bundle, &identifier);
         Ok(bundle)
@@ -373,6 +427,39 @@ mod platform {
         Ok(entry)
     }
 
+    /// Delete this frame's desktop entry and its icon. An entry of the same name that is not
+    /// one [`desktop_entry`] wrote is someone else's, and stays with its icon.
+    pub(super) fn remove_launchers(frame: Frame) -> Result<Vec<PathBuf>> {
+        let data_dir = super::home()?.join(".local/share");
+        let applications_dir = data_dir.join("applications");
+        let entry = applications_dir.join(format!("{}.desktop", frame.slug()));
+        let written_by_us = fs::read_to_string(&entry)
+            .is_ok_and(|contents| contents.contains(STARTUP_WM_CLASS_LINE));
+        if !written_by_us {
+            return Ok(Vec::new());
+        }
+
+        let mut removed = Vec::new();
+        let icon = data_dir.join(format!(
+            "icons/hicolor/{ICON_SIZE}x{ICON_SIZE}/apps/{}.png",
+            frame.slug()
+        ));
+        for path in [entry, icon] {
+            if path.exists() {
+                fs::remove_file(&path)
+                    .with_context(|| format!("failed to remove {}", path.display()))?;
+                removed.push(path);
+            }
+        }
+        let _ = std::process::Command::new("update-desktop-database")
+            .arg(&applications_dir)
+            .status();
+        Ok(removed)
+    }
+
+    /// The line of an entry that says it is one of ours.
+    const STARTUP_WM_CLASS_LINE: &str = "StartupWMClass=moontasks";
+
     fn desktop_entry(frame: Frame, executable: &Path) -> String {
         format!(
             "[Desktop Entry]
@@ -413,6 +500,11 @@ mod platform {
 
     pub(super) fn write_launcher(_frame: Frame, _executable: &Path) -> Result<PathBuf> {
         bail!("launchers are written for macOS and Linux only");
+    }
+
+    /// None was ever written here, so there is none to take away.
+    pub(super) fn remove_launchers(_frame: Frame) -> Result<Vec<PathBuf>> {
+        Ok(Vec::new())
     }
 }
 

@@ -102,6 +102,9 @@ pub(crate) enum MenuAction {
     RestartWindow,
     #[cfg(not(target_arch = "wasm32"))]
     InstallLaunchers,
+    /// Take the installed executable and its launchers off this machine.
+    #[cfg(not(target_arch = "wasm32"))]
+    UninstallMoon,
 }
 
 #[cfg(all(target_os = "macos", not(target_arch = "wasm32")))]
@@ -186,6 +189,7 @@ mod platform {
         new_windows: Vec<(MenuId, Frame)>,
         restart_window: MenuId,
         install_launchers: MenuId,
+        uninstall_moon: MenuId,
     }
 
     impl NativeMenu {
@@ -327,6 +331,10 @@ mod platform {
             // without a trip to the terminal - the new instance opens on this window's repo.
             let restart_window = MenuItem::new("Restart", true, None);
 
+            // The install script read backwards. Last in the menu and behind a second pick -
+            // see `App::uninstall_moon` - since nothing else in the bar deletes anything.
+            let uninstall_moon = MenuItem::new("Uninstall moon", true, None);
+
             // Each target's submenu goes between these once the repo's file has been read -
             // see `show_project`.
             let open_project = MenuItem::new("Project Settings…", true, None);
@@ -417,6 +425,8 @@ mod platform {
                     &PredefinedMenuItem::separator(),
                     &PredefinedMenuItem::minimize(None),
                     &PredefinedMenuItem::fullscreen(None),
+                    &PredefinedMenuItem::separator(),
+                    &uninstall_moon,
                 ])
                 .ok()?;
 
@@ -475,6 +485,7 @@ mod platform {
                     .collect(),
                 restart_window: restart_window.id().clone(),
                 install_launchers: install_launchers.id().clone(),
+                uninstall_moon: uninstall_moon.id().clone(),
             })
         }
 
@@ -590,6 +601,8 @@ mod platform {
                     MenuAction::RestartWindow
                 } else if event.id == self.install_launchers {
                     MenuAction::InstallLaunchers
+                } else if event.id == self.uninstall_moon {
+                    MenuAction::UninstallMoon
                 } else if let Some((_, frame)) =
                     self.new_windows.iter().find(|(id, _)| *id == event.id)
                 {

@@ -261,6 +261,8 @@ impl App {
                 #[cfg(not(target_arch = "wasm32"))]
                 MenuAction::InstallLaunchers => CommandAction::InstallLaunchers,
                 #[cfg(not(target_arch = "wasm32"))]
+                MenuAction::UninstallMoon => CommandAction::UninstallMoon,
+                #[cfg(not(target_arch = "wasm32"))]
                 MenuAction::NewWindow(frame) => CommandAction::NewWindow(frame),
                 #[cfg(not(target_arch = "wasm32"))]
                 MenuAction::RestartWindow => CommandAction::RestartWindow,

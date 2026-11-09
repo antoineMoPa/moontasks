@@ -530,6 +530,17 @@ pub(crate) fn commands_for(app: &App) -> Vec<Command> {
             shortcut: None,
         });
     }
+    // The install script read backwards; on macOS this is the Window menu's Uninstall moon.
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        commands.push(Command {
+            title: "uninstall moon".to_string(),
+            description: "Remove the installed moon and its launchers; settings and boards stay"
+                .to_string(),
+            action: CommandAction::UninstallMoon,
+            shortcut: None,
+        });
+    }
     commands.push(Command {
         title: format!("switch to {}", app.model.theme.toggled().label()),
         description: "Change between the light and dark palette".to_string(),

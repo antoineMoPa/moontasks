@@ -81,6 +81,8 @@ mod text_without_a_key;
 pub(crate) mod theme;
 #[cfg(test)]
 pub(crate) mod ui_tests;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod uninstalling;
 pub(crate) mod visualizations;
 pub(crate) mod conversation_pane;
 /// Only where a session can be managed: X11, which is Linux here.
