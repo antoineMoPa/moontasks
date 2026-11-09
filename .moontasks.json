@@ -1,6 +1,21 @@
 {
-  "build": "cargo install --locked --path . && moon install-launchers",
-  "run": "@restart",
+  "targets": [
+    {
+      "name": "moontasks",
+      "build": "cargo install --locked --path . && moon install-launchers",
+      "run": "@restart"
+    },
+    {
+      "name": "minerve",
+      "build": "cargo install --locked --path crates/minerve",
+      "run": "minerve"
+    },
+    {
+      "name": "minerve gui",
+      "build": "cargo install --locked --path crates/minerve-egui",
+      "run": "minerve-gui"
+    }
+  ],
   "indent": {
     "spaces": 4
   },
