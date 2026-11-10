@@ -13,6 +13,7 @@ use crate::api::AgentKind;
 /// | `{session}` | the session id moontasks generated for this run |
 /// | `{brief}` | the standing instructions: which task, and where its notes go |
 /// | `{brief_file}` | the path of `brief.md`, for an agent given a config that names it |
+/// | `{moon_quoted}` | the path of this moon's executable, in double quotes as JSON writes it |
 ///
 /// No agent is handed the work as a prompt. Starting one is opening a conversation, not
 /// firing a job off: it comes up knowing which task it is on, and waits to be told what to do
@@ -25,6 +26,12 @@ use crate::api::AgentKind;
 /// agent's box does not exist yet when the run begins, and what is typed then is dropped.
 ///
 /// Nothing is typed into the agent's box when it starts: it waits there for the person.
+///
+/// Every agent that speaks MCP is also given the board as a server - `moon mcp`, see
+/// `crate::cli::mcp` - run from the moon that started it, so the tools it has are that
+/// moon's. It is given for the run alone, on top of the servers the person set up: a flag
+/// for Claude and Minerve, config overrides for Codex, and one more key of OpenCode's inline
+/// config. Started in the task's shell, the server knows which task it is for. Pi speaks no MCP.
 ///
 /// An argument whose placeholder has nothing to fill it takes the flag in front of it with it,
 /// so an agent that cannot be told its session id is simply run without one.
@@ -45,6 +52,15 @@ pub(crate) struct AgentLaunch {
     /// are, and a variable whose value has nothing to fill it is left unset.
     pub(crate) env: &'static [(&'static str, &'static str)],
 }
+
+/// The board's own MCP server as a `.mcp.json` says one, which is what Claude and Minerve take
+/// after `--mcp-config`.
+const MOON_MCP_SERVERS: &str = r#"{"mcpServers":{"moon":{"command":{moon_quoted},"args":["mcp"]}}}"#;
+
+/// The same server as Codex's config says one, the value of a `-c`: TOML, whose quoted
+/// strings are written the way JSON's are. One table in one value, so a run with no moon to
+/// name is given no part of it.
+const CODEX_MOON_MCP_SERVER: &str = r#"mcp_servers.moon={command={moon_quoted},args=["mcp"]}"#;
 
 pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
     AgentLaunch {
@@ -68,9 +84,12 @@ pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
         kind: AgentKind::Claude,
         // The brief and no prompt: it knows the task from the moment it starts, and waits at
         // its prompt for the person who created the task to explain the work.
+        // `--mcp-config` takes every word after it up to the next flag, so it is never last.
         start: &[
             "--session-id",
             "{session}",
+            "--mcp-config",
+            MOON_MCP_SERVERS,
             "--append-system-prompt",
             "{brief}",
         ],
@@ -78,8 +97,20 @@ pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
         // it was opened on and never hears anything new - so a run resumed today would be
         // working from whatever the brief said the day it started, and one attached from the
         // agent's own records would never have had one at all.
-        resume: &["--append-system-prompt", "{brief}"],
-        attach: &["--resume", "{session}", "--append-system-prompt", "{brief}"],
+        resume: &[
+            "--mcp-config",
+            MOON_MCP_SERVERS,
+            "--append-system-prompt",
+            "{brief}",
+        ],
+        attach: &[
+            "--resume",
+            "{session}",
+            "--mcp-config",
+            MOON_MCP_SERVERS,
+            "--append-system-prompt",
+            "{brief}",
+        ],
         env: &[],
     },
     AgentLaunch {
@@ -88,9 +119,23 @@ pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
         // every config value can be overridden on the command line. `-c` is a global option,
         // so it leads - `resume` is a subcommand and everything of the program's own comes
         // before it.
-        start: &["-c", "developer_instructions={brief}"],
-        resume: &["-c", "developer_instructions={brief}", "resume", "--last"],
+        start: &[
+            "-c",
+            CODEX_MOON_MCP_SERVER,
+            "-c",
+            "developer_instructions={brief}",
+        ],
+        resume: &[
+            "-c",
+            CODEX_MOON_MCP_SERVER,
+            "-c",
+            "developer_instructions={brief}",
+            "resume",
+            "--last",
+        ],
         attach: &[
+            "-c",
+            CODEX_MOON_MCP_SERVER,
             "-c",
             "developer_instructions={brief}",
             "resume",
@@ -103,11 +148,13 @@ pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
         start: &[
             "--session-id",
             "{session}",
+            "--mcp-config",
+            MOON_MCP_SERVERS,
             "--append-system-prompt",
             "{brief}",
         ],
-        resume: &["--resume"],
-        attach: &["--resume={session}"],
+        resume: &["--resume", "--mcp-config", MOON_MCP_SERVERS],
+        attach: &["--resume={session}", "--mcp-config", MOON_MCP_SERVERS],
         env: &[],
     },
     AgentLaunch {
@@ -118,10 +165,10 @@ pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
         // OpenCode has no flag of either kind, and an inline config in the environment is
         // what it does have. It is merged over the user's own config rather than replacing
         // it, and `instructions` names files to load as instructions - which is what
-        // `brief.md` is written for.
+        // `brief.md` is written for. `mcp` names the servers it starts, the board's among them.
         env: &[(
             "OPENCODE_CONFIG_CONTENT",
-            r#"{"$schema":"https://opencode.ai/config.json","instructions":["{brief_file}"]}"#,
+            r#"{"$schema":"https://opencode.ai/config.json","instructions":["{brief_file}"],"mcp":{"moon":{"type":"local","command":[{moon_quoted},"mcp"],"enabled":true}}}"#,
         )],
     },
 ];
@@ -132,7 +179,8 @@ pub(crate) const AGENT_LAUNCHES: &[AgentLaunch] = &[
 /// Which placeholders exist has to be written down, because a filled-in value can contain
 /// braces of its own - the brief is free text - and so cannot be told apart from an unfilled
 /// placeholder by looking at the result.
-pub(crate) const LAUNCH_PLACEHOLDERS: &[&str] = &["{session}", "{brief}", "{brief_file}"];
+pub(crate) const LAUNCH_PLACEHOLDERS: &[&str] =
+    &["{session}", "{brief}", "{brief_file}", "{moon_quoted}"];
 
 /// What an agent working in a task is told, beyond the work itself.
 ///

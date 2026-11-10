@@ -527,6 +527,15 @@ impl Fillings {
     }
 }
 
+/// The path of the moon that is running, in double quotes and escaped as JSON writes a
+/// string: what an agent's config names as the command of the board's MCP server, so the
+/// tools an agent is given are the ones of the moon that started it.
+fn quote_this_moon() -> Result<String> {
+    let moon = std::env::current_exe().context("failed to find moon's own executable")?;
+    serde_json::to_string(&moon.display().to_string())
+        .context("failed to write moon's own path as JSON")
+}
+
 /// What every process started for a task is told about itself.
 fn task_env(session_id: &str, task_id: &str, repo_path: &Path) -> Vec<(String, String)> {
     vec![
@@ -621,6 +630,7 @@ pub(super) fn write_task_files(
         values: vec![
             ("{brief}", brief),
             ("{brief_file}", brief_path.display().to_string()),
+            ("{moon_quoted}", quote_this_moon()?),
         ],
     })
 }

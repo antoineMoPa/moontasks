@@ -4,6 +4,7 @@
 //! calls it directly and the axum routes are a thin skin over the same functions.
 
 mod board_listing;
+mod card_edits;
 mod columns;
 mod resources;
 mod shared_places;
@@ -12,6 +13,9 @@ mod stray_cards;
 mod tests;
 
 pub(crate) use board_listing::cards_by_column;
+pub(crate) use card_edits::{
+    append_notes_in_repo, rename_task_in_repo, set_remote_tracker_url_in_repo, set_tags_in_repo,
+};
 pub(crate) use columns::{
     add_column, delete_column, list_columns, place_column, rename_column, set_column_arrivals,
     set_column_marks_a_days_work, set_column_sort,
@@ -30,7 +34,7 @@ use crate::{
     api::{AgentKind, AppState},
     moontasks::{
         BoardTaskView, CreateTaskRequest, ReviewRequestView, TaskResourceView, TaskView,
-        agent_launch, appears_on, column_sort, remote_tracker,
+        agent_launch, appears_on, column_sort,
         review_request::{self, Amend},
         store::{
             self, BoardConfig, ColumnEnd, ColumnId, TaskMetadata, TaskResource, TaskResourceKind,
@@ -760,14 +764,7 @@ pub(crate) fn rename_task(
     task_id: &str,
     title: &str,
 ) -> Result<()> {
-    let title = title.trim();
-    if title.is_empty() {
-        bail!("a task needs a title");
-    }
-    let repo_path = repo_of(state, session_id)?;
-    let mut metadata = store::read_task(&repo_path, task_id)?;
-    metadata.title = title.to_string();
-    store::write_task(&repo_path, task_id, &metadata)
+    card_edits::rename_task_in_repo(&repo_of(state, session_id)?, task_id, title)
 }
 
 /// What a card is marked with, set whole. Spelled the way the store keeps tags, so a tag typed
@@ -778,10 +775,7 @@ pub(crate) fn set_tags(
     task_id: &str,
     tags: &[String],
 ) -> Result<()> {
-    let repo_path = repo_of(state, session_id)?;
-    let mut metadata = store::read_task(&repo_path, task_id)?;
-    metadata.tags = store::tags_of(tags.iter().map(String::as_str));
-    store::write_task(&repo_path, task_id, &metadata)
+    card_edits::set_tags_in_repo(&repo_of(state, session_id)?, task_id, tags)
 }
 
 /// Link a task to its issue in a tracker kept elsewhere, or take the link off with an empty
@@ -793,12 +787,5 @@ pub(crate) fn set_remote_tracker_url(
     task_id: &str,
     url: &str,
 ) -> Result<()> {
-    let url = url.trim();
-    if !url.is_empty() && !remote_tracker::is_a_web_link(url) {
-        bail!("a tracker link starts with https:// or http://, and `{url}` does not");
-    }
-    let repo_path = repo_of(state, session_id)?;
-    let mut metadata = store::read_task(&repo_path, task_id)?;
-    metadata.remote_task_tracker_url = url.to_string();
-    store::write_task(&repo_path, task_id, &metadata)
+    card_edits::set_remote_tracker_url_in_repo(&repo_of(state, session_id)?, task_id, url)
 }

@@ -13,6 +13,8 @@ mod frame;
 #[cfg(not(target_arch = "wasm32"))]
 mod launch;
 #[cfg(not(target_arch = "wasm32"))]
+mod mcp;
+#[cfg(not(target_arch = "wasm32"))]
 mod open;
 #[cfg(not(target_arch = "wasm32"))]
 mod task_shell;

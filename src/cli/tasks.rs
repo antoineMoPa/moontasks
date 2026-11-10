@@ -212,11 +212,17 @@ const BOTTOM_OF_THE_COLUMN: usize = usize::MAX;
 /// arrived written down. A card already in that column is left where it is in it.
 fn move_card(column: &str, task_dir: Option<OsString>) -> Result<String> {
     let task = TaskOfShell::of(&format!("{PROGRAM} tasks move"), task_dir.as_deref())?;
-    let handle = handles::handle_of(&task.task_id, &task.folders_of_its_board()?);
-    let board = store::read_board(&task.repo_path);
+    task.folders_of_its_board()?;
+    move_card_of_task(&task.repo_path, &task.task_id, column)
+}
+
+/// [`move_card`], for a task named by its folder rather than by the shell it was typed in.
+pub(super) fn move_card_of_task(repo_path: &Path, task_id: &str, column: &str) -> Result<String> {
+    let handle = handles::handle_of(task_id, &store::list_task_ids(repo_path)?);
+    let board = store::read_board(repo_path);
     let column = column_called(&board.columns, column)?;
 
-    let metadata = store::read_task(&task.repo_path, &task.task_id)?;
+    let metadata = store::read_task(repo_path, task_id)?;
     if metadata.status.as_ref() == Some(&column.id) {
         return Ok(format!("@{handle} is already in {}\n", column.label));
     }
@@ -225,8 +231,8 @@ fn move_card(column: &str, task_dir: Option<OsString>) -> Result<String> {
     let shells_held_here = TerminalRegistry::new(Arc::new(Mutex::new(Instant::now())));
     service::place_tasks_in_repo(
         &shells_held_here,
-        &task.repo_path,
-        std::slice::from_ref(&task.task_id),
+        repo_path,
+        &[task_id.to_string()],
         column.id.clone(),
         BOTTOM_OF_THE_COLUMN,
         None,
@@ -237,7 +243,7 @@ fn move_card(column: &str, task_dir: Option<OsString>) -> Result<String> {
 /// The column the board shows under this name, letter for letter: `IN PROGRESS`, not
 /// `in progress`, and not the `in_progress` its cards are written down as being in. A name
 /// the board does not show is refused with the ones it does.
-fn column_called<'board>(
+pub(super) fn column_called<'board>(
     columns: &'board [BoardColumn],
     name: &str,
 ) -> Result<&'board BoardColumn> {

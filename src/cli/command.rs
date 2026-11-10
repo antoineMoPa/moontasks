@@ -14,7 +14,7 @@ use super::{
         review_open_request,
     },
     frame::frame_named,
-    launch, open, tasks, wire,
+    launch, mcp, open, tasks, wire,
 };
 use crate::{
     api::{DiffTarget, OpenSessionRequest},
@@ -94,6 +94,9 @@ pub(super) enum MoonCommand {
     /// An agent of this repo's board started, looked at or told something, and the help for
     /// doing so - see [`super::agent`].
     Agent(agent::AgentCommand),
+    /// The board of this repo served to an agent as an MCP server, and the help for setting
+    /// it up - see [`super::mcp`].
+    Mcp(mcp::McpCommand),
     /// The window as the desktop of the X11 session it was started in: full screen, and the
     /// window manager of every program started from it - see
     /// [`crate::native::application_pane`]. This is what the session file of `os/` runs.
@@ -180,6 +183,7 @@ pub(crate) fn run() -> Result<()> {
         MoonCommand::MoveTask { column } => tasks::move_task(&column),
         MoonCommand::Wire(command) => wire::run(command),
         MoonCommand::Agent(command) => agent::run(command),
+        MoonCommand::Mcp(command) => mcp::run(command),
         MoonCommand::Desktop { path } => open_desktop(path.as_deref()),
         MoonCommand::Window { frame, args } => open_window(frame, args),
     }
@@ -252,6 +256,8 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
         "wire" => Ok(MoonCommand::Wire(wire::parse(&rest, asks_for_help)?)),
         // So do the agents, for theirs.
         "agent" => Ok(MoonCommand::Agent(agent::parse(&rest, asks_for_help)?)),
+        // And the MCP server, for its tools.
+        "mcp" => mcp::parse(&rest, asks_for_help),
         "list" | "serve" | "licenses" | "install-launchers" | "uninstall" | "generate-pass-key"
         | "desktop"
             if asks_for_help =>
@@ -620,6 +626,7 @@ Usage:
   {PROGRAM} tasks move <column>       move this shell's task to a column
   {PROGRAM} wire post <one line>      tell the board's other agents
   {PROGRAM} agent <command>           list, start, view or tell the board's agents
+  {PROGRAM} mcp [--repo <path>]       serve the board to an agent, as an MCP server
   {PROGRAM} edit <path>[:<line>]      Open a file for edition
   {PROGRAM} edit <folder>             pick a file of a folder to open
   {PROGRAM} open <path>[:<line>]      same as `{PROGRAM} edit`

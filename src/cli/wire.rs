@@ -97,8 +97,21 @@ pub(super) fn run(command: WireCommand) -> Result<()> {
             Ok(())
         }
         WireCommand::Post { tags, message } => {
-            post(&tags, &message, crate::moon_env_var_os(TASK_DIR_ENV_VAR))
+            print!(
+                "{}",
+                post(&tags, &message, crate::moon_env_var_os(TASK_DIR_ENV_VAR))?
+            );
+            Ok(())
         }
+    }
+}
+
+/// Post a line as it would be typed after `moon wire post`, its tags at its start, from the
+/// task whose folder this is - for a caller with no command line to have parsed it off.
+pub(super) fn post_line(line: &str, task_dir: Option<OsString>) -> Result<String> {
+    match parse_post(&[line.to_string()])? {
+        WireCommand::Post { tags, message } => post(&tags, &message, task_dir),
+        WireCommand::Help => unreachable!("a post is parsed as a post"),
     }
 }
 
@@ -113,8 +126,9 @@ struct Delivery {
 }
 
 /// Post a line: to the board's file when it has no tags, and into the shells of the tagged
-/// tasks' agents when it has.
-fn post(tags: &[String], message: &str, task_dir: Option<OsString>) -> Result<()> {
+/// tasks' agents when it has. What comes back is what the poster is told, a line for each place
+/// the line went.
+pub(super) fn post(tags: &[String], message: &str, task_dir: Option<OsString>) -> Result<String> {
     let sender = TaskOfShell::of(&wire::post_command(), task_dir.as_deref())?;
     let message = wire::one_line(message)?;
     let folders = sender.folders_of_its_board()?;
@@ -126,20 +140,20 @@ fn post(tags: &[String], message: &str, task_dir: Option<OsString>) -> Result<()
         let person = instances::shell_person();
         let signed = wire::from_the_agent_of(person.as_deref(), message);
         broadcasts::post(&sender.repo_path, &handle, &signed)?;
-        println!(
-            "posted as {TAG_MARK}{handle} to {}",
+        return Ok(format!(
+            "posted as {TAG_MARK}{handle} to {}\n",
             broadcasts::file_path(&sender.repo_path).display()
-        );
-        return Ok(());
+        ));
     }
 
     let deliveries = deliveries(&sender.repo_path, &folders, &handle, tags, message)?;
+    let mut said = String::new();
     for delivery in deliveries {
         instances::wire(delivery.held_by, &delivery.line)
             .with_context(|| format!("{TAG_MARK}{} was not sent the line", delivery.tag))?;
-        println!("sent to {TAG_MARK}{}", delivery.tag);
+        said.push_str(&format!("sent to {TAG_MARK}{}\n", delivery.tag));
     }
-    Ok(())
+    Ok(said)
 }
 
 /// Every shell a direct message goes to, or the first reason it cannot go to one of them.

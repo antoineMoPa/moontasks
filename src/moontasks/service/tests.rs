@@ -154,6 +154,7 @@ fn every_agent_is_told_which_task_it_is_on() {
         values: vec![
             ("{brief}", "the brief".to_string()),
             ("{brief_file}", "/repo/.moontasks/task/brief.md".to_string()),
+            ("{moon_quoted}", r#""/bin/my moon""#.to_string()),
         ],
     }
     .with_session(Some("11111111-2222-4333-8444-555555555555"));
@@ -184,6 +185,7 @@ fn opencode_is_handed_a_config_naming_the_brief_file() {
         values: vec![
             ("{brief}", "the brief".to_string()),
             ("{brief_file}", "/repo/.moontasks/task/brief.md".to_string()),
+            ("{moon_quoted}", r#""/bin/my moon""#.to_string()),
         ],
     }
     .fill_env(launch.env);
@@ -196,6 +198,65 @@ fn opencode_is_handed_a_config_naming_the_brief_file() {
         config["instructions"],
         serde_json::json!(["/repo/.moontasks/task/brief.md"])
     );
+    assert_eq!(
+        config["mcp"]["moon"],
+        serde_json::json!({"type": "local", "command": ["/bin/my moon", "mcp"], "enabled": true})
+    );
+}
+
+/// Every agent that speaks MCP comes up with the board as a server, run from the moon that
+/// started it - on a fresh run, and on one resumed or attached, which is a new process too.
+#[test]
+fn every_agent_that_speaks_mcp_is_given_the_boards_server() {
+    let fillings = Fillings {
+        values: vec![
+            ("{brief}", "the brief".to_string()),
+            ("{brief_file}", "/repo/.moontasks/task/brief.md".to_string()),
+            ("{moon_quoted}", r#""/bin/my moon""#.to_string()),
+        ],
+    }
+    .with_session(Some("11111111-2222-4333-8444-555555555555"));
+    let servers = r#"{"mcpServers":{"moon":{"command":"/bin/my moon","args":["mcp"]}}}"#;
+
+    for launch in crate::moontasks::AGENT_LAUNCHES {
+        for (run, template) in [
+            ("start", launch.start),
+            ("resume", launch.resume),
+            ("attach", launch.attach),
+        ] {
+            let args = fillings.fill_all(template.iter());
+            let given_after = |flag: &str| -> Vec<&str> {
+                args.windows(2)
+                    .filter(|pair| pair[0] == flag)
+                    .map(|pair| pair[1].as_str())
+                    .collect()
+            };
+            let said = format!("{:?} {run}: {args:?}", launch.kind);
+            match launch.kind {
+                AgentKind::Claude | AgentKind::Minerve => {
+                    assert_eq!(given_after("--mcp-config"), [servers], "{said}");
+                    serde_json::from_str::<serde_json::Value>(servers).expect("JSON");
+                    // Claude reads every word after the flag as another config.
+                    if launch.kind == AgentKind::Claude {
+                        assert_ne!(args.last().map(String::as_str), Some(servers), "{said}");
+                    }
+                }
+                AgentKind::Codex => {
+                    assert!(
+                        given_after("-c").contains(
+                            &r#"mcp_servers.moon={command="/bin/my moon",args=["mcp"]}"#
+                        ),
+                        "{said}"
+                    );
+                }
+                // Told in its environment, which the test above reads.
+                AgentKind::OpenCode => {}
+                // Speaks no MCP.
+                AgentKind::Pi => assert!(!args.join(" ").contains("mcp"), "{said}"),
+                AgentKind::None => unreachable!("no agent is launched as none"),
+            }
+        }
+    }
 }
 
 /// The brief names the task and says where its notes go, which is all an agent needs to

@@ -255,6 +255,38 @@ moon agent view fix-the-races --lines 80              # the last 80 rows it prin
 
 The task is named by its handle, as on the wire. The rest is in `moon agent --help`.
 
+### The board as an MCP server
+
+`moon mcp` serves the board to an agent over the Model Context Protocol, on stdin and stdout:
+what `moon tasks new|list|move`, `moon wire` and `moon agent` do from a shell, as tools, and
+the rest of what a card has written on it - notes, tags, title, tracker link.
+
+```sh
+claude mcp add moon -- moon mcp                        # the board of the repo claude runs in
+claude mcp add moon -- moon mcp --repo ~/prog/project  # a board named outright
+```
+
+| tool | does |
+| --- | --- |
+| `tasks_list` | the columns and their cards, by handle - `column`, `tag` and `matching` narrow it; the finished column is only counted unless asked for |
+| `task_read` | one task whole: column, tags, folder, running agents, files, review request, notes |
+| `task_create` | a card, with `column`, `tags`, `notes` and `appears_on` if wanted |
+| `task_update` | rename, move, `tags` / `add_tags` / `remove_tags`, `notes` / `append_notes`, `tracker_url` - any of them in one call |
+| `wire_read`, `wire_post` | the last lines of the wire, and a line posted to it - or to `@handle` |
+| `agents_list`, `agent_start`, `agent_view`, `agent_tell` | `moon agent`, as tools |
+
+The server also hands a client the skill of using it - `skill://moontasks-interaction/SKILL.md`,
+over the MCP Skills extension (`skills/list`, `skills/get`, `resources/read`): the rules, the
+tools and the usual flows, written once in `src/cli/mcp/skills/` and built into `moon`.
+
+An agent moon starts needs none of this: claude, codex, minerve and opencode come up with the
+server already given to them, for that run alone and run from the moon that started them. Pi
+speaks no MCP. In Claude Code a server disabled by name with `/mcp` stays disabled, this one too.
+
+A task is named by its handle. A server started from a task's own shell takes that task when
+none is named, and posts to the wire as it; one started anywhere else reads the wire and
+cannot post. The board is the one on this machine: a remote board is not reached.
+
 ## What the agents are told
 
 An agent started on a task does not have to be asked twice. It is given a brief — the same

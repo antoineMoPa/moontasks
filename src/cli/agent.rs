@@ -164,14 +164,14 @@ fn name_of(agent: AgentKind) -> String {
 }
 
 /// Every agent moon starts, by that name.
-fn agent_names() -> Vec<String> {
+pub(super) fn agent_names() -> Vec<String> {
     AGENT_LAUNCHES
         .iter()
         .map(|launch| name_of(launch.kind))
         .collect()
 }
 
-fn agent_named(name: &str) -> Result<AgentKind> {
+pub(super) fn agent_named(name: &str) -> Result<AgentKind> {
     AGENT_LAUNCHES
         .iter()
         .map(|launch| launch.kind)
@@ -284,7 +284,7 @@ struct Running {
 ///
 /// An agent held by a moon that does not answer is listed with the rest: it is running,
 /// though nothing here can tell it anything.
-fn list(repo_path: &Path) -> Result<String> {
+pub(super) fn list(repo_path: &Path) -> Result<String> {
     let folders = store::list_task_ids(repo_path)?;
     let mut running: Vec<(String, String)> = Vec::new();
     for folder in &folders {
@@ -316,7 +316,7 @@ fn list(repo_path: &Path) -> Result<String> {
 /// Start an agent on a task, in the window open on the board's repo - or in the `moon serve`
 /// this shell is a tab of - and say what its run is called. `folder` is the one this shell is
 /// in, which the agent comes up in: the board's repo, or a person's own work tree of it.
-fn start(folder: &Path, task: &str, agent: AgentKind) -> Result<String> {
+pub(super) fn start(folder: &Path, task: &str, agent: AgentKind) -> Result<String> {
     let task = Task::named(&store::board_checkout(folder)?, task)?;
     let moon = instances::moon_for_board(folder).with_context(|| {
         format!(
@@ -331,7 +331,7 @@ fn start(folder: &Path, task: &str, agent: AgentKind) -> Result<String> {
 
 /// What a task's agent is showing. A task with several running shows each under the name of
 /// its run.
-fn view(repo_path: &Path, task: &str, wanted: Shown) -> Result<String> {
+pub(super) fn view(repo_path: &Path, task: &str, wanted: Shown) -> Result<String> {
     let running = Task::named(repo_path, task)?.running_agents()?;
     let mut shown = Vec::new();
     for agent in &running {
@@ -348,7 +348,7 @@ fn view(repo_path: &Path, task: &str, wanted: Shown) -> Result<String> {
 }
 
 /// Type a line into the shell of each of a task's running agents, and send it.
-fn tell(repo_path: &Path, task: &str, line: &str) -> Result<String> {
+pub(super) fn tell(repo_path: &Path, task: &str, line: &str) -> Result<String> {
     let line = wire::one_line(line)?;
     let running = Task::named(repo_path, task)?.running_agents()?;
     let mut told = String::new();

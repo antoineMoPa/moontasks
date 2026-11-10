@@ -925,7 +925,7 @@ fn what_is_asked_of_an_agent_with_a_part_missing_is_refused() {
     assert!(refused(&["agent", "start", "fix-the-races"]).contains("takes the task and the agent"));
     assert!(
         refused(&["agent", "start", "fix-the-races", "gemini"])
-            .contains("gemini is no agent moon starts: it starts pi, claude, codex, opencode")
+            .contains("gemini is no agent moon starts: it starts pi, claude, codex, minerve, opencode")
     );
     assert!(refused(&["agent", "view"]).contains("`moon agent view` takes the task"));
     // The task comes first, so an option in its place is not one.
@@ -983,7 +983,7 @@ fn the_agents_answer_help_with_their_own_commands() {
     let help = super::agent::help_text();
     for said in [
         "moon agent list",
-        "moon agent start <task> <pi|claude|codex|opencode>",
+        "moon agent start <task> <pi|claude|codex|minerve|opencode>",
         "moon agent view <task> [--lines <n>]",
         "moon agent tell <task> <one line>",
     ] {
