@@ -540,6 +540,13 @@ impl Backend for LocalBackend {
         self.state.terminals.tell(terminal_id, line)
     }
 
+    fn hold_a_shell_for_another_moon(
+        &self,
+        terminal_id: &str,
+    ) -> Result<crate::instances::attach::HeldShell> {
+        crate::instances::attach::hold_a_shell_of(&self.state.terminals, terminal_id)
+    }
+
     fn terminal_shown(&self, terminal_id: &str, wanted: crate::terminal::Shown) -> Result<String> {
         self.state.terminals.shown(terminal_id, wanted)
     }

@@ -310,6 +310,29 @@ fn answer(
     applications: &StartsWhatIsLaunched,
 ) -> Result<()> {
     let answer = match read_ask(&stream)? {
+        // Answered with the connection, which goes on carrying the shell - see
+        // `crate::instances::attach`.
+        Ask::Attach {
+            terminal_id,
+            cols,
+            rows,
+        } => {
+            let held = match agents.lock().expect("the agents lock").clone() {
+                Some(agents) => agents.hold_the_shell(&terminal_id),
+                None => Err(anyhow::anyhow!("this window answers nothing about agents")),
+            };
+            return match held {
+                Ok(held) => {
+                    crate::instances::attach::serve_the_attachment(stream, held, cols, rows)
+                }
+                Err(error) => write_answer(
+                    &stream,
+                    &Answer::Refused {
+                        reason: format!("{error:#}"),
+                    },
+                ),
+            };
+        }
         Ask::OpenFile { path, line, wait } => match refusal(reads_this_machine, project) {
             Some(refused) => refused,
             None => {

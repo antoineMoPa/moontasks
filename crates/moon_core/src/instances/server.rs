@@ -128,6 +128,14 @@ fn answer(
     // and on a shared server its socket is open to every process of the machine.
     stream.set_read_timeout(Some(ASKED_WITHIN))?;
     let ask = read_ask(&stream)?;
+    if let Ask::Attach {
+        terminal_id,
+        cols,
+        rows,
+    } = &ask
+    {
+        return attach_to_a_shell(stream, shells, terminal_id, *cols, *rows);
+    }
     let answer = answered(asker_of(&stream, shells).and_then(|asker| match &asker {
         Some(person) => crate::unix_users::as_user(person, || {
             answer_to(ask, applications, shells, Some(person))
@@ -251,12 +259,48 @@ fn answer_to(
                 Ok(Answer::Wired)
             }),
         },
+        // Answered before this, with the connection - see `attach_to_a_shell`.
+        Ask::Attach { .. } => Answer::Refused {
+            reason: "an attach is answered with its connection".to_string(),
+        },
         Ask::OpenFile { .. }
         | Ask::StillOpen { .. }
         | Ask::OpenShell { .. }
         | Ask::PickFile { .. } => Answer::Refused {
             reason: HAS_NO_WINDOW.to_string(),
         },
+    }
+}
+
+/// Hand one of the server's shells to whoever asked to attach to it - only its own Unix user:
+/// on a server that gives each person one, a shell is typed into as whoever it runs as, and
+/// attaching would be typing into somebody else's.
+fn attach_to_a_shell(
+    stream: UnixStream,
+    shells: Option<&Shells>,
+    terminal_id: &str,
+    cols: u16,
+    rows: u16,
+) -> Result<()> {
+    let held = match (shells, asker_of(&stream, shells)) {
+        (Some(shells), Ok(None)) => {
+            crate::api::mark_activity(&shells.state.last_activity);
+            super::attach::hold_a_shell_of(&shells.state.terminals, terminal_id)
+        }
+        (None, _) => Err(anyhow::anyhow!("this server answers nothing about agents")),
+        (_, Ok(Some(_))) => Err(anyhow::anyhow!(
+            "a shell of this server is attached to only by the user it runs as"
+        )),
+        (_, Err(error)) => Err(error),
+    };
+    match held {
+        Ok(held) => super::attach::serve_the_attachment(stream, held, cols, rows),
+        Err(error) => write_answer(
+            &stream,
+            &Answer::Refused {
+                reason: format!("{error:#}"),
+            },
+        ),
     }
 }
 

@@ -62,4 +62,8 @@ impl AgentAsks for WindowAgents {
     fn shown(&self, terminal_id: &str, wanted: Shown) -> Result<String> {
         self.backend.terminal_shown(terminal_id, wanted)
     }
+
+    fn hold_the_shell(&self, terminal_id: &str) -> Result<crate::instances::attach::HeldShell> {
+        self.backend.hold_a_shell_for_another_moon(terminal_id)
+    }
 }

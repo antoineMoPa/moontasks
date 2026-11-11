@@ -26,6 +26,7 @@
 //! program to start - see [`server`]. One that gives each person a Unix user listens where
 //! all of them reach it instead, and tells its shells where: see [`SOCKET_ENV`].
 
+pub mod attach;
 pub mod server;
 
 use std::{
@@ -168,6 +169,13 @@ pub enum Ask {
     Tell { terminal_id: String, line: String },
     /// Say what one of this window's shells is showing: `moon agent view`.
     Shown { terminal_id: String, wanted: Shown },
+    /// Attach to one of this moon's shells, at this size: everything it prints, and keys back
+    /// - see [`attach`]. The connection carries the shell from the answer on.
+    Attach {
+        terminal_id: String,
+        cols: u16,
+        rows: u16,
+    },
     /// Start a program for its windows: `moon launch`. Asked of the moon whose shell it was
     /// typed in, which a `moon serve` can be - see [`launch`].
     Launch {
@@ -202,6 +210,8 @@ pub enum Answer {
     Told,
     /// What the shell is showing, one line per row.
     Shown { text: String },
+    /// The shell is attached: frames follow on the connection - see [`attach`].
+    Attached,
     /// The program is started: a window of it has opened, or it has not ended in failure in
     /// the time its start is given. `on` is where its windows open, for the shell to print.
     Launched { on: String },
@@ -791,6 +801,10 @@ pub trait AgentAsks: Send + Sync {
     fn tell(&self, terminal_id: &str, line: &str) -> Result<()>;
     /// What a shell is showing, one line per row.
     fn shown(&self, terminal_id: &str, wanted: Shown) -> Result<String>;
+    /// A shell to attach to from another moon - see [`attach`].
+    fn hold_the_shell(&self, _terminal_id: &str) -> Result<attach::HeldShell> {
+        anyhow::bail!("this moon does not share its shells")
+    }
 }
 
 /// Why what arrived is no line of the wire, or `None` when it is one: every part of what is
