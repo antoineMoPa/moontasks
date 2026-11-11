@@ -1,0 +1,12 @@
+[package]
+name = "moon_tui_frames"
+version = "0.1.0"
+edition = "2024"
+description = "Tabs, splits and draggable panes for ratatui: egui_frames' arrangement, drawn in a terminal"
+license = "MIT"
+
+# Used by moon_tui, and nothing in it is moon's: a widget, reusable on its own.
+[workspace]
+
+[dependencies]
+ratatui = "0.29"
