@@ -82,7 +82,7 @@ pub(crate) fn update_comment(
     })?;
 
     for job in dispatch_jobs {
-        spawn_comment_dispatch(state.clone(), job);
+        spawn_comment_dispatch(state.core.clone(), job);
     }
 
     Ok(())
@@ -94,7 +94,7 @@ pub(crate) fn send_comment_batch(state: &AppState, session_id: &str) -> Result<(
     })?;
 
     for job in dispatch_jobs {
-        spawn_comment_dispatch(state.clone(), job);
+        spawn_comment_dispatch(state.core.clone(), job);
     }
 
     Ok(())

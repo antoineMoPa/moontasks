@@ -31,7 +31,7 @@ use super::{
 };
 
 /// Start a shell of the workspace's own in the reviewed repo, and answer with which.
-pub(crate) fn start_workspace_shell(
+pub fn start_workspace_shell(
     state: &AppState,
     session_id: &str,
     command: Option<AgentKind>,
@@ -52,7 +52,7 @@ pub(crate) fn start_workspace_shell(
 /// `moon shell <folder>` typed in a terminal asks the window for. The folder has to be inside
 /// the session's repo - a folder outside it belongs to another session, and the window opens
 /// that one first.
-pub(crate) fn start_workspace_shell_in_folder(
+pub fn start_workspace_shell_in_folder(
     state: &AppState,
     session_id: &str,
     folder: &Path,
@@ -106,7 +106,7 @@ fn spawn_workspace_shell(
 ///
 /// The shell outlives the command, the way a project's build does - see
 /// [`TerminalSpec::running`].
-pub(crate) fn start_workspace_shell_running(
+pub fn start_workspace_shell_running(
     state: &AppState,
     session_id: &str,
     command: &str,
@@ -168,7 +168,7 @@ fn workspace_terminal_ids(state: &AppState, session_id: &str) -> anyhow::Result<
     Ok(state.terminals.terminal_ids_for_owner(owner.as_deref()))
 }
 
-pub(crate) async fn create_terminal(
+pub async fn create_terminal(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
     State(profiles): State<crate::server::profiles::Profiles>,
@@ -192,7 +192,7 @@ pub(crate) async fn create_terminal(
     Ok(Json(TerminalCreated { terminal_id }))
 }
 
-pub(crate) async fn run_in_shell(
+pub async fn run_in_shell(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
     State(profiles): State<crate::server::profiles::Profiles>,
@@ -205,7 +205,7 @@ pub(crate) async fn run_in_shell(
     Ok(Json(TerminalCreated { terminal_id }))
 }
 
-pub(crate) async fn list_terminals(
+pub async fn list_terminals(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -216,7 +216,7 @@ pub(crate) async fn list_terminals(
 }
 
 /// The shells with something running in them, which is what a quit would interrupt.
-pub(crate) async fn terminals_running_a_command(
+pub async fn terminals_running_a_command(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -239,7 +239,7 @@ pub(crate) async fn terminals_running_a_command(
 
 /// The shells asking for a person - see [`crate::attention`] - and the text they copied to
 /// the clipboard, taken as it is asked for.
-pub(crate) async fn terminals_wanting_attention(
+pub async fn terminals_wanting_attention(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -265,7 +265,7 @@ pub(crate) async fn terminals_wanting_attention(
     Ok(Json(list))
 }
 
-pub(crate) async fn close_terminal(
+pub async fn close_terminal(
     AxumPath((session_id, terminal_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -276,7 +276,7 @@ pub(crate) async fn close_terminal(
     }))
 }
 
-pub(crate) async fn terminal_view(
+pub async fn terminal_view(
     AxumPath((session_id, terminal_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -291,7 +291,7 @@ pub(crate) async fn terminal_view(
 }
 
 /// The conversation of the Minerve in a shell - see [`super::agent_control`].
-pub(crate) async fn terminal_conversation(
+pub async fn terminal_conversation(
     AxumPath((session_id, terminal_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -300,7 +300,7 @@ pub(crate) async fn terminal_conversation(
 }
 
 /// A prompt for the Minerve in a shell - see [`super::agent_control`].
-pub(crate) async fn submit_to_agent(
+pub async fn submit_to_agent(
     AxumPath((session_id, terminal_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
     Json(request): Json<crate::agent_conversation::AgentPrompt>,
@@ -310,7 +310,7 @@ pub(crate) async fn submit_to_agent(
     Ok("ok")
 }
 
-pub(crate) async fn rename_terminal(
+pub async fn rename_terminal(
     AxumPath((session_id, terminal_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
     Json(request): Json<TerminalNameRequest>,
@@ -325,7 +325,7 @@ pub(crate) async fn rename_terminal(
 
 /// The socket is admitted once, as it opens - see `crate::server::auth` - so it is told who
 /// opened it and hangs up when that user is kicked - see [`Users::kicks`].
-pub(crate) async fn terminal_socket(
+pub async fn terminal_socket(
     AxumPath((session_id, terminal_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
     State(users): State<Users>,
@@ -347,7 +347,7 @@ pub(crate) async fn terminal_socket(
 }
 
 #[derive(Default, serde::Deserialize)]
-pub(crate) struct TerminalStreamQuery {
+pub struct TerminalStreamQuery {
     #[serde(default)]
     moon_terminal_stream: bool,
     moon_terminal_cursor: Option<u64>,

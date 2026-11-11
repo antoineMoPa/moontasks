@@ -28,9 +28,7 @@ use egui_frames::PaneId;
 
 use crate::native::app::App;
 
-/// The line the file ends on, which every new entry goes above. Looked for from the top: the
-/// first line holding it is the one.
-pub(crate) const NOW_MARKER: &str = "#now#";
+pub(crate) use crate::moontasks::store::NOW_MARKER;
 
 /// The rule under an entry's heading: fifty of them.
 const RULE: &str = "==================================================";

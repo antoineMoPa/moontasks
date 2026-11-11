@@ -9,36 +9,33 @@
 // `moon open` reaches a window through, and the git, searches, agents and scripts only they
 // run - which the build for the browser reaches over HTTP instead. See `web`. The modules
 // left in keep their server halves in submodules gated the same way.
+// What moon does without a window is moon_core's, re-exported under the names the rest of
+// this crate has always used for it - see `crates/moon_core`. `api`, `instances`, `terminal`
+// and `visualizations` keep a window or HTTP side of their own here, beside what they re-export.
 #[cfg(not(target_arch = "wasm32"))]
-mod agent;
+pub(crate) use moon_core::{
+    agent, git, gpg, moved_hunks, shell_locale, shell_path, unix_users,
+};
+pub(crate) use moon_core::{
+    agent_conversation, agent_sessions, attention, comments, commit_suggestion, committing,
+    moontasks, settings, shell_quoting,
+};
 #[cfg(not(target_arch = "wasm32"))]
-mod agent_programs;
-mod agent_conversation;
-mod agent_sessions;
+pub(crate) use moon_core::MINERVE_SUBCOMMAND;
+
 mod api;
-pub(crate) mod attention;
 mod backend;
 mod cli;
-mod comments;
 #[cfg(not(target_arch = "wasm32"))]
 mod desktop_entries;
 #[cfg(not(target_arch = "wasm32"))]
 mod display;
-mod commit_suggestion;
-mod committing;
 #[cfg(not(target_arch = "wasm32"))]
 mod extensions;
-#[cfg(not(target_arch = "wasm32"))]
-mod git;
-#[cfg(not(target_arch = "wasm32"))]
-mod gpg;
 #[cfg(not(target_arch = "wasm32"))]
 mod instances;
 #[cfg(not(target_arch = "wasm32"))]
 mod lsp;
-mod moontasks;
-#[cfg(not(target_arch = "wasm32"))]
-mod moved_hunks;
 mod native;
 #[cfg(not(target_arch = "wasm32"))]
 mod opencode;
@@ -54,16 +51,8 @@ mod server;
 mod server_tests;
 #[cfg(not(target_arch = "wasm32"))]
 mod service;
-mod settings;
-#[cfg(not(target_arch = "wasm32"))]
-mod shell_locale;
-#[cfg(not(target_arch = "wasm32"))]
-mod shell_path;
-mod shell_quoting;
 #[cfg(not(target_arch = "wasm32"))]
 mod terminal;
-#[cfg(not(target_arch = "wasm32"))]
-mod unix_users;
 mod visualizations;
 #[cfg(target_arch = "wasm32")]
 mod web;
@@ -87,24 +76,5 @@ pub fn run() -> anyhow::Result<()> {
     cli::run()
 }
 
-/// The variable `name` (a `MOONTASKS_*` one), or its `MOONTASKS_*` name from before moon was
-/// moontasks, which agents started by an older moon still have.
-pub(crate) fn moon_env_var_os(name: &str) -> Option<std::ffi::OsString> {
-    std::env::var_os(name).or_else(|| std::env::var_os(name.replacen("MOONTASKS_", "MOONREVIEW_", 1)))
-}
 
-/// The first argument that makes `moon` run as minerve, with minerve's own arguments after it.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) const MINERVE_SUBCOMMAND: &str = "__minerve";
 
-/// The executable `moon __minerve` is run from: this one. A test runs from
-/// `target/<profile>/deps`, where the `moon` built beside it is.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn minerve_executable() -> std::io::Result<std::path::PathBuf> {
-    let exe = std::env::current_exe()?;
-    if cfg!(test) {
-        let beside = exe.parent().and_then(std::path::Path::parent).map(|dir| dir.join("moon"));
-        return beside.ok_or_else(|| std::io::Error::other("the test binary has no target folder"));
-    }
-    Ok(exe)
-}

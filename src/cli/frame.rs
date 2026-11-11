@@ -25,7 +25,7 @@ pub(crate) const NEW_WINDOW_FRAMES: &[Frame] = &[Frame::Tasks, Frame::Review, Fr
 
 /// The one executable all of this is: the three windows, the server behind them, and the
 /// commands that reach a window which is already open.
-pub(crate) const PROGRAM: &str = "moon";
+pub(crate) use moon_core::PROGRAM;
 
 /// How a launcher says which window it is.
 ///

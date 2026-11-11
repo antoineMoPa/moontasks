@@ -1,5 +1,6 @@
 //! Painting a window's ground, so one window is told from another.
 
+use crate::native::workspace_color::WorkspaceGround;
 use std::{
     sync::{
         Arc, Mutex,

@@ -8,28 +8,10 @@
 //! the same color; it does not turn a teal window into a beige one.
 
 use egui::Color32;
-use serde::{Deserialize, Serialize};
 
 use crate::native::theme::ThemeMode;
 
-/// A color a workspace can be marked with. Kept per project in
-/// `~/.moontasks/settings.json` on the machine the project is on, so it follows the project
-/// to a window on any machine: which color a window is belongs to the person, not the repo.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum WorkspaceColor {
-    /// Unmarked: the ground the two palettes already have.
-    #[default]
-    Plain,
-    Ember,
-    Amber,
-    Moss,
-    Teal,
-    Ocean,
-    Indigo,
-    Plum,
-    Rose,
-}
+pub(crate) use crate::settings::WorkspaceColor;
 
 /// The ground one color paints, in each of the two themes.
 struct Ground {
@@ -133,9 +115,17 @@ pub(crate) const ALL: [WorkspaceColor; 9] = [
     WorkspaceColor::Rose,
 ];
 
-impl WorkspaceColor {
+/// The grounds a workspace color paints, which only a window draws.
+pub(crate) trait WorkspaceGround {
     /// The ground this color paints in the given theme.
-    pub(crate) fn bg(self, mode: ThemeMode) -> Color32 {
+    fn bg(self, mode: ThemeMode) -> Color32;
+    /// The ground's lean away from plain, for the small marks that name a space.
+    fn marker(self, mode: ThemeMode) -> Color32;
+}
+
+impl WorkspaceGround for WorkspaceColor {
+    /// The ground this color paints in the given theme.
+    fn bg(self, mode: ThemeMode) -> Color32 {
         let ground = GROUNDS
             .iter()
             .find(|(color, _)| *color == self)
@@ -155,8 +145,8 @@ impl WorkspaceColor {
     /// The ground's lean away from plain, made [`MARKER_LEAN`] times as strong - for the small
     /// marks that name a space in the status bar, where the ground itself is too faint to
     /// tell one project from another. Plain stays plain.
-    pub(crate) fn marker(self, mode: ThemeMode) -> Color32 {
-        let plain = Self::Plain.bg(mode);
+    fn marker(self, mode: ThemeMode) -> Color32 {
+        let plain = WorkspaceColor::Plain.bg(mode);
         let ground = self.bg(mode);
         let lean = |plain: u8, ground: u8| {
             let leaned = plain as f32 + (ground as f32 - plain as f32) * MARKER_LEAN;
@@ -169,20 +159,6 @@ impl WorkspaceColor {
         )
     }
 
-    /// What the color is called, in the command palette and beside its swatch.
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::Plain => "plain",
-            Self::Ember => "ember",
-            Self::Amber => "amber",
-            Self::Moss => "moss",
-            Self::Teal => "teal",
-            Self::Ocean => "ocean",
-            Self::Indigo => "indigo",
-            Self::Plum => "plum",
-            Self::Rose => "rose",
-        }
-    }
 }
 
 #[cfg(test)]

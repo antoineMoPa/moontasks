@@ -23,14 +23,14 @@ use crate::{
     },
 };
 
-use super::{mark_activity, session_work};
+use super::{core_session_work, mark_activity, session_work};
 
 pub(super) async fn list_tasks(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<TaskView>>, AppError> {
     mark_activity(&state);
-    let tasks = session_work(state, session_id, moontasks::service::list_tasks).await?;
+    let tasks = core_session_work(state, session_id, moontasks::service::list_tasks).await?;
     Ok(Json(tasks))
 }
 
@@ -39,7 +39,7 @@ pub(super) async fn board_task(
     State(state): State<AppState>,
 ) -> Result<Json<BoardTaskView>, AppError> {
     mark_activity(&state);
-    let task = session_work(state, session_id, moontasks::service::board_task).await?;
+    let task = core_session_work(state, session_id, moontasks::service::board_task).await?;
     Ok(Json(task))
 }
 
@@ -74,7 +74,7 @@ pub(super) async fn list_review_requests(
 ) -> Result<Json<Vec<ReviewRequestView>>, AppError> {
     mark_activity(&state);
     let requests =
-        session_work(state, session_id, moontasks::service::list_review_requests).await?;
+        core_session_work(state, session_id, moontasks::service::list_review_requests).await?;
     Ok(Json(requests))
 }
 
@@ -178,7 +178,7 @@ pub(super) async fn list_columns(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<BoardColumn>>, AppError> {
     mark_activity(&state);
-    let columns = session_work(state, session_id, moontasks::service::list_columns).await?;
+    let columns = core_session_work(state, session_id, moontasks::service::list_columns).await?;
     Ok(Json(columns))
 }
 
@@ -336,7 +336,7 @@ pub(super) async fn list_agent_sessions(
 ) -> Result<Json<Vec<crate::agent_sessions::AgentSessionView>>, AppError> {
     mark_activity(&state);
     // The sessions are the ones the person's own agents keep, in the person's own home.
-    let sessions = session_work(state, session_id, crate::agent_sessions::list_for_session).await?;
+    let sessions = core_session_work(state, session_id, crate::agent_sessions::list_for_session).await?;
     Ok(Json(sessions))
 }
 
@@ -445,7 +445,7 @@ pub(super) async fn open_work_log(
     State(state): State<AppState>,
 ) -> Result<Json<WorkLogPayload>, AppError> {
     mark_activity(&state);
-    let file_path = session_work(state, session_id, moontasks::service::open_work_log).await?;
+    let file_path = core_session_work(state, session_id, moontasks::service::open_work_log).await?;
     Ok(Json(WorkLogPayload { file_path }))
 }
 
@@ -454,7 +454,7 @@ pub(super) async fn open_wire(
     State(state): State<AppState>,
 ) -> Result<Json<WirePayload>, AppError> {
     mark_activity(&state);
-    let file_path = session_work(state, session_id, moontasks::service::open_wire).await?;
+    let file_path = core_session_work(state, session_id, moontasks::service::open_wire).await?;
     Ok(Json(WirePayload { file_path }))
 }
 

@@ -1,0 +1,49 @@
+[package]
+name = "moon_core"
+version = "0.1.0"
+edition = "2024"
+description = "moon without a window: the task board, its agents and shells, the wire, git and committing"
+license = "MIT"
+
+# Nothing here may draw: no egui, eframe, wgpu, winit or wry. The full moon draws this crate
+# with egui, moon_tui draws it in a terminal. `scripts/check-core-has-no-gui.sh` holds the line.
+
+[features]
+# The helpers the full moon's own tests seed this crate's state with.
+test-support = []
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+moon_lsp = { version = "0.1", path = "../moon_lsp" }
+pulldown-cmark = { version = "0.13", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha1 = "0.10"
+time = { version = "0.3", features = ["parsing"] }
+toml = "1"
+miniz_oxide = "0.8"
+web-time = "1"
+zeroize = { version = "1.8", features = ["serde"] }
+uuid = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+getrandom_03 = { package = "getrandom", version = "0.3" }
+libc = "0.2"
+libghostty-vt = "0.2.1"
+portable-pty = "0.9.0"
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "io-util", "process", "net"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+
+[dev-dependencies]
+flate2 = "1"
+
+[workspace]
+
+# Ghostty's VT engine, built from the vendored copy the full moon builds - see
+# ../libghostty-vt-sys/VENDORED.md. Only read when this crate is built on its own.
+[patch.crates-io]
+libghostty-vt-sys = { path = "../libghostty-vt-sys" }

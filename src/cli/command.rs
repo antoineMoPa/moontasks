@@ -74,20 +74,9 @@ pub(super) enum MoonCommand {
     ListWindows,
     /// moon's license, and the licenses and notices of everything it is built from.
     Licenses,
-    /// A card on the board of the repo this shell is in, without opening a window on it. The
-    /// task folder it made is printed, which is what the caller wanted it for.
-    NewTask {
-        title: String,
-        /// The day the board starts showing it, for a card made ahead of time.
-        appears_on: Option<time::Date>,
-    },
-    /// The cards of that board, printed column by column.
-    ListTasks,
-    /// The card of the task this shell belongs to, moved to the column of the board that is
-    /// called this.
-    MoveTask {
-        column: String,
-    },
+    /// A card made, listed or moved on the board of the repo this shell is in, without
+    /// opening a window on it - see [`super::tasks`].
+    Tasks(tasks::TaskCommand),
     /// A line from the task this shell belongs to, to the other agents of its board, and the
     /// wire's own help - see [`super::wire`].
     Wire(wire::WireCommand),
@@ -178,9 +167,7 @@ pub(crate) fn run() -> Result<()> {
             Ok(())
         }
         MoonCommand::Licenses => print_licenses(),
-        MoonCommand::NewTask { title, appears_on } => tasks::new_task(&title, appears_on),
-        MoonCommand::ListTasks => tasks::list_tasks(),
-        MoonCommand::MoveTask { column } => tasks::move_task(&column),
+        MoonCommand::Tasks(command) => tasks::run(command),
         MoonCommand::Wire(command) => wire::run(command),
         MoonCommand::Agent(command) => agent::run(command),
         MoonCommand::Mcp(command) => mcp::run(command),
@@ -225,7 +212,7 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
                     args: vec!["--help".to_string()],
                 });
             }
-            return tasks::parse(card_command, words);
+            return Ok(MoonCommand::Tasks(tasks::parse(card_command, words)?));
         }
         // `moon shell .` and `moon shell <folder>` are a shell in that folder, and a shell is
         // a tab: it joins a window that is already open, the way `moon edit` does, rather
@@ -257,7 +244,7 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
         // So do the agents, for theirs.
         "agent" => Ok(MoonCommand::Agent(agent::parse(&rest, asks_for_help)?)),
         // And the MCP server, for its tools.
-        "mcp" => mcp::parse(&rest, asks_for_help),
+        "mcp" => Ok(MoonCommand::Mcp(mcp::parse(&rest, asks_for_help)?)),
         "list" | "serve" | "licenses" | "install-launchers" | "uninstall" | "generate-pass-key"
         | "desktop"
             if asks_for_help =>

@@ -423,3 +423,11 @@ impl Profiles {
         Ok(env)
     }
 }
+
+/// The people a `moon serve` knows are the ones who signed in to it - see
+/// [`moon_core::instances::server::KnowsPeople`].
+impl crate::instances::server::KnowsPeople for Profiles {
+    fn person_with_uid(&self, uid: u32) -> Result<Option<crate::unix_users::Person>> {
+        Profiles::person_with_uid(self, uid)
+    }
+}

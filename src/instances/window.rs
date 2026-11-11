@@ -27,27 +27,10 @@ use std::{
 use anyhow::{Context, Result};
 
 use super::{
-    Answer, Ask, Instance, StartsApplications, answered, launched, listen_on_own_socket,
+    AgentAsks, Answer, Ask, Instance, StartsApplications, answered, launched, listen_on_own_socket, not_a_line_of_the_wire,
     read_ask, remove_records, write_answer, write_record,
 };
-use crate::{api::AgentKind, terminal::Shown};
 
-/// What a window does about the agents of its board for a shell that asked: `moon agent
-/// start`, `tell` and `view`.
-///
-/// These are answered on the thread the socket is read on, with what came of them, where a
-/// file to open is left for the window's next frame. Whoever asked is a command waiting to
-/// print the answer - the name of the run, the text of the screen - and a window nobody is
-/// looking at may draw no frame for a long while. Nothing here needs one: an agent is started
-/// by the window's moon and listed by the board as it reads the task again.
-pub(crate) trait AgentAsks: Send + Sync {
-    /// Start an agent on a task of the board in this repo, and say what its run is called.
-    fn start(&self, repo_path: &str, task_id: &str, agent: AgentKind) -> Result<String>;
-    /// Type a line into a shell and send it, once nothing there is in the way.
-    fn tell(&self, terminal_id: &str, line: &str) -> Result<()>;
-    /// What a shell is showing, one line per row.
-    fn shown(&self, terminal_id: &str, wanted: Shown) -> Result<String>;
-}
 
 /// Who answers about agents, once the window has said - see [`ShellAsks::agents_answered_by`].
 type AnswersAboutAgents = Arc<Mutex<Option<Arc<dyn AgentAsks>>>>;
@@ -62,41 +45,41 @@ const STARTS_NO_PROGRAMS: &str = "this moon is a window among others on its mach
     `moon serve` or of `moon desktop`";
 
 /// A file a shell asked this window to open.
-pub(crate) struct OpenFileAsked {
-    pub(crate) path: PathBuf,
+pub struct OpenFileAsked {
+    pub path: PathBuf,
     /// The line to put on screen, for `moon open <file>:<line>`.
-    pub(crate) line: Option<usize>,
+    pub line: Option<usize>,
     /// A `moon edit --wait` is waiting on this file's tab to close - see
     /// [`ShellAsks::release`].
-    pub(crate) wait: bool,
+    pub wait: bool,
 }
 
 /// A folder a shell asked this window to start a shell in: `moon shell <folder>`.
-pub(crate) struct OpenShellAsked {
+pub struct OpenShellAsked {
     /// Absolute and resolved, the way the shell that asked named it.
-    pub(crate) folder: PathBuf,
+    pub folder: PathBuf,
 }
 
 /// A folder a shell asked this window to bring its file picker up on: `moon open <folder>`.
-pub(crate) struct PickFileAsked {
+pub struct PickFileAsked {
     /// Absolute and resolved, the way the shell that asked named it, and as text: that is how
     /// it came over the socket and how the picker's line names a folder.
-    pub(crate) folder: String,
+    pub folder: String,
 }
 
 /// A direct message of the wire a shell asked this window to type into one of the shells it
 /// holds: `moon wire post @handle …`.
-pub(crate) struct WiredLine {
-    pub(crate) terminal_id: String,
+pub struct WiredLine {
+    pub terminal_id: String,
     /// The handles of the task it was posted from and of the task it is for.
-    pub(crate) sender: String,
-    pub(crate) recipient: String,
-    pub(crate) message: String,
+    pub sender: String,
+    pub recipient: String,
+    pub message: String,
 }
 
 /// What a window keeps so shells can reach it: the project it is written down as being on,
 /// and the asks that have arrived since the last frame.
-pub(crate) struct ShellAsks {
+pub struct ShellAsks {
     /// Read by the listening thread to decide whether this window has anything to open a
     /// file into yet, and written by the window whenever it opens another project.
     project: Arc<Mutex<Option<String>>>,
@@ -132,7 +115,7 @@ impl ShellAsks {
     /// Open the window's socket and start answering on it. The window is not written down
     /// yet: it has nothing to be found by until it is open on a project, which is what
     /// [`ShellAsks::on_project`] says.
-    pub(crate) fn listen(
+    pub fn listen(
         program: String,
         reads_this_machine: bool,
         ctx: egui::Context,
@@ -191,7 +174,7 @@ impl ShellAsks {
 
     /// Say who answers `moon agent start`, `tell` and `view` asked of this window. Until it
     /// is said they are refused.
-    pub(crate) fn agents_answered_by(&self, agents: Arc<dyn AgentAsks>) {
+    pub fn agents_answered_by(&self, agents: Arc<dyn AgentAsks>) {
         *self.agents.lock().expect("the agents lock") = Some(agents);
     }
 
@@ -201,14 +184,14 @@ impl ShellAsks {
     /// Only a window on Linux is ever its machine's session, so only there - and in the tests
     /// - is there anything to say it with.
     #[cfg(any(target_os = "linux", test))]
-    pub(crate) fn applications_started_by(&self, applications: Arc<dyn StartsApplications>) {
+    pub fn applications_started_by(&self, applications: Arc<dyn StartsApplications>) {
         *self.applications.lock().expect("the applications lock") = Some(applications);
     }
 
     /// Say which project this window is on, so a shell asking about a file of it finds this
     /// window. Writing it again for the project it already says is harmless and is what a
     /// window that reopened the same project does.
-    pub(crate) fn on_project(&self, project_path: &str) -> Result<()> {
+    pub fn on_project(&self, project_path: &str) -> Result<()> {
         *self.project.lock().expect("the project lock") = Some(project_path.to_string());
         self.write_down(project_path.to_string())
     }
@@ -219,7 +202,7 @@ impl ShellAsks {
     ///
     /// Nothing to write before the window is on a project: it has no record until then, and
     /// [`ShellAsks::on_project`] carries the time in with it when it writes the first one.
-    pub(crate) fn came_to_the_front(&self) -> Result<()> {
+    pub fn came_to_the_front(&self) -> Result<()> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("the clock is past 1970")
@@ -243,7 +226,7 @@ impl ShellAsks {
 
     /// The tab a `moon edit --wait` was waiting on has closed, or will never open: the shell
     /// asking about it stops waiting.
-    pub(crate) fn release(&self, path: &std::path::Path) {
+    pub fn release(&self, path: &std::path::Path) {
         self.waited_on
             .lock()
             .expect("the waited-on lock")
@@ -251,18 +234,18 @@ impl ShellAsks {
     }
 
     /// The files asked for since the last time this was called.
-    pub(crate) fn drain(&self) -> Vec<OpenFileAsked> {
+    pub fn drain(&self) -> Vec<OpenFileAsked> {
         std::mem::take(&mut *self.arrived.lock().expect("the arrived lock"))
     }
 
     /// The folders a shell was asked for in since the last time this was called.
-    pub(crate) fn drain_shells(&self) -> Vec<OpenShellAsked> {
+    pub fn drain_shells(&self) -> Vec<OpenShellAsked> {
         std::mem::take(&mut *self.arrived_shells.lock().expect("the arrived shells lock"))
     }
 
     /// The folders the file picker was asked for on since the last time this was called, in
     /// the order they were asked for.
-    pub(crate) fn drain_file_picks(&self) -> Vec<PickFileAsked> {
+    pub fn drain_file_picks(&self) -> Vec<PickFileAsked> {
         std::mem::take(
             &mut *self
                 .arrived_file_picks
@@ -273,7 +256,7 @@ impl ShellAsks {
 
     /// The lines of the wire asked to be typed since the last time this was called, in the
     /// order they were asked for.
-    pub(crate) fn drain_wired(&self) -> Vec<WiredLine> {
+    pub fn drain_wired(&self) -> Vec<WiredLine> {
         std::mem::take(&mut *self.arrived_wired.lock().expect("the arrived wired lock"))
     }
 }
@@ -500,17 +483,3 @@ fn wire_refusal(
     not_a_line_of_the_wire(sender, recipient, message)
 }
 
-/// Why what arrived is no line of the wire, or `None` when it is one: every part of what is
-/// typed and written down, held to a line of text.
-pub(super) fn not_a_line_of_the_wire(
-    sender: &str,
-    recipient: &str,
-    message: &str,
-) -> Option<Answer> {
-    [sender, recipient, message]
-        .into_iter()
-        .find_map(|part| crate::moontasks::wire::one_line(part).err())
-        .map(|error| Answer::Refused {
-            reason: error.to_string(),
-        })
-}

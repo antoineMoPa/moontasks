@@ -1,0 +1,372 @@
+//! Starting a shell on a pty: the program it runs, the threads that read and wait on it, and
+//! what is typed into an agent once its input box is up.
+
+use std::{
+    io::{Read, Write},
+    sync::{Arc, Mutex, atomic::Ordering},
+    time::Instant,
+};
+
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+use tokio::sync::{broadcast, watch};
+
+use crate::{agent_sessions::AgentHome, api::AgentKind, attention::Heard};
+
+use super::{
+    BROADCAST_CAPACITY, CLAUDE_NOTIFY_THROUGH_THE_TERMINAL, OUTPUT_CHUNK_SIZE, Scrollback,
+    TYPE_AHEAD_DEADLINE, TYPE_AHEAD_POLL, TYPE_AHEAD_QUIET, TerminalProgram, TerminalRegistry,
+    TerminalSession, TerminalSpec,
+    agent_control::{AgentControl, MINERVE_CONTROL_SOCKET_ENV_VAR},
+};
+
+impl TerminalRegistry {
+    pub fn spawn(self: &Arc<Self>, mut spec: TerminalSpec) -> anyhow::Result<String> {
+        let pty = native_pty_system().openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
+
+        // Nothing a person starts runs as root: a start that names nobody is a mistake in
+        // whoever asked for it, and is refused here, where every shell and agent is started.
+        anyhow::ensure!(
+            spec.runs_as.is_some() || !crate::unix_users::each_person_has_one(),
+            "this server runs each person's shells as their own Unix user, and this one was \
+             started for nobody"
+        );
+        let runs_as = spec.runs_as.as_ref().map(|person| &person.unix_user);
+        // A window in this process draws Minerve's own view - see `crate::native::minerve_pane` -
+        // so Minerve is moon's `__minerve --serve` rather than its terminal one. Not as another
+        // Unix user, who has no control socket.
+        let serves_a_view = runs_as.is_none() && super::starting_for_this_window();
+        // Its pty is not drawn: the opening line goes in the view's box instead.
+        let opening_line =
+            match serves_a_view && spec.program == TerminalProgram::Agent(AgentKind::Minerve) {
+                true => spec.type_ahead.take(),
+                false => None,
+            };
+        let (program, mut arguments) = match &spec.program {
+            TerminalProgram::LoginShell => {
+                let shell = match runs_as {
+                    Some(user) => user.shell.clone(),
+                    None => crate::shell_path::login_shell(),
+                };
+                (shell, vec!["-l".to_string()])
+            }
+            TerminalProgram::Agent(AgentKind::None) => {
+                unreachable!("no agent picked is the login shell, see TerminalProgram::of_agent")
+            }
+            TerminalProgram::Agent(AgentKind::Claude) => ("claude".to_string(), Vec::new()),
+            TerminalProgram::Agent(AgentKind::Codex) => ("codex".to_string(), Vec::new()),
+            TerminalProgram::Agent(AgentKind::OpenCode) => ("opencode".to_string(), Vec::new()),
+            TerminalProgram::Agent(AgentKind::Pi) => ("pi".to_string(), Vec::new()),
+            TerminalProgram::Agent(AgentKind::Minerve) if serves_a_view => (
+                crate::minerve_executable()?.display().to_string(),
+                vec![crate::MINERVE_SUBCOMMAND.to_string(), "--serve".to_string()],
+            ),
+            // Built in, for this process's own user: see `crate::shell_path::runs_bundled`.
+            TerminalProgram::Agent(AgentKind::Minerve) if runs_as.is_none() => (
+                crate::minerve_executable()?.display().to_string(),
+                vec![crate::MINERVE_SUBCOMMAND.to_string()],
+            ),
+            TerminalProgram::Agent(AgentKind::Minerve) => ("minerve".to_string(), Vec::new()),
+        };
+        // Every agent moon starts is told to say through the terminal when it wants a
+        // person, the way it would tell iTerm2 or Ghostty - which is what the window reads
+        // off the pty and shows on the run's card, and never sends to the desktop. Claude
+        // takes it as a setting on its command line, OpenCode as an environment variable of
+        // its terminal library's - see [`crate::attention`].
+        if spec.program == TerminalProgram::Agent(AgentKind::Claude) {
+            arguments.push("--settings".to_string());
+            arguments.push(CLAUDE_NOTIFY_THROUGH_THE_TERMINAL.to_string());
+        }
+        // Codex is told how to show a visualization, which moon then shows beside it - see
+        // [`crate::visualizations`]. Both go by the Codex home of whoever it runs as, which
+        // need not be whoever asked for it: the folder moon makes there is made as its owner,
+        // and what Codex writes there is read as somebody who may - see [`AgentHome`].
+        let codex = (spec.program == TerminalProgram::Agent(AgentKind::Codex)).then(|| {
+            let home = AgentHome::of_whoever_runs(spec.runs_as.as_ref());
+            (crate::visualizations::codex_home_of(&home), home)
+        });
+        arguments.extend(match &codex {
+            Some((codex_home, home)) => home.as_its_owner(|| {
+                crate::visualizations::codex_launch::codex_arguments(codex_home, &spec.args)
+            })??,
+            None => spec.args.clone(),
+        });
+        // As a person's Unix user, the program is run by `moon as-unix-user`, which becomes
+        // the user first and sets their `HOME` and login `PATH` itself. It is handed none of
+        // the server's environment but moon's own variables - see `crate::unix_users`.
+        let mut command = match runs_as {
+            Some(user) => {
+                let line = user.command_line(&program, &arguments)?;
+                let mut command = CommandBuilder::new(&line[0]);
+                command.args(&line[1..]);
+                command.env_clear();
+                for (name, value) in crate::unix_users::kept_server_environment() {
+                    command.env(name, value);
+                }
+                command
+            }
+            None => {
+                let mut command = CommandBuilder::new(&program);
+                command.args(&arguments);
+                // The agent is started by name, so it has to be looked up on the PATH the
+                // user's shell has rather than the one a desktop launcher hands this process.
+                command.env("PATH", crate::shell_path::installed_tools_path());
+                command
+            }
+        };
+        if spec.program == TerminalProgram::Agent(AgentKind::OpenCode) {
+            command.env("OPENTUI_NOTIFICATION_PROTOCOL", "osc9");
+        }
+        // Minerve tells moon about its conversation over a socket of its own - see
+        // [`agent_control`]. Not as another Unix user, who could not enter the folder the
+        // socket is in.
+        let agent_control = match (&spec.program, runs_as) {
+            (TerminalProgram::Agent(AgentKind::Minerve), None) => {
+                let (control, listener) = AgentControl::listen(serves_a_view)?;
+                if let Some(line) = opening_line {
+                    control.set_opening_line(line.trim_end_matches('\r').to_string());
+                }
+                command.env(MINERVE_CONTROL_SOCKET_ENV_VAR, control.socket_path());
+                Some((control, listener))
+            }
+            _ => None,
+        };
+        command.cwd(&spec.cwd);
+        command.env("TERM", "xterm-256color");
+        // Which terminal a passphrase can be asked on. gpg launches pinentry and then fails
+        // with "Inappropriate ioctl for device" when this is unset, which is what a signed
+        // commit started from a window rather than a shell would otherwise hit: the window
+        // inherits no GPG_TTY, and the pty it just opened is the terminal to name.
+        if let Some(tty_name) = pty.master.tty_name() {
+            command.env("GPG_TTY", tty_name);
+        }
+        // Which window a `moon open` typed in this shell should land in: this process's, when
+        // this process is a window. A `serve` on another machine runs shells too and is no
+        // window, so what this names is checked against the windows written down before it is
+        // believed - see `crate::instances`.
+        command.env(crate::instances::WINDOW_ENV, std::process::id().to_string());
+        // Where this server is asked, for a shell whose user cannot look in the server's home,
+        // and whose shell it is - see `crate::instances`.
+        if let Some(socket) = crate::instances::socket_for_other_unix_users() {
+            command.env(crate::instances::SOCKET_ENV, socket);
+        }
+        if let Some(person) = &spec.runs_as {
+            command.env(crate::instances::PERSON_ENV, &person.github_login);
+        }
+        // Which characters the tools in the shell can read and write - see
+        // `crate::shell_locale`. A window has already adopted this into its own environment,
+        // so the shell would inherit it either way; a test's registry never goes through
+        // `run`, and this is what starts its shells in the same locale a window's are.
+        if let Some(lang) = crate::shell_locale::shell_lang() {
+            command.env("LANG", lang);
+        }
+        // A test's shell is the developer's own login shell, started with their HOME, so
+        // whatever a test types into it would be saved to their bash history on exit. An
+        // empty HISTFILE is what bash reads as "keep none", and it survives the profile.
+        #[cfg(any(test, feature = "test-support"))]
+        command.env("HISTFILE", "");
+        for (name, value) in &spec.env {
+            command.env(name, value);
+        }
+        // Started as the person it is for, who is not always the one asking - a run is
+        // resumed as whoever started it. The folder it starts in is looked at and entered on
+        // this thread, and may be in that person's home, which is theirs alone to enter.
+        let child = match &spec.runs_as {
+            Some(person) => {
+                crate::unix_users::as_user(person, || pty.slave.spawn_command(command))??
+            }
+            None => pty.slave.spawn_command(command)?,
+        };
+        let child_pid = child.process_id();
+        // The slave handle must be dropped so the reader sees EOF once the shell exits.
+        drop(pty.slave);
+
+        let mut reader = pty.master.try_clone_reader()?;
+        let writer = pty.master.take_writer()?;
+        let (output, _) = broadcast::channel(BROADCAST_CAPACITY);
+        let (exited, _) = watch::channel(false);
+
+        let order = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let terminal_id = format!("terminal-{}-{order}", self.run);
+        let started_at_unix = crate::moontasks::store::now_unix();
+        let visualizations = match &codex {
+            Some((codex_home, home)) => Some(Mutex::new(home.reading(|| {
+                crate::visualizations::rollout::CodexRollouts::new(codex_home, started_at_unix)
+            })?)),
+            None => None,
+        };
+        let session = Arc::new(TerminalSession {
+            owner: spec.owner,
+            name: Mutex::new(spec.name),
+            program: spec.program.clone(),
+            started_at_unix,
+            order,
+            started: Instant::now(),
+            writer: Mutex::new(writer),
+            master: Mutex::new(pty.master),
+            child: Mutex::new(child),
+            output: output.clone(),
+            exited: exited.clone(),
+            scrollback: Mutex::new(Scrollback::default()),
+            last_output: Mutex::new(None),
+            last_typed_into: Mutex::new(None),
+            told: Mutex::new(Default::default()),
+            trust_unanswered: std::sync::atomic::AtomicBool::new(false),
+            attention: Mutex::new(None),
+            attention_scanner: Mutex::new(Default::default()),
+            copied: Mutex::new(None),
+            child_ended: std::sync::atomic::AtomicBool::new(false),
+            last_activity: Arc::clone(&self.last_activity),
+            child_pid,
+            visualizations,
+            agent_control: agent_control
+                .as_ref()
+                .map(|(control, _)| Arc::clone(control)),
+            runs_as: spec.runs_as,
+        });
+        if let Some((control, listener)) = agent_control {
+            control.read_in_background(listener, Arc::downgrade(&session));
+        }
+        self.sessions
+            .lock()
+            .unwrap()
+            .insert(terminal_id.clone(), Arc::clone(&session));
+
+        // Typed from a thread of its own, so starting a shell answers straight away rather
+        // than after the wait.
+        if let Some(text) = spec.type_ahead {
+            let typing_into = Arc::clone(&session);
+            std::thread::spawn(move || type_ahead(&typing_into, &text));
+        }
+
+        // Weak, so the shell does not keep the registry alive: a registry that is let go of
+        // ends its shells - see its `Drop`.
+        let registry = Arc::downgrade(self);
+        let reaped_id = terminal_id.clone();
+        std::thread::spawn(move || {
+            let mut buffer = vec![0u8; OUTPUT_CHUNK_SIZE];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(count) => {
+                        let chunk = &buffer[..count];
+                        crate::api::mark_activity(&session.last_activity);
+                        *session.last_output.lock().unwrap() = Some(Instant::now());
+                        for heard in session.attention_scanner.lock().unwrap().feed(chunk) {
+                            match heard {
+                                Heard::Asked(asked) => session.asked_for_attention(asked),
+                                Heard::Copied(text) => session.copy_requested(text),
+                            }
+                        }
+                        // A window attached now reads this as it comes, and answers any question
+                        // in it - which a later replay then leaves out.
+                        let seen_live = output.receiver_count() > 0;
+                        let chunk = session.scrollback.lock().unwrap().push(chunk, seen_live);
+                        // No attached tab is normal: the shell keeps running regardless.
+                        let _ = output.send(chunk);
+                    }
+                }
+            }
+            // An agent that fell over on its own - `claude --resume` on a session id that no
+            // longer exists, say - has printed the only account of what went wrong, and the
+            // window closes the tab of a shell marked exited. So its session is kept, with a
+            // notice saying how it ended, until the user closes it themselves. A shell taken
+            // out of the registry already was ended on purpose, and has nothing to explain.
+            // No registry is one being dropped, which has ended this shell on purpose.
+            let Some(registry) = registry.upgrade() else {
+                exited.send_replace(true);
+                return;
+            };
+            match failure_notice(&session) {
+                Some(notice) if registry.is_live(&reaped_id) => {
+                    session.child_ended.store(true, Ordering::Relaxed);
+                    // Moon's own words, which ask nothing.
+                    let chunk = session
+                        .scrollback
+                        .lock()
+                        .unwrap()
+                        .push(notice.as_bytes(), true);
+                    let _ = output.send(chunk);
+                }
+                _ => {
+                    // `send` is refused when nothing is subscribed, and would leave the flag
+                    // false for whoever asks later; the value has to be set whether or not
+                    // anyone is listening.
+                    exited.send_replace(true);
+                    registry.remove(&reaped_id);
+                }
+            }
+        });
+
+        Ok(terminal_id)
+    }
+}
+
+/// The notice a shell's ending earns, if it is one worth keeping on screen: an agent whose
+/// process ended in failure. `None` says the shell is done with and can be reaped.
+///
+/// A plain login shell is never kept: it exits with whatever its last command returned, so a
+/// nonzero status there is everyday use rather than the program falling over.
+fn failure_notice(session: &TerminalSession) -> Option<String> {
+    let program = match session.program.agent() {
+        None => return None,
+        Some(agent) => agent.label().to_lowercase(),
+    };
+    let status = session.child.lock().unwrap().wait().ok()?;
+    if status.success() {
+        return None;
+    }
+
+    let ending = match status.signal() {
+        Some(signal) => format!("was ended by {signal}"),
+        None => format!("exited with code {}", status.exit_code()),
+    };
+    Some(format!("\r\n\x1b[31m[{program} {ending}]\x1b[0m\r\n"))
+}
+
+/// Type text into a shell once the program in it has a box to take it, as if a person had.
+///
+/// The wait is what makes this work at all: keys written at an agent that has not drawn its
+/// input box yet are dropped by it, so the text has to arrive after that and - this is the
+/// point - before the person starts writing over it. So it waits for the program to stop
+/// drawing rather than for a fixed span, and if the person got there first it types nothing:
+/// a title landing in the middle of a sentence someone is writing is worse than no title.
+fn type_ahead(session: &TerminalSession, text: &str) {
+    let deadline = Instant::now() + TYPE_AHEAD_DEADLINE;
+    while Instant::now() < deadline {
+        if *session.exited.borrow()
+            || session.child_ended.load(Ordering::Relaxed)
+            || session.has_been_typed_into()
+        {
+            return;
+        }
+        // Silence before the program has printed anything at all is it still starting up, not
+        // a box waiting to be typed into.
+        let quiet = session
+            .last_output
+            .lock()
+            .unwrap()
+            .is_some_and(|last| last.elapsed() >= TYPE_AHEAD_QUIET);
+        if quiet {
+            break;
+        }
+        std::thread::sleep(TYPE_AHEAD_POLL);
+    }
+
+    // Checked again holding the writer, which is the lock a keystroke takes: a person who has
+    // typed by now is seen, and one who types from here on waits and lands after the whole of
+    // the text rather than inside it. The shell may also have ended, and a dead pty refuses
+    // writes.
+    let mut writer = session.writer.lock().unwrap();
+    if *session.exited.borrow()
+        || session.child_ended.load(Ordering::Relaxed)
+        || session.has_been_typed_into()
+    {
+        return;
+    }
+    let _ = writer.write_all(text.as_bytes());
+}

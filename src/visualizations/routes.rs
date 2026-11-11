@@ -15,24 +15,24 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct PageQuery {
-    pub(crate) fragment_path: String,
+pub struct PageQuery {
+    pub fragment_path: String,
 }
 
 /// Every visualization the server's terminals have announced - see [`super::on_tasks`].
-pub(crate) async fn announced(
+pub async fn announced(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     // Reading the rollouts and copying fragments is file work, kept off the async workers -
     // and done for whoever is asking, who the copies in the project are then written as.
     let visualizations =
-        crate::server::session_work(state, session_id, super::on_tasks::announced).await?;
+        crate::server::core_session_work(state, session_id, super::on_tasks::announced).await?;
     Ok(Json(VisualizationList { visualizations }))
 }
 
 /// The page a fragment is shown on - see [`super::page`].
-pub(crate) async fn page(
+pub async fn page(
     AxumPath(session_id): AxumPath<String>,
     Query(query): Query<PageQuery>,
     State(state): State<AppState>,
@@ -49,7 +49,7 @@ pub(crate) async fn page(
 ///
 /// The Codex is the asking person's own: what somebody else's shows is kept on a task, or is
 /// not theirs to see - see [`super::on_tasks::announced`].
-pub(crate) fn page_of(
+pub fn page_of(
     state: &AppState,
     session_id: &str,
     fragment_path: &str,

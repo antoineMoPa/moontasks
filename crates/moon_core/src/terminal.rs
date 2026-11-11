@@ -1,0 +1,454 @@
+mod agent_control;
+mod answered_queries;
+pub mod naming;
+pub mod output;
+mod registry;
+mod shown;
+mod spawning;
+mod told;
+mod trust;
+
+pub use agent_control::WAITING_FOR_INPUT_NOTIFICATION;
+pub use naming::{name_for_new_shell, rename};
+pub use shown::Shown;
+pub use told::PasteEnded;
+
+use std::{
+    collections::HashMap,
+    io::Write,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+
+use portable_pty::{Child, MasterPty, PtySize};
+use serde::{Deserialize, Serialize};
+use tokio::sync::{broadcast, watch};
+
+use crate::{
+    api::{AgentKind, TerminalAttentionView},
+    attention::{Asked, Attention},
+};
+
+const OUTPUT_CHUNK_SIZE: usize = 8 * 1024;
+/// The settings Claude is started with so it asks for a person through the terminal: OSC 9,
+/// iTerm2's notification, and a bell with it. Its `auto` channel goes by `TERM_PROGRAM`,
+/// which a moon shell does not set, and falls back to the bell alone.
+const CLAUDE_NOTIFY_THROUGH_THE_TERMINAL: &str = r#"{"preferredNotifChannel":"iterm2_with_bell"}"#;
+
+/// How long the shell has to have printed nothing before [`TerminalSpec::type_ahead`] is
+/// typed.
+///
+/// An agent's input box only takes keys once its interface has been drawn, and nothing it
+/// prints says when that is - but it stops printing once it has drawn one and is waiting.
+/// Coming up takes each of the three under a second of drawing, and a quarter of a second of
+/// silence after it is the box being ready, rather than a flat wait long enough for the
+/// slowest machine.
+const TYPE_AHEAD_QUIET: std::time::Duration = std::time::Duration::from_millis(250);
+/// How long it waits for that silence before typing anyway.
+///
+/// An agent that is still drawing at this point - an animated banner, a slow machine - has a
+/// box that has been taking keys for a while, so the wait is over.
+const TYPE_AHEAD_DEADLINE: std::time::Duration = std::time::Duration::from_secs(3);
+/// How often the wait looks at whether the shell has gone quiet.
+const TYPE_AHEAD_POLL: std::time::Duration = std::time::Duration::from_millis(20);
+/// How much shell output we keep so a reopened tab can replay what it missed.
+const SCROLLBACK_LIMIT: usize = 256 * 1024;
+use output::Scrollback;
+
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! {
+    /// Set while a window that reads this machine (`LocalBackend`) asks for a shell on this
+    /// thread - see [`for_this_window`].
+    static FOR_THIS_WINDOW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `start` - which starts shells - for the window in this process: a Minerve it starts is
+/// `moon __minerve --serve`, drawn with minerve's own view - see [`agent_control`]. What another
+/// machine's window or a browser asks the same server for, over HTTP, is never on this thread
+/// with this set, and gets the terminal Minerve it can draw.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn for_this_window<T>(start: impl FnOnce() -> T) -> T {
+    let before = FOR_THIS_WINDOW.with(|flag| flag.replace(true));
+    let started = start();
+    FOR_THIS_WINDOW.with(|flag| flag.set(before));
+    started
+}
+
+/// Whether the shell being started is for the window in this process - see [`for_this_window`].
+#[cfg(not(target_arch = "wasm32"))]
+fn starting_for_this_window() -> bool {
+    FOR_THIS_WINDOW.with(std::cell::Cell::get)
+}
+const BROADCAST_CAPACITY: usize = 256;
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ClientMessage {
+    Input {
+        data: String,
+    },
+    /// The terminal answering a query the program made of it, which is not somebody typing.
+    Reply {
+        data: String,
+    },
+    /// The terminal reporting the pointer to the program, which is not somebody typing either.
+    Report {
+        data: String,
+    },
+    Resize {
+        cols: u16,
+        rows: u16,
+    },
+}
+
+#[derive(Deserialize)]
+pub struct CreateTerminalRequest {
+    pub command: Option<AgentKind>,
+    /// A folder inside the repo to start the shell in, for `moon shell <folder>`. Without it
+    /// the shell starts at the repo's root, which is where every other shell starts.
+    #[serde(default)]
+    pub folder: Option<String>,
+}
+
+/// A command line to start a shell with - see [`start_workspace_shell_running`].
+#[derive(Deserialize)]
+pub struct RunInShellRequest {
+    pub command: String,
+}
+
+#[derive(Serialize)]
+pub struct TerminalCreated {
+    pub terminal_id: String,
+}
+
+#[derive(Serialize)]
+pub struct TerminalList {
+    pub terminal_ids: Vec<String>,
+}
+
+/// What runs in a pty: the user's login shell, or one of the agents.
+///
+/// A commit run is a login shell too, given its command as a `-c` script - see
+/// [`crate::committing::start_commit_run`] for why it is a shell rather than `git` itself.
+#[derive(Clone, PartialEq, Eq)]
+pub enum TerminalProgram {
+    LoginShell,
+    Agent(AgentKind),
+}
+
+impl TerminalProgram {
+    /// The login shell either way: [`AgentKind::None`] is "no agent picked" rather than a
+    /// program to start.
+    pub fn of_agent(agent: Option<AgentKind>) -> Self {
+        match agent {
+            None | Some(AgentKind::None) => Self::LoginShell,
+            Some(agent) => Self::Agent(agent),
+        }
+    }
+
+    /// The agent this is one of, for the callers that only deal in agents.
+    fn agent(&self) -> Option<AgentKind> {
+        match self {
+            Self::Agent(agent) => Some(*agent),
+            _ => None,
+        }
+    }
+
+    /// What a shell of this program is called before its number - `claude`, `codex`, `shell`.
+    fn label(&self) -> String {
+        match self {
+            Self::LoginShell => "shell".to_string(),
+            Self::Agent(agent) => agent.label().to_lowercase(),
+        }
+    }
+}
+
+/// What to start a shell as. The plain case is a login shell in the reviewed repo; a task's
+/// agent adds the program, its arguments, and the environment that tells it which task it is
+/// working in.
+pub struct TerminalSpec {
+    pub cwd: std::path::PathBuf,
+    pub program: TerminalProgram,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    /// What this shell belongs to, if anything: a task, by the name its board gives its shells
+    /// - see `run_owner` in the board's store - or a commit. An owned shell is its owner's to
+    /// list and to close, so it stays out of the workspace's own shells.
+    pub owner: Option<String>,
+    /// What the shell is called - see [`TerminalSession::name`]. A shell being started is
+    /// given its name by [`name_for_new_shell`], or the name its run already had when it is
+    /// resumed. `None` only where nothing named it, which is a test spawning by hand.
+    pub name: Option<String>,
+    /// Text typed into the shell once the program has come up, as if the user had typed it -
+    /// exactly as given, down to whether it ends in a return.
+    ///
+    /// An agent's opening line ends without one: what that does is leave something written in
+    /// the agent's box for the person to send. A build or run command ends with `\r`, because
+    /// there is nobody to press return on a command the pane was asked to run. A write that
+    /// lands too early - while the agent is still asking whether it trusts the folder - is
+    /// lost rather than acted on, which is what makes typing at a program that has not said it
+    /// is ready acceptable.
+    pub type_ahead: Option<String>,
+    /// The person the program is started for, on a server that gives each person a Unix user:
+    /// it runs as theirs - see [`crate::unix_users`]. `None` is the server's own user, which
+    /// such a server refuses.
+    pub runs_as: Option<crate::unix_users::Person>,
+}
+
+impl TerminalSpec {
+    /// A shell of the workspace's own: no task, and no program unless an agent was asked for.
+    pub fn shell(cwd: std::path::PathBuf, agent: Option<AgentKind>, name: Option<String>) -> Self {
+        Self {
+            cwd,
+            program: TerminalProgram::of_agent(agent),
+            args: Vec::new(),
+            env: Vec::new(),
+            owner: None,
+            name,
+            type_ahead: None,
+            runs_as: None,
+        }
+    }
+
+    /// The same shell with one command typed into it and sent, which is how a project's build
+    /// and run are started.
+    ///
+    /// The shell outlives the command: what it printed is still there to read, and the same
+    /// tab is where the command is run again.
+    pub fn running(cwd: std::path::PathBuf, command: &str) -> Self {
+        Self {
+            type_ahead: Some(format!("{command}\r")),
+            ..Self::shell(cwd, None, None)
+        }
+    }
+}
+
+/// A shell that lives in the server, not in the tab showing it: closing the tab detaches
+/// from the pty while it keeps running, so reopening it resumes the same shell.
+pub struct TerminalSession {
+    owner: Option<String>,
+    /// What it was started as. A task's plain shells are listed from here, because they are
+    /// not written down anywhere else.
+    program: TerminalProgram,
+    /// When it was started, and the order it was started in. A second is coarse enough that
+    /// two shells opened together tie, so the order is what actually sorts them.
+    started_at_unix: u64,
+    order: u64,
+    /// When it was started, on the clock waits are measured on: how long an agent has had to
+    /// draw its interface - see [`TerminalSession::is_still_coming_up`].
+    started: Instant,
+    /// What the shell is called on its tab and on the board, if it has been named. A shell is
+    /// named as it starts - `write the parser claude - 1`, `shell - 2` - so the task it
+    /// belongs to and two runs of the same agent can be told apart. It can be renamed from
+    /// its tab. A task's run writes the name down on the task as well, which is what
+    /// outlives the shell - see
+    /// [`crate::moontasks::store::TaskResource::name`].
+    name: Mutex<Option<String>>,
+    writer: Mutex<Box<dyn Write + Send>>,
+    pub master: Mutex<Box<dyn MasterPty + Send>>,
+    child: Mutex<Box<dyn Child + Send + Sync>>,
+    pub output: broadcast::Sender<output::OutputChunk>,
+    /// Flipped once the shell is gone. Attached tabs watch it so they learn about it even
+    /// though they hold this session alive.
+    ///
+    /// An agent that fell over on its own is the exception: its flag stays false and its
+    /// session stays in the registry, so the tabs showing the error stay open rather than
+    /// closing over the only account of what went wrong - see the reader thread in
+    /// [`TerminalRegistry::spawn`].
+    pub exited: watch::Sender<bool>,
+    pub scrollback: Mutex<Scrollback>,
+    /// When the shell last printed anything, which is how the type-ahead tells a program that
+    /// is still drawing its interface from one that has drawn it and is waiting.
+    last_output: Mutex<Option<Instant>>,
+    /// When a person last typed into this shell, and `None` while nobody has. Once somebody
+    /// has, the type-ahead is dropped: text arriving after someone has started writing lands
+    /// in the middle of their sentence. A line the shell is told waits out a moment after the
+    /// last keystroke for the same reason - see [`told`].
+    last_typed_into: Mutex<Option<Instant>>,
+    /// The lines this shell has been told and not yet had typed into it - see [`told`].
+    told: Mutex<told::Told>,
+    /// Whether this shell's screen is still to be looked at for the question its agent asks
+    /// of a folder it has not been run in - see [`trust`]. A line it is told waits until it
+    /// has been, since the Enter after the line would be the answer.
+    trust_unanswered: std::sync::atomic::AtomicBool,
+    /// The ask for a person the shell last made and nobody has answered - see
+    /// [`crate::attention`]. Typing into the shell is the answer, and takes it off.
+    attention: Mutex<Option<Attention>>,
+    /// Reads the shell's output for those asks, across however many reads a sequence spans.
+    attention_scanner: Mutex<crate::attention::Scanner>,
+    /// The last text the program copied to the clipboard with OSC 52, until a window takes it
+    /// - see [`TerminalSession::copy_requested`]. Only the last one is kept: the clipboard
+    /// would hold no more than that once they were all done.
+    copied: Mutex<Option<String>>,
+    /// Whether the program is gone while the session is kept - a failed agent held open for
+    /// its error to be read. Input is discarded then: nothing reads the pty any more, and a
+    /// write once its buffer fills would block whoever is typing.
+    child_ended: std::sync::atomic::AtomicBool,
+    /// Typing in a shell, and a shell printing output, both keep the server from idling out.
+    pub last_activity: Arc<Mutex<Instant>>,
+    /// The process started on the pty: the shell itself, or the agent. Kept here rather than
+    /// asked of [`TerminalSession::child`], whose lock is held for as long as a wait on the
+    /// program takes - see [`failure_notice`].
+    pub child_pid: Option<u32>,
+    /// The person the program was started for - see [`TerminalSpec::runs_as`].
+    runs_as: Option<crate::unix_users::Person>,
+    /// What a Codex in this terminal has shown - see [`crate::visualizations`]. `None` for any
+    /// other program.
+    visualizations: Option<Mutex<crate::visualizations::rollout::CodexRollouts>>,
+    /// What a Minerve in this terminal tells moon of its conversation - see [`agent_control`].
+    /// `None` for any other program.
+    agent_control: Option<Arc<agent_control::AgentControl>>,
+}
+
+impl TerminalSession {
+    /// Whether the shell has ended. Set by the reader thread when the pty reaches EOF.
+    pub fn has_exited(&self) -> bool {
+        *self.exited.borrow()
+    }
+
+    // A window on this machine drives the pty directly; a remote one goes through the
+    // websocket.
+    pub fn write_input(&self, data: &[u8]) -> anyhow::Result<()> {
+        crate::api::mark_activity(&self.last_activity);
+        self.typed_into();
+        self.write_to_child(data)
+    }
+
+    /// Somebody typed into the shell: the type-ahead is off, and whatever the shell was
+    /// asking for, it has been seen to.
+    pub fn typed_into(&self) {
+        *self.last_typed_into.lock().unwrap() = Some(Instant::now());
+        *self.attention.lock().unwrap() = None;
+    }
+
+    /// Whether a person has typed into this shell at all.
+    fn has_been_typed_into(&self) -> bool {
+        self.last_typed_into.lock().unwrap().is_some()
+    }
+
+    /// The shell asked for a person. A bell after a notification is the same ask - Claude's
+    /// `iterm2_with_bell` sends both - so it does not take the message's place; a
+    /// notification says more than a bell and takes any bell's.
+    fn asked_for_attention(&self, asked: Asked) {
+        let mut attention = self.attention.lock().unwrap();
+        let standing_notification = attention
+            .as_ref()
+            .is_some_and(|standing| matches!(standing.asked, Asked::Notification(_)));
+        if asked == Asked::Bell && standing_notification {
+            return;
+        }
+        *attention = Some(Attention::now(asked));
+    }
+
+    /// The program put `text` on the clipboard with OSC 52. A window on the shell puts it on
+    /// its own clipboard when it next asks - see [`crate::terminal::terminals_wanting_attention`].
+    fn copy_requested(&self, text: String) {
+        *self.copied.lock().unwrap() = Some(text);
+    }
+
+    /// The text last copied from this shell, if no window has taken it yet.
+    pub fn take_copy(&self) -> Option<String> {
+        self.copied.lock().unwrap().take()
+    }
+
+    /// What the shell is asking for, as the window shows it.
+    fn attention_view(&self, terminal_id: &str) -> Option<TerminalAttentionView> {
+        let attention = self.attention.lock().unwrap().clone()?;
+        Some(TerminalAttentionView {
+            terminal_id: terminal_id.to_string(),
+            name: self.name.lock().unwrap().clone(),
+            asked: attention.asked,
+            at_unix: attention.at_unix,
+        })
+    }
+
+    /// The terminal answering the program's own query. It goes to the same place a keystroke
+    /// does, but it is not one: nobody typed it, so it does not call off the type-ahead.
+    pub fn write_reply(&self, data: &[u8]) -> anyhow::Result<()> {
+        crate::api::mark_activity(&self.last_activity);
+        self.write_to_child(data)
+    }
+
+    /// The terminal reporting the pointer to a program tracking it. Not typing either: it
+    /// neither calls off the type-ahead nor answers what the shell is asking for - see
+    /// [`crate::attention`] - since a pointer resting on a question is not an answer to it.
+    pub fn write_report(&self, data: &[u8]) -> anyhow::Result<()> {
+        crate::api::mark_activity(&self.last_activity);
+        self.write_to_child(data)
+    }
+
+    /// Write to the program, unless it is gone and the session is only being kept for its
+    /// error: nothing reads the pty then, and a write once its buffer fills would block.
+    pub fn write_to_child(&self, data: &[u8]) -> anyhow::Result<()> {
+        if self.child_ended.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        self.writer.lock().unwrap().write_all(data)?;
+        Ok(())
+    }
+
+    /// Whether something is running in this shell right now, as opposed to a prompt waiting
+    /// to be typed at. This is what quitting would actually take down with it.
+    ///
+    /// The pty's foreground process group is the answer for a login shell: it is the shell's
+    /// own while the prompt is up, and the job's while one runs. A job someone sent to the
+    /// background is not the foreground group and so does not count - it is also not what
+    /// anybody means by the shell being busy.
+    ///
+    /// An agent is the program on the pty rather than something a shell was told to run, so
+    /// it counts for as long as it is alive.
+    pub fn is_running_a_command(&self) -> bool {
+        if self.has_exited() || self.child_ended.load(Ordering::Relaxed) {
+            return false;
+        }
+        if self.program.agent().is_some() {
+            return true;
+        }
+        let (Some(shell), Some(foreground)) = (
+            self.child_pid,
+            self.master.lock().unwrap().process_group_leader(),
+        ) else {
+            // Nothing to compare, so nothing to say the shell is idle: the warning is the
+            // safe answer when the pty cannot be read.
+            return true;
+        };
+        u32::try_from(foreground).is_ok_and(|foreground| foreground != shell)
+    }
+
+    pub fn resize(&self, cols: u16, rows: u16) -> anyhow::Result<()> {
+        self.master.lock().unwrap().resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
+        Ok(())
+    }
+}
+
+/// One of a task's live shells, as the board needs it listed.
+pub struct OwnedShell {
+    pub terminal_id: String,
+    /// What it was renamed to, if it was - see [`TerminalSession::name`].
+    pub name: Option<String>,
+    pub started_at_unix: u64,
+    /// Where it falls among the task's shells. Only meaningful against its siblings.
+    pub order: u64,
+}
+
+pub struct TerminalRegistry {
+    sessions: Mutex<HashMap<String, Arc<TerminalSession>>>,
+    /// Tells this run of the server's shells from a previous one's. A task writes down the
+    /// shell its agent is in, and that record outlives the process, so a counter starting
+    /// over at zero would let a new shell answer to an old task's name.
+    run: String,
+    next_id: AtomicU64,
+    last_activity: Arc<Mutex<Instant>>,
+}
+
+#[cfg(test)]
+#[path = "terminal_tests.rs"]
+pub mod tests;

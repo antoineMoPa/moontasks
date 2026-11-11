@@ -1,5 +1,6 @@
 //! Theme - the color palette the whole window is drawn with.
 
+use crate::native::workspace_color::WorkspaceGround;
 use egui::{Color32, CornerRadius, FontFamily, FontId, Stroke, TextStyle, Visuals};
 use egui_moon_editor::TokenStyle;
 

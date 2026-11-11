@@ -15,7 +15,7 @@ const ENCRYPTED_NAME_PARTS: &[&str] = &["gpg"];
 /// Whether the file a path names is kept encrypted, by its name - see
 /// [`ENCRYPTED_NAME_PARTS`]. The first part is the name itself and not a mark: `gpg.conf` is
 /// a plain file.
-pub(crate) fn is_encrypted_name(file_path: &str) -> bool {
+pub fn is_encrypted_name(file_path: &str) -> bool {
     let Some(name) = std::path::Path::new(file_path)
         .file_name()
         .and_then(|name| name.to_str())
@@ -32,9 +32,9 @@ pub(crate) fn is_encrypted_name(file_path: &str) -> bool {
 /// An encrypted file of a session, asked for with the passphrase to read it. The passphrase
 /// is wiped from memory as the request is dropped.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct DecryptFileRequest {
-    pub(crate) file_path: String,
-    pub(crate) passphrase: Zeroizing<String>,
+pub struct DecryptFileRequest {
+    pub file_path: String,
+    pub passphrase: Zeroizing<String>,
 }
 
 /// The text of an encrypted file, to be encrypted with `passphrase` and written in its place.
@@ -42,11 +42,11 @@ pub(crate) struct DecryptFileRequest {
 /// something already is - the same as [`crate::backend::Backend::create_file`]. The
 /// passphrase is wiped from memory as the request is dropped.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct WriteEncryptedFileRequest {
-    pub(crate) file_path: String,
-    pub(crate) content: String,
-    pub(crate) passphrase: Zeroizing<String>,
-    pub(crate) creates: bool,
+pub struct WriteEncryptedFileRequest {
+    pub file_path: String,
+    pub content: String,
+    pub passphrase: Zeroizing<String>,
+    pub creates: bool,
 }
 
 #[cfg(test)]

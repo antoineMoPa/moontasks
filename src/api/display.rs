@@ -13,32 +13,32 @@ use serde::{Deserialize, Serialize};
 /// What `POST /api/session/{id}/display/applications` is asked: an application to start on
 /// the server's desktop, in the session's repo.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct StartApplicationRequest {
+pub struct StartApplicationRequest {
     /// A line of shell.
-    pub(crate) command: String,
+    pub command: String,
     /// How large a view to start the desktop with, when this is what starts it, in pixels.
     /// A pane showing it asks for its own size as soon as it is drawn.
-    pub(crate) width: u16,
-    pub(crate) height: u16,
+    pub width: u16,
+    pub height: u16,
     /// How many pixels of the asking window's screen a point of it is, to the nearest whole
     /// number: the scale the desktop's applications draw at, when this is what starts it. A
     /// pixel of the desktop is shown on one pixel of that screen, so without it an
     /// application on a screen of twice the density would be drawn half the size.
-    pub(crate) scale: u8,
+    pub scale: u8,
 }
 
 /// The server's desktop.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct DisplayView {
+pub struct DisplayView {
     /// What `DISPLAY` is on the server for a program to open its windows there: `:7`.
-    pub(crate) name: String,
+    pub name: String,
 }
 
 /// What a person watching a display did - see `moon_display::Input`, which each of these is
 /// one of.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub(crate) enum DisplayInput {
+pub enum DisplayInput {
     Paste {
         id: u64,
         text: String,
@@ -78,13 +78,13 @@ pub(crate) enum DisplayInput {
 
 /// A rectangle of a display's view that changed, as it is now.
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) struct DisplayPatch {
+pub struct DisplayPatch {
     /// The size of the whole view, which a patch after a resize is the first to say.
-    pub(crate) view: [u16; 2],
-    pub(crate) at: [u16; 2],
-    pub(crate) size: [u16; 2],
+    pub view: [u16; 2],
+    pub at: [u16; 2],
+    pub size: [u16; 2],
     /// The rectangle's pixels, row after row, three bytes each: red, green, blue.
-    pub(crate) rgb: Vec<u8>,
+    pub rgb: Vec<u8>,
 }
 
 /// The six numbers a patch's message starts with, two bytes each, low byte first: the view's
@@ -103,7 +103,7 @@ impl DisplayPatch {
     /// The patch as one binary message of a display's socket. Made where displays are: by
     /// a server on Linux.
     #[cfg(any(target_os = "linux", test))]
-    pub(crate) fn to_message(&self) -> Vec<u8> {
+    pub fn to_message(&self) -> Vec<u8> {
         let mut message = Vec::with_capacity(HEADER_LENGTH + self.rgb.len() / 4);
         for number in self.view.iter().chain(&self.at).chain(&self.size) {
             message.extend_from_slice(&number.to_le_bytes());
@@ -115,7 +115,7 @@ impl DisplayPatch {
         message
     }
 
-    pub(crate) fn from_message(message: &[u8]) -> Result<Self> {
+    pub fn from_message(message: &[u8]) -> Result<Self> {
         ensure!(
             message.len() >= HEADER_LENGTH,
             "a display's message is {} bytes, short of the {HEADER_LENGTH} a patch starts with",
@@ -173,21 +173,21 @@ mod tests {
 
 /// Connection-local clipboard reply. Its binary prefix cannot be a valid patch width.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub(crate) struct DisplayClipboard {
-    pub(crate) id: u64,
-    pub(crate) text: Option<String>,
-    pub(crate) error: Option<String>,
+pub struct DisplayClipboard {
+    pub id: u64,
+    pub text: Option<String>,
+    pub error: Option<String>,
 }
-pub(crate) const CLIPBOARD_LIMIT: usize = 64 * 1024;
+pub use moon_core::attention::CLIPBOARD_LIMIT;
 const CLIPBOARD_PREFIX: &[u8] = b"\0\0MOONCLIP\0";
 impl DisplayClipboard {
     #[cfg(any(target_os = "linux", test))]
-    pub(crate) fn to_message(&self) -> Vec<u8> {
+    pub fn to_message(&self) -> Vec<u8> {
         let mut message = CLIPBOARD_PREFIX.to_vec();
         message.extend(serde_json::to_vec(self).expect("clipboard reply is plain data"));
         message
     }
-    pub(crate) fn from_message(message: &[u8]) -> Result<Option<Self>> {
+    pub fn from_message(message: &[u8]) -> Result<Option<Self>> {
         let Some(json) = message.strip_prefix(CLIPBOARD_PREFIX) else {
             return Ok(None);
         };

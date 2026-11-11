@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use crate::{
     api::{AgentKind, OpenSessionRequest},
     backend::Backend,
-    instances::window::AgentAsks,
+    instances::AgentAsks,
     moontasks::{StartFolder, StartResourceRequest, TaskResourceKind},
     terminal::Shown,
 };

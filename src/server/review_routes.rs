@@ -28,7 +28,7 @@ use crate::{
     service,
 };
 
-use super::{for_person, mark_activity, session_work};
+use super::{core_session_work, for_person, mark_activity, session_work};
 
 pub(super) async fn session_submodules(
     AxumPath(session_id): AxumPath<String>,
@@ -379,7 +379,7 @@ pub(super) async fn commit_state(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     mark_activity(&state);
-    let commit_state = session_work(state, session_id, crate::committing::commit_state).await?;
+    let commit_state = core_session_work(state, session_id, crate::committing::commit_state).await?;
     Ok(Json(commit_state))
 }
 
@@ -390,7 +390,7 @@ pub(super) async fn suggest_commit_message(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     mark_activity(&state);
-    let suggestion = session_work(
+    let suggestion = core_session_work(
         state,
         session_id,
         crate::commit_suggestion::suggest_commit_message,

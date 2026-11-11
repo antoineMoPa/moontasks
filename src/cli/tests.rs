@@ -545,10 +545,10 @@ fn the_board_makes_a_card_from_the_command_line() {
             ]
         )
         .expect("expected it to parse"),
-        MoonCommand::NewTask {
+        MoonCommand::Tasks(tasks::TaskCommand::New {
             title: "fix the races".to_string(),
             appears_on: None
-        }
+        })
     );
     assert_eq!(
         parse_command(
@@ -562,10 +562,10 @@ fn the_board_makes_a_card_from_the_command_line() {
             ]
         )
         .expect("expected it to parse"),
-        MoonCommand::NewTask {
+        MoonCommand::Tasks(tasks::TaskCommand::New {
             title: "fix the races".to_string(),
             appears_on: None
-        }
+        })
     );
 
     let error = parse_command(None, vec!["tasks".to_string(), "new".to_string()])
@@ -575,12 +575,12 @@ fn the_board_makes_a_card_from_the_command_line() {
     // A card made ahead of time, wherever the option is put.
     let parse =
         |args: &[&str]| parse_command(None, args.iter().map(|arg| arg.to_string()).collect());
-    let appearing = MoonCommand::NewTask {
+    let appearing = MoonCommand::Tasks(tasks::TaskCommand::New {
         title: "renew the certificate".to_string(),
         appears_on: Some(
             time::Date::from_calendar_date(2026, time::Month::November, 2).expect("expected a day"),
         ),
-    };
+    });
     assert_eq!(
         parse(&[
             "tasks",
@@ -631,13 +631,15 @@ fn the_board_makes_a_card_from_the_command_line() {
 fn the_board_lists_and_moves_its_cards_from_the_command_line() {
     let parse =
         |args: &[&str]| parse_command(None, args.iter().map(|arg| arg.to_string()).collect());
-    let moved_to = |column: &str| MoonCommand::MoveTask {
-        column: column.to_string(),
+    let moved_to = |column: &str| {
+        MoonCommand::Tasks(tasks::TaskCommand::Move {
+            column: column.to_string(),
+        })
     };
 
     assert_eq!(
         parse(&["tasks", "list"]).expect("expected it to parse"),
-        MoonCommand::ListTasks
+        MoonCommand::Tasks(tasks::TaskCommand::List)
     );
     assert_eq!(
         parse(&["tasks", "move", "IN", "PROGRESS"]).expect("expected it to parse"),
@@ -993,4 +995,10 @@ fn the_agents_answer_help_with_their_own_commands() {
         );
     }
     assert!(help_text().contains("moon agent <command>"));
+}
+
+/// `moon --help` names the MCP server, with the option it takes.
+#[test]
+fn the_help_names_the_mcp_server() {
+    assert!(super::command::help_text().contains("moon mcp [--repo <path>]"));
 }

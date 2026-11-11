@@ -1,0 +1,388 @@
+//! Asking the person's agent for the message, and reading its answer.
+
+use std::{
+    io::{Read, Write},
+    path::Path,
+    process::Stdio,
+    thread,
+    time::{Duration, Instant},
+};
+
+use anyhow::{Context, Result, bail};
+
+use super::CommitSuggestion;
+use crate::{
+    agent_programs::{answer_args, program_of},
+    api::AgentKind,
+    git,
+};
+
+/// How much of the staged diff the prompt carries. A commit of a whole vendored directory runs
+/// to megabytes, which is a slow read for an answer no better than the one the first pages give
+/// - so the diff is cut here, and the prompt says it was cut.
+const DIFF_LIMIT: usize = 60_000;
+
+/// How long the run is given before it is taken to have got stuck. A model reading a diff
+/// answers in seconds; a run still going after this is one waiting for something that is never
+/// going to come - a provider that never answers, a prompt for a login - and the pane behind it
+/// would spin for as long as the window is open.
+const ANSWER_LIMIT: Duration = Duration::from_secs(180);
+/// How often the run is asked whether it is done, while it is inside that limit.
+const ANSWER_POLL: Duration = Duration::from_millis(100);
+
+/// How much of what the agent printed goes in an error. Enough to show what went wrong, and
+/// not the whole of a help page or a stack of JSON: the error is read on one line of the pane.
+const ERROR_DETAIL_LIMIT: usize = 300;
+
+/// How the two lines of the answer are labelled, which is both what the prompt asks for and
+/// what [`parse_suggestion`] reads back.
+const SUBJECT_LABEL: &str = "commit:";
+const PARAGRAPH_LABEL: &str = "pr_paragraph:";
+
+/// Write a message for what this review has staged, with the agent and model the person
+/// picked - see [`crate::settings::Settings::selected_agent`]. Blocking: an agent is a program
+/// that reads a diff and thinks about it, so this is called from a worker thread.
+pub fn suggest_commit_message(
+    state: &crate::api::AppState,
+    session_id: &str,
+) -> Result<CommitSuggestion> {
+    let (repo_path, pathspec) = crate::api::with_session(state, session_id, |session| {
+        Ok((
+            session.repo_path.clone(),
+            session.diff_target.pathspec.clone(),
+        ))
+    })?;
+
+    let mut name_status_args = vec!["diff", "--cached", "--name-status", "--no-renames"];
+    git::append_pathspec(&mut name_status_args, pathspec.as_deref());
+    let name_status = git::run_git(&repo_path, &name_status_args)?;
+    if name_status.trim().is_empty() {
+        bail!("nothing is staged to write a message from");
+    }
+
+    let mut diff_args = vec![
+        "diff",
+        "--cached",
+        "--no-color",
+        "--no-ext-diff",
+        "--unified=3",
+    ];
+    git::append_pathspec(&mut diff_args, pathspec.as_deref());
+    let diff = git::run_git(&repo_path, &diff_args)?;
+    if diff.trim().is_empty() {
+        bail!("the staged diff is empty");
+    }
+
+    let settings = crate::settings::served(state);
+    let agent = settings.selected_agent;
+    if agent == AgentKind::None {
+        bail!("no agent is picked to write the message");
+    }
+    let prompt = build_prompt(&repo_path, name_status.trim_end(), &diff);
+    let program = program_of(agent).program;
+    let raw = run_agent(&repo_path, &prompt, agent, settings.agent_model(agent))?;
+    parse_suggestion(&raw, program)
+}
+
+/// The diff as the prompt carries it, and whether it had to be cut to get there.
+fn diff_for_prompt(diff: &str) -> (&str, bool) {
+    if diff.len() <= DIFF_LIMIT {
+        return (diff.trim_end(), false);
+    }
+    // On a line, so the last hunk in the prompt is one the model can read.
+    let cut = diff[..DIFF_LIMIT]
+        .rfind('\n')
+        .expect("a diff longer than the limit has a newline in its first pages");
+    (&diff[..cut], true)
+}
+
+fn build_prompt(repo_root: &Path, name_status: &str, diff: &str) -> String {
+    let (diff, was_cut) = diff_for_prompt(diff);
+
+    let mut prompt = String::new();
+    prompt.push_str("You are writing a semantic commit message from the staged git changes.\n");
+    prompt.push_str("Return exactly two lines and nothing else:\n");
+    prompt.push_str(&format!(
+        "{SUBJECT_LABEL} <one conventional commit subject>\n"
+    ));
+    prompt.push_str(&format!(
+        "{PARAGRAPH_LABEL} <one short paragraph, 1-2 sentences, for the commit body>\n"
+    ));
+    prompt.push_str("Rules:\n");
+    prompt.push_str("- Use only the staged changes below; unstaged work is not in this commit.\n");
+    prompt.push_str("- Keep the subject concise and specific.\n");
+    prompt.push_str(
+        "- Keep the paragraph short, factual, and a little more detailed than the subject.\n\n",
+    );
+    prompt.push_str("Repository root:\n");
+    prompt.push_str(&format!("{}\n\n", repo_root.display()));
+    prompt.push_str("Staged files:\n");
+    prompt.push_str(name_status);
+    prompt.push_str("\n\nStaged diff:\n");
+    prompt.push_str(diff);
+    if was_cut {
+        prompt.push_str(
+            "\n\n(The diff was cut off here because of its size. Write the message from what is above it.)",
+        );
+    }
+    prompt.push('\n');
+    prompt
+}
+
+/// Ask `agent` in the repo, and answer with everything it printed. The prompt goes in on stdin
+/// rather than on the command line: a staged diff is far longer than a command line is allowed
+/// to be. Its command line is the one [`crate::agent_programs`] has for answering a prompt, with
+/// no tools or permissions: a message read off a diff needs none.
+///
+/// It runs as whoever asked for the message, with the login of their own agent - see
+/// [`crate::shell_path::installed_tool`] - and with `model` when they picked one on the
+/// settings page.
+fn run_agent(
+    repo_root: &Path,
+    prompt: &str,
+    agent: AgentKind,
+    model: Option<&str>,
+) -> Result<String> {
+    let program = program_of(agent).program;
+    let mut child = crate::shell_path::installed_tool(program)?
+        // No model of moon's own: with none picked, whichever one the agent is set up to use
+        // is the one the user has already chosen, signed into and paid for, and a default
+        // named here would be a model that is not there on some other machine. The pick is
+        // for when that one is not on their plan.
+        // The repo is the working directory: `opencode run` 2.x has no `--dir` and refuses it.
+        .args(answer_args(agent, model))
+        .current_dir(repo_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .with_context(|| format!("failed to start {program}"))?;
+
+    child
+        .stdin
+        .take()
+        .expect("the agent was spawned with a piped stdin")
+        .write_all(prompt.as_bytes())
+        .with_context(|| format!("failed to write the prompt to {program}"))?;
+
+    // Both pipes are drained while the run goes: a run that filled one and blocked on it would
+    // never reach the exit this waits for.
+    let stdout_pipe = child
+        .stdout
+        .take()
+        .expect("the agent was spawned with a piped stdout");
+    let stderr_pipe = child
+        .stderr
+        .take()
+        .expect("the agent was spawned with a piped stderr");
+    let reading_stdout = thread::spawn(move || read_all(stdout_pipe));
+    let reading_stderr = thread::spawn(move || read_all(stderr_pipe));
+
+    let deadline = Instant::now() + ANSWER_LIMIT;
+    let status = loop {
+        match child
+            .try_wait()
+            .with_context(|| format!("failed to wait for {program}"))?
+        {
+            Some(status) => break status,
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                bail!(
+                    "{program} did not answer within {} seconds",
+                    ANSWER_LIMIT.as_secs()
+                );
+            }
+            None => thread::sleep(ANSWER_POLL),
+        }
+    };
+
+    let printed = reading_stdout
+        .join()
+        .expect("the thread reading the agent's output did not panic");
+    let complained = reading_stderr
+        .join()
+        .expect("the thread reading the agent's errors did not panic");
+    if !status.success() {
+        // An agent that cannot reach the model - no login for the provider, a model it does
+        // not know - says so on stderr and ends on a status.
+        let detail = if complained.trim().is_empty() {
+            &printed
+        } else {
+            &complained
+        };
+        bail!(
+            "{program} failed (status {}): {}",
+            status.code().unwrap_or(-1),
+            on_one_line(detail, ERROR_DETAIL_LIMIT)
+        );
+    }
+
+    Ok(printed)
+}
+
+fn read_all(mut pipe: impl Read) -> String {
+    let mut bytes = Vec::new();
+    // A pipe that could not be read to the end still has what was read before that, which is
+    // what the error the caller raises will be made of.
+    let _ = pipe.read_to_end(&mut bytes);
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+/// What a program printed, as one line short enough to read in the pane: no colours, no line
+/// breaks, and cut where it stops fitting.
+fn on_one_line(text: &str, limit: usize) -> String {
+    let plain = without_ansi_escapes(text);
+    let mut line = plain.split_whitespace().collect::<Vec<_>>().join(" ");
+    if line.chars().count() > limit {
+        line = line.chars().take(limit).collect::<String>() + "…";
+    }
+    line
+}
+
+/// What an agent prints can be coloured, and a colour is a run of characters the parser would
+/// otherwise read as part of a line. This takes them back out.
+fn without_ansi_escapes(line: &str) -> String {
+    let mut plain = String::with_capacity(line.len());
+    let mut letters = line.chars();
+    while let Some(letter) = letters.next() {
+        if letter != '\u{1b}' {
+            plain.push(letter);
+            continue;
+        }
+        // An escape runs to the letter that ends it - `m` for a colour, and the same shape for
+        // the rest of them.
+        for letter in letters.by_ref() {
+            if letter.is_ascii_alphabetic() {
+                break;
+            }
+        }
+    }
+    plain
+}
+
+/// Read the two labelled lines back out of what the agent printed. Anything else it printed -
+/// a banner, a blank line, a stray sentence - is not part of the message and is passed over.
+fn parse_suggestion(raw: &str, program: &str) -> Result<CommitSuggestion> {
+    let mut subject = None;
+    let mut paragraph = None;
+
+    for line in raw.lines() {
+        let line = without_ansi_escapes(line);
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix(SUBJECT_LABEL) {
+            subject = Some(rest.trim().to_string());
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix(PARAGRAPH_LABEL) {
+            paragraph = Some(rest.trim().to_string());
+        }
+    }
+
+    let (Some(subject), Some(paragraph)) = (subject, paragraph) else {
+        // Which is also where an agent that ended well without running the model lands -
+        // one that printed its own help over an argument it did not know, say.
+        bail!(
+            "{program} did not answer with a `{SUBJECT_LABEL}` and a `{PARAGRAPH_LABEL}` line: {}",
+            on_one_line(raw, ERROR_DETAIL_LIMIT)
+        );
+    };
+    if subject.is_empty() {
+        bail!("{program} answered with an empty commit subject");
+    }
+    Ok(CommitSuggestion { subject, paragraph })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_two_labelled_lines_are_read_out_of_the_answer() {
+        // Arrange
+        let raw = "\u{1b}[0m\n> build · gpt-5.6-luna\n\u{1b}[0mcommit: fix: stop the poll running twice\n\npr_paragraph: The pane asked the backend on every frame.\n";
+
+        // Act
+        let suggestion = parse_suggestion(raw, "opencode").expect("expected a suggestion");
+
+        // Assert
+        assert_eq!(suggestion.subject, "fix: stop the poll running twice");
+        assert_eq!(
+            suggestion.paragraph,
+            "The pane asked the backend on every frame."
+        );
+        assert_eq!(
+            suggestion.as_message(),
+            "fix: stop the poll running twice\n\nThe pane asked the backend on every frame."
+        );
+    }
+
+    #[test]
+    fn an_answer_missing_a_line_is_an_error_that_shows_what_came_back() {
+        // Arrange
+        let raw = "commit: feat: add a thing";
+
+        // Act
+        let error =
+            parse_suggestion(raw, "opencode").expect_err("expected the missing line to be refused");
+
+        // Assert
+        assert!(
+            error.to_string().contains("feat: add a thing"),
+            "the error should carry what opencode actually printed: {error}"
+        );
+    }
+
+    /// An `opencode` that printed a help page over an argument it did not know ends well and
+    /// says nothing about a commit. What the pane is told fits on the line it has for it.
+    #[test]
+    fn an_answer_that_is_not_a_message_is_cut_down_to_something_readable() {
+        // Arrange
+        let raw = format!("Options:\n{}", "  --flag  what the flag does\n".repeat(200));
+
+        // Act
+        let error =
+            parse_suggestion(&raw, "opencode").expect_err("expected a help page to be refused");
+
+        // Assert
+        let said = error.to_string();
+        assert!(
+            said.chars().count() < ERROR_DETAIL_LIMIT * 2,
+            "the error should be readable on one line, not a help page: {said}"
+        );
+        assert!(!said.contains('\n'), "the error should be one line: {said}");
+        assert!(
+            said.ends_with('…'),
+            "the error should say it was cut: {said}"
+        );
+    }
+
+    #[test]
+    fn colours_and_line_breaks_are_left_out_of_what_an_error_carries() {
+        // Arrange
+        let printed = "\u{1b}[91m\u{1b}[1mError: \u{1b}[0m{\n  \"name\": \"UnknownError\"\n}";
+
+        // Act
+        let line = on_one_line(printed, ERROR_DETAIL_LIMIT);
+
+        // Assert
+        assert_eq!(line, "Error: { \"name\": \"UnknownError\" }");
+    }
+
+    #[test]
+    fn a_diff_past_the_limit_is_cut_on_a_line() {
+        // Arrange
+        let diff = "+a line of the diff\n".repeat(DIFF_LIMIT);
+
+        // Act
+        let (carried, was_cut) = diff_for_prompt(&diff);
+
+        // Assert
+        assert!(was_cut, "a diff this size does not fit in the prompt");
+        assert!(carried.len() <= DIFF_LIMIT);
+        assert!(
+            carried.ends_with("+a line of the diff"),
+            "the cut should leave whole lines behind"
+        );
+    }
+}

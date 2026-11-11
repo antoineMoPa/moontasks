@@ -1,0 +1,408 @@
+//! What a shell is told reaching the program in it: typed, sent, in order, and not while
+//! somebody is in the way.
+//!
+//! A script stands in for an agent, started under its name the way the other pty tests start
+//! one: it takes its terminal out of canonical mode first, as an agent's box does, and says
+//! back every line it is sent, so a line that was typed and never sent - or sent
+//! in two halves - does not read as one that arrived.
+
+#![cfg(unix)]
+
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+
+use super::*;
+use crate::terminal::tests::spawn_fake_claude;
+
+/// Says each line it is sent back as `got[line]`.
+const SAYS_BACK: &str = "#!/bin/sh\n/bin/stty -icanon\nwhile IFS= read -r line; do printf 'got[%s]\\n' \"$line\"; done\n";
+
+/// The same, having first spent a second drawing, the way an agent's interface does as it
+/// comes up, and then said it is ready.
+const DRAWS_THEN_SAYS_BACK: &str = "#!/bin/sh\n/bin/stty -icanon\nfor frame in 1 2 3 4 5 6 7 8 9 10; do printf 'drawing\\n'; sleep 0.1; done\n\
+     printf 'ready\\n'\n\
+     while IFS= read -r line; do printf 'got[%s]\\n' \"$line\"; done\n";
+
+/// An agent slow to come up: it draws, goes quiet for longer than any wait on silence, and
+/// only then puts its terminal in raw mode and reads - each burst of keys as one chunk, the
+/// way an agent's box tells a paste from typing.
+const QUIET_BEFORE_IT_READS: &str = "#!/bin/sh\nprintf 'drawing\\n'\n/bin/sleep 4\n/bin/stty raw -echo\nprintf 'ready\\n'\n\
+     while chunk=$(/bin/dd bs=256 count=1 2>/dev/null); do [ -n \"$chunk\" ] && printf 'got[%s]' \"$chunk\"; done\n";
+
+/// The same, having first asked for a person the way an agent waiting on a permission does.
+const ASKS_THEN_SAYS_BACK: &str = "#!/bin/sh\n/bin/stty -icanon\nprintf 'working\\033]9;Permission needs input\\007'\n\
+     while IFS= read -r line; do printf 'got[%s]\\n' \"$line\"; done\n";
+
+/// The same, having first said what Claude Code says once it has finished and nobody has
+/// typed for a minute.
+const WAITS_TO_BE_TYPED_AT_THEN_SAYS_BACK: &str = "#!/bin/sh\n/bin/stty -icanon\nprintf 'done\\033]9;Claude is waiting for your input\\007'\n\
+     while IFS= read -r line; do printf 'got[%s]\\n' \"$line\"; done\n";
+
+fn registry() -> Arc<TerminalRegistry> {
+    Arc::new(TerminalRegistry::new(Arc::new(Mutex::new(Instant::now()))))
+}
+
+fn printed(session: &TerminalSession) -> String {
+    String::from_utf8_lossy(&session.scrollback.lock().unwrap().replay()).to_string()
+}
+
+/// Wait for the shell to have printed this, and say whether it did.
+fn prints(session: &TerminalSession, wanted: &str, within: Duration) -> bool {
+    let deadline = Instant::now() + within;
+    while Instant::now() < deadline {
+        if printed(session).contains(wanted) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    false
+}
+
+#[test]
+fn a_told_line_is_typed_into_the_shell_and_sent() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, SAYS_BACK);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+
+    registry
+        .tell(&terminal_id, "agent @bing-bong sent this message: hello")
+        .expect("expected the shell to be told");
+
+    assert!(
+        prints(
+            &session,
+            "got[agent @bing-bong sent this message: hello]",
+            Duration::from_secs(10)
+        ),
+        "the line should have been typed and sent, printed {:?}",
+        printed(&session)
+    );
+    // Nobody at the window typed it.
+    assert!(!session.has_been_typed_into());
+    registry.remove(&terminal_id);
+}
+
+/// An agent told something the moment it was started - `moon agent start`, then `moon agent
+/// tell` - has no box to take it yet. The line waits for it to have drawn its interface and
+/// gone quiet, rather than being typed into the drawing, where a real agent drops it.
+#[test]
+fn a_line_told_to_an_agent_that_is_still_coming_up_waits_until_it_has() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, DRAWS_THEN_SAYS_BACK);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+
+    registry
+        .tell(&terminal_id, "hello")
+        .expect("expected the shell to be told");
+
+    assert!(
+        prints(&session, "got[hello]", Duration::from_secs(10)),
+        "the line should have been typed and sent, printed {:?}",
+        printed(&session)
+    );
+    // The pty echoes a line as it is typed, so where it first shows is when it was typed.
+    let printed = printed(&session);
+    let typed_at = printed.find("hello").expect("the line was typed");
+    let ready_at = printed.find("ready").expect("the agent came up");
+    assert!(
+        typed_at > ready_at,
+        "the line should have waited for the agent to come up, printed {printed:?}"
+    );
+    registry.remove(&terminal_id);
+}
+
+/// An agent that has gone quiet but not yet put its terminal in raw mode is not reading its
+/// keys: the line waits for it. Typed before, the terminal would echo it and hand the line
+/// and its Enter over together once the agent read - a paste, whose Enter sends nothing.
+#[test]
+fn a_line_waits_for_an_agent_that_is_quiet_but_not_reading_keys() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, QUIET_BEFORE_IT_READS);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+
+    registry
+        .tell(&terminal_id, "hello")
+        .expect("expected the shell to be told");
+
+    assert!(
+        prints(&session, "got[hello", Duration::from_secs(15)),
+        "the line should have reached the agent, printed {:?}",
+        printed(&session)
+    );
+    let printed = printed(&session);
+    let typed_at = printed.find("hello").expect("the line was typed");
+    let ready_at = printed.find("ready").expect("the agent came up");
+    assert!(
+        typed_at > ready_at,
+        "the line should have waited for the agent to read keys, printed {printed:?}"
+    );
+    registry.remove(&terminal_id);
+}
+
+/// A shell asking for a person holds what it is told, and goes on asking: a told line is no
+/// answer. Once somebody has answered, the lines wait out the moment after the keystroke as
+/// well, and are then typed in the order they were told.
+#[test]
+fn told_lines_wait_while_somebody_is_in_the_way_and_keep_their_order() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, ASKS_THEN_SAYS_BACK);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && registry.attention(&terminal_id).is_none() {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(
+        registry.attention(&terminal_id).is_some(),
+        "expected the shell to be asking for a person"
+    );
+
+    for line in ["one", "two", "three"] {
+        registry
+            .tell(&terminal_id, line)
+            .expect("expected the shell to be told");
+    }
+
+    assert!(
+        !prints(&session, "got[one]", Duration::from_secs(1)),
+        "a line was typed at a shell that is asking, printed {:?}",
+        printed(&session)
+    );
+    assert!(
+        registry.attention(&terminal_id).is_some(),
+        "being told a line is not an answer"
+    );
+
+    let answered = Instant::now();
+    session
+        .write_input(b"y\n")
+        .expect("expected the answer to be typed");
+    assert!(prints(&session, "got[y]", Duration::from_secs(10)));
+    assert!(
+        !prints(&session, "got[one]", Duration::from_secs(1)),
+        "a line was typed straight after a keystroke, printed {:?}",
+        printed(&session)
+    );
+
+    assert!(
+        prints(
+            &session,
+            "got[one]",
+            WAITS_AFTER_TYPING + Duration::from_secs(10)
+        ),
+        "the lines were never typed, printed {:?}",
+        printed(&session)
+    );
+    assert!(
+        answered.elapsed() >= WAITS_AFTER_TYPING,
+        "the first line was typed {:?} after a keystroke",
+        answered.elapsed()
+    );
+    assert!(
+        prints(&session, "got[three]", Duration::from_secs(10)),
+        "the last line was never typed, printed {:?}",
+        printed(&session)
+    );
+    let printed = printed(&session);
+    let at = |line: &str| printed.find(line).expect("every line was printed");
+    assert!(
+        at("got[one]") < at("got[two]") && at("got[two]") < at("got[three]"),
+        "the lines arrived out of order, printed {printed:?}"
+    );
+    registry.remove(&terminal_id);
+}
+
+/// An agent that has finished and said it is waiting for input is asking for exactly what a
+/// told line is, so the line is typed - and the ask, having been answered, is taken off.
+#[test]
+fn an_agent_only_waiting_to_be_typed_at_is_told_and_stops_asking() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, WAITS_TO_BE_TYPED_AT_THEN_SAYS_BACK);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && registry.attention(&terminal_id).is_none() {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(
+        registry.attention(&terminal_id).is_some(),
+        "expected the agent to be saying it is waiting"
+    );
+
+    registry
+        .tell(
+            &terminal_id,
+            "agent @bing-bong sent this message: done yet?",
+        )
+        .expect("expected the shell to be told");
+
+    assert!(
+        prints(
+            &session,
+            "got[agent @bing-bong sent this message: done yet?]",
+            Duration::from_secs(10)
+        ),
+        "an agent waiting to be typed at was not, printed {:?}",
+        printed(&session)
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && registry.attention(&terminal_id).is_some() {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(
+        registry.attention(&terminal_id).is_none(),
+        "the line was what the agent was waiting for"
+    );
+    registry.remove(&terminal_id);
+}
+
+#[test]
+fn a_line_still_held_when_the_shell_ends_is_dropped() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, ASKS_THEN_SAYS_BACK);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && registry.attention(&terminal_id).is_none() {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    registry
+        .tell(&terminal_id, "never typed")
+        .expect("expected the shell to be told");
+    assert!(session.told.lock().unwrap().being_typed);
+
+    registry.remove(&terminal_id);
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && session.told.lock().unwrap().being_typed {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let told = session.told.lock().unwrap();
+    assert!(!told.being_typed, "the thread typing them should have gone");
+    assert!(told.waiting.is_empty(), "the line should have been dropped");
+    drop(told);
+    assert!(!printed(&session).contains("got[never typed]"));
+}
+
+#[test]
+fn only_one_line_of_text_is_told_and_only_to_a_shell_that_is_there() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, SAYS_BACK);
+
+    for not_a_line in ["", "one\ntwo", "sent early\r", "escape\u{1b}[2J"] {
+        assert!(
+            registry.tell(&terminal_id, not_a_line).is_err(),
+            "{not_a_line:?} should be refused"
+        );
+    }
+    assert!(registry.tell("terminal-nobody-0", "hello").is_err());
+
+    let session = registry.get(&terminal_id).expect("expected the shell");
+    assert!(session.told.lock().unwrap().waiting.is_empty());
+    registry.remove(&terminal_id);
+}
+
+/// Turns bracketed paste on, as every agent's box does, and keeps exactly the bytes it is
+/// sent in the file it is named, with nothing of the terminal's between them and it.
+fn keeps_what_it_is_sent_in(file: &std::path::Path) -> String {
+    format!(
+        "#!/bin/sh\n/bin/stty raw -echo\nprintf 'ready\\033[?2004h\\n'\nexec /bin/cat > '{}'\n",
+        file.display()
+    )
+}
+
+/// What became of a paste, as its sender hears it.
+fn paste_outcome() -> (OnPasteEnded, std::sync::mpsc::Receiver<PasteEnded>) {
+    let (ended, outcome) = std::sync::mpsc::channel();
+    (
+        Box::new(move |how| ended.send(how).expect("the test is listening")),
+        outcome,
+    )
+}
+
+/// A paste keeps its line breaks and goes in one bracketed piece, with an Enter of its own
+/// after it. A control character in the text does not reach the terminal: the end marker
+/// inside this one would otherwise end the paste early and send what follows as keystrokes.
+#[test]
+fn a_paste_arrives_whole_and_is_sent_by_an_enter_of_its_own() {
+    let received = std::env::temp_dir().join(format!("told-paste-{}", std::process::id()));
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, &keeps_what_it_is_sent_in(&received));
+    let session = registry.get(&terminal_id).expect("expected the shell");
+    assert!(prints(&session, "ready", Duration::from_secs(10)));
+
+    let (on_ended, outcome) = paste_outcome();
+    registry
+        .tell_paste(
+            &terminal_id,
+            "one\ntwo\x1b[201~three",
+            Default::default(),
+            on_ended,
+        )
+        .expect("expected the shell to be told");
+
+    assert_eq!(
+        outcome
+            .recv_timeout(Duration::from_secs(15))
+            .expect("expected to hear how it ended"),
+        PasteEnded::Sent
+    );
+    let wanted: &[u8] = b"\x1b[200~one\ntwo[201~three\x1b[201~\r";
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while std::fs::read(&received).unwrap_or_default() != wanted && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    registry.remove(&terminal_id);
+    let arrived = std::fs::read(&received).expect("the program kept what it read");
+    std::fs::remove_file(&received).expect("expected to clear up");
+    assert_eq!(
+        String::from_utf8_lossy(&arrived),
+        String::from_utf8_lossy(wanted)
+    );
+}
+
+/// A program that never turned bracketed paste on would read each line break as an Enter.
+#[test]
+fn a_paste_is_refused_by_a_program_not_reading_pastes() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, SAYS_BACK);
+
+    let (on_ended, outcome) = paste_outcome();
+    registry
+        .tell_paste(&terminal_id, "one\ntwo", Default::default(), on_ended)
+        .expect("expected the shell to be told");
+
+    assert_eq!(
+        outcome
+            .recv_timeout(Duration::from_secs(15))
+            .expect("expected to hear how it ended"),
+        PasteEnded::Failed("the agent is not reading pastes".to_string())
+    );
+    registry.remove(&terminal_id);
+}
+
+/// Taking a paste back does not wait for what is holding it: that is why it is taken back.
+#[test]
+fn a_paste_taken_back_while_held_never_reaches_the_shell() {
+    let registry = registry();
+    let terminal_id = spawn_fake_claude(&registry, ASKS_THEN_SAYS_BACK);
+    let session = registry.get(&terminal_id).expect("expected the shell");
+    assert!(prints(&session, "working", Duration::from_secs(10)));
+
+    let canceled: crate::api::CancelToken = Default::default();
+    let (on_ended, outcome) = paste_outcome();
+    registry
+        .tell_paste(&terminal_id, "one\ntwo", Arc::clone(&canceled), on_ended)
+        .expect("expected the shell to be told");
+    assert!(outcome.recv_timeout(Duration::from_secs(1)).is_err());
+
+    canceled.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    assert_eq!(
+        outcome
+            .recv_timeout(Duration::from_secs(5))
+            .expect("expected to hear how it ended"),
+        PasteEnded::Canceled
+    );
+    assert!(!printed(&session).contains("got["));
+    registry.remove(&terminal_id);
+}

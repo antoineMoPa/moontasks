@@ -8,26 +8,26 @@ use serde::{Deserialize, Serialize};
 
 /// What is in one folder of the server's disk - see `crate::native::file_picker`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FolderListing {
+pub struct FolderListing {
     /// The folder that was listed: absolute, with `~`, `..` and every symlink already
     /// followed. A pick is this and the name of an entry, so what a picker hands on is a path
     /// the server resolved rather than one somebody typed.
-    pub(crate) folder: String,
+    pub folder: String,
     /// In the order the disk gave them, which is none: the picker sorts.
-    pub(crate) entries: Vec<FolderEntry>,
+    pub entries: Vec<FolderEntry>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FolderEntry {
-    pub(crate) name: String,
-    pub(crate) kind: EntryKind,
+pub struct FolderEntry {
+    pub name: String,
+    pub kind: EntryKind,
 }
 
 /// What an entry of a folder is, as far as picking goes: something to go into, or something
 /// to pick. A symlink is whichever of the two it leads to.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum EntryKind {
+pub enum EntryKind {
     Folder,
     File,
 }
@@ -35,32 +35,32 @@ pub(crate) enum EntryKind {
 /// One folder of a review's repo, as the tree beside a file tab lists it - see
 /// `crate::service::repo_folder`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RepoFolderListing {
+pub struct RepoFolderListing {
     /// The folder, from the repo's root, with no `/` at either end: `""` for the root.
-    pub(crate) folder: String,
+    pub folder: String,
     /// Folders first, then files, each alphabetical ignoring case.
-    pub(crate) entries: Vec<RepoEntry>,
+    pub entries: Vec<RepoEntry>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RepoEntry {
-    pub(crate) name: String,
-    pub(crate) kind: EntryKind,
+pub struct RepoEntry {
+    pub name: String,
+    pub kind: EntryKind,
     /// Whether git ignores it - `target/`, `node_modules/`. The tree hides these unless asked.
-    pub(crate) ignored: bool,
+    pub ignored: bool,
 }
 
 /// The folder a project started from nothing is made at - an absolute path nothing is at yet.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct NewProjectFolderRequest {
-    pub(crate) path: String,
+pub struct NewProjectFolderRequest {
+    pub path: String,
 }
 
 /// The file to place - see [`FilePlaced`]. An absolute path of the server's disk.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Serialize, Deserialize)]
-pub(crate) struct PlaceFileRequest {
-    pub(crate) path: String,
+pub struct PlaceFileRequest {
+    pub path: String,
 }
 
 /// Where a file anywhere on the server's disk is read and written from.
@@ -74,12 +74,12 @@ pub(crate) struct PlaceFileRequest {
 /// with one.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FilePlaced {
-    pub(crate) session_id: String,
+pub struct FilePlaced {
+    pub session_id: String,
     /// The folder the session is on, which `file_path` starts from.
-    pub(crate) project: String,
-    pub(crate) file_path: String,
+    pub project: String,
+    pub file_path: String,
     /// Whether anything is at the path yet. A tab on a path nothing is at starts empty, and
     /// its first save creates the file.
-    pub(crate) exists: bool,
+    pub exists: bool,
 }

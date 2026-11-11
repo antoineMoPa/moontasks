@@ -598,7 +598,7 @@ fn temporary_project(name: &str) -> PathBuf {
 /// the way a machine without one would.
 struct AnswersAboutAgents;
 
-impl super::window::AgentAsks for AnswersAboutAgents {
+impl super::AgentAsks for AnswersAboutAgents {
     fn start(
         &self,
         _repo_path: &str,
@@ -834,7 +834,7 @@ fn a_server_tells_and_shows_the_shells_it_holds() {
     );
 
     let profiles = Profiles::kept_at(&folder.join("secret")).expect("expected profiles");
-    server.shells_held_by(state.clone(), profiles);
+    server.shells_held_by(state.core.clone(), Arc::new(profiles));
     super::tell(moon, &terminal_id, "echo told-$((6 * 7))").expect("expected the line taken");
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {

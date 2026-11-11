@@ -5,6 +5,7 @@
 //! they are kept in the repo - see [`crate::project`]. This is the frame that writes that
 //! file, so a project is configured from the window rather than by finding the file first.
 
+use crate::native::workspace_color::WorkspaceGround;
 use egui::{CornerRadius, RichText, Sense, Stroke, Ui, vec2};
 
 use egui_moon_editor::Indent;

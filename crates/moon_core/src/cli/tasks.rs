@@ -1,0 +1,473 @@
+//! Tasks - the cards of a board made, listed and moved from a command line: the words after
+//! `moon tasks` that open no window.
+//!
+//! The board is a folder of files, so a card can be made, read and moved without a window -
+//! which is what an agent asked to write itself a task, or to say how far it has got with
+//! the one it is on, needs. What somebody running them is told is in the window's own help,
+//! see `help_text_for` in [`super::command`].
+
+use std::{
+    env,
+    ffi::OsString,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
+use anyhow::{Context, Result, bail};
+use time::Date;
+
+use super::{PROGRAM, task_shell::TaskOfShell};
+use crate::{
+    git::project_root,
+    moontasks::{
+        ColumnEnd, TASK_DIR_ENV_VAR, appears_on, service,
+        store::{self, BoardColumn},
+        wire::handles,
+    },
+    terminal::TerminalRegistry,
+};
+
+/// A command line's ask of the board's cards, read - see [`parse`] and [`run`].
+#[derive(Debug, PartialEq, Eq)]
+pub enum TaskCommand {
+    /// A card on the board of the repo this shell is in, without opening a window on it. The
+    /// task folder it made is printed, which is what the caller wanted it for.
+    New {
+        title: String,
+        /// The day the board starts showing it, for a card made ahead of time.
+        appears_on: Option<time::Date>,
+    },
+    /// The cards of that board, printed column by column.
+    List,
+    /// The card of the task this shell belongs to, moved to the column of the board that is
+    /// called this.
+    Move { column: String },
+}
+
+/// Do what a command line asked of the cards.
+pub fn run(command: TaskCommand) -> Result<()> {
+    match command {
+        TaskCommand::New { title, appears_on } => new_task(&title, appears_on),
+        TaskCommand::List => list_tasks(),
+        TaskCommand::Move { column } => move_task(&column),
+    }
+}
+
+/// What `moon tasks` does to the board's cards rather than open its window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CardCommand {
+    New,
+    List,
+    Move,
+}
+
+/// The words after `moon tasks` that are not something to open the window on, and what each
+/// asks for. A file or a folder called one of these is opened as `./new`.
+const CARD_COMMANDS: &[(&str, CardCommand)] = &[
+    ("new", CardCommand::New),
+    ("list", CardCommand::List),
+    ("move", CardCommand::Move),
+];
+
+pub fn card_command_named(word: &str) -> Option<CardCommand> {
+    CARD_COMMANDS
+        .iter()
+        .find(|(named, _)| *named == word)
+        .map(|(_, command)| *command)
+}
+
+/// What a command line asks of the cards, from the words after `moon tasks new|list|move`.
+pub fn parse(command: CardCommand, words: &[String]) -> Result<TaskCommand> {
+    match command {
+        CardCommand::New => parse_new(words),
+        CardCommand::List => match words.is_empty() {
+            true => Ok(TaskCommand::List),
+            false => bail!(
+                "`{PROGRAM} tasks list` lists the cards of this repo's board, so it takes nothing"
+            ),
+        },
+        CardCommand::Move => parse_move(words),
+    }
+}
+
+/// `moon tasks new [--appears-on <day>] <title>`. The title is the whole of the rest, joined,
+/// so it needs no quoting - though it usually gets some. `--appears-on 2026-11-02` makes a card
+/// the board leaves out until that day - see [`crate::moontasks::appears_on`].
+fn parse_new(args: &[String]) -> Result<TaskCommand> {
+    let mut appears_on = None;
+    let mut title_words = Vec::new();
+    let mut words = args.iter();
+    while let Some(word) = words.next() {
+        match word.as_str() {
+            APPEARS_ON_OPTION => {
+                let day = words.next().with_context(|| {
+                    format!(
+                        "`{APPEARS_ON_OPTION}` needs a day, e.g. `{APPEARS_ON_OPTION} 2026-11-02`"
+                    )
+                })?;
+                appears_on = Some(appears_on::parse_day(day)?);
+            }
+            option if option.starts_with('-') => bail!(
+                "`{PROGRAM} tasks new` takes the card's title and `{APPEARS_ON_OPTION} <day>`, not {option}"
+            ),
+            _ => title_words.push(word.as_str()),
+        }
+    }
+    let title = title_words.join(" ");
+    if title.trim().is_empty() {
+        bail!(
+            "`{PROGRAM} tasks new` needs the card's title, e.g. `{PROGRAM} tasks new \"fix the races\"`"
+        );
+    }
+    Ok(TaskCommand::New { title, appears_on })
+}
+
+/// The option of `moon tasks new` that holds a card back until a day.
+const APPEARS_ON_OPTION: &str = "--appears-on";
+
+/// `moon tasks move <column>`. The column's name is the whole of the rest, joined, so
+/// `IN PROGRESS` needs no quoting - and it is kept as it was typed, for the board to be held
+/// to: see [`column_called`].
+fn parse_move(args: &[String]) -> Result<TaskCommand> {
+    if let Some(option) = args.iter().find(|arg| arg.starts_with('-')) {
+        bail!("`{PROGRAM} tasks move` takes the column's name and no options, not {option}");
+    }
+    let column = args.join(" ");
+    if column.trim().is_empty() {
+        bail!(
+            "`{PROGRAM} tasks move` needs the column to move this shell's task to, e.g. `{PROGRAM} tasks move IN PROGRESS`"
+        );
+    }
+    Ok(TaskCommand::Move { column })
+}
+
+/// Make a card on the board of the repo this shell is in and print the folder it was given.
+///
+/// It joins the top of the board's first column, which is where the board itself puts a card
+/// nobody said anything else about: the leftmost column is the one work starts in. A card with
+/// a day to appear on is out of the board's sight until then, and takes that place all the same.
+pub fn new_task(title: &str, appears_on: Option<Date>) -> Result<()> {
+    let repo_path = repo_of_this_shell()?;
+    let board = store::read_board(&repo_path);
+    let column = board
+        .columns
+        .first()
+        .context("the board has no columns to put a card in")?
+        .id
+        .clone();
+
+    let task_id =
+        store::create_task_appearing_on(&repo_path, title, &column, ColumnEnd::Top, appears_on)?;
+    println!("{}", store::task_dir(&repo_path, &task_id)?.display());
+    Ok(())
+}
+
+/// The repo whose board `new` and `list` are about: the one this shell is in - or, for a
+/// person in a work tree of their own, the checkout the board everybody has is in.
+fn repo_of_this_shell() -> Result<PathBuf> {
+    store::board_checkout(&project_root(
+        &env::current_dir().context("failed to read the current directory")?,
+    )?)
+}
+
+pub fn list_tasks() -> Result<()> {
+    print!(
+        "{}",
+        list(&repo_of_this_shell()?, appears_on::today_here())?
+    );
+    Ok(())
+}
+
+/// Every column of the board in a repo by the name the board shows it under, left to right,
+/// and under each its cards from the top, a line each: the task's folder, which is what
+/// `new` prints and what an agent works from, and the card's title.
+///
+/// A column's name starts its line and a card's is set in from it, so the two are told
+/// apart by `grep`. A column with no cards is still named. A card the board leaves out until a
+/// day still to come is listed all the same, with the day after its title.
+fn list(repo_path: &Path, today: Date) -> Result<String> {
+    let mut columns: Vec<(String, Vec<(String, String)>)> = Vec::new();
+    for (column, cards) in service::cards_by_column(repo_path)? {
+        let mut listed = Vec::new();
+        for (task_id, metadata) in cards {
+            let folder = store::task_dir(repo_path, &task_id)?;
+            let title = match metadata.appears_on {
+                Some(day) if appears_on::still_to_come(Some(day), today) => {
+                    format!("{}  (appears on {day})", metadata.title)
+                }
+                _ => metadata.title,
+            };
+            listed.push((folder.display().to_string(), title));
+        }
+        columns.push((column.label, listed));
+    }
+    let widest = columns
+        .iter()
+        .flat_map(|(_, cards)| cards)
+        .map(|(folder, _)| folder.chars().count())
+        .max()
+        .unwrap_or(0);
+
+    let mut text = String::new();
+    for (label, cards) in columns {
+        text.push_str(&format!("{label}\n"));
+        for (folder, title) in cards {
+            text.push_str(&format!("  {folder:<widest$}  {title}\n"));
+        }
+    }
+    Ok(text)
+}
+
+pub fn move_task(column: &str) -> Result<()> {
+    print!(
+        "{}",
+        move_card(column, crate::moon_env_var_os(TASK_DIR_ENV_VAR))?
+    );
+    Ok(())
+}
+
+/// Past the end of any column, which is how the board is asked for a column's bottom. It is
+/// where a card moved from the board's own menus lands in a column that names no end for its
+/// arrivals - see `arrive_in_column` in `crate::native::board::column` - and a command line
+/// has no drop to say otherwise either.
+const BOTTOM_OF_THE_COLUMN: usize = usize::MAX;
+
+/// Move the card of the task a shell belongs to into the column called `column`, and say what
+/// moved where.
+///
+/// The move is the board's own - see [`service::place_tasks`] - so the card arrives the way
+/// one dragged there does: at the end the column takes its arrivals at, with the time it
+/// arrived written down. A card already in that column is left where it is in it.
+fn move_card(column: &str, task_dir: Option<OsString>) -> Result<String> {
+    let task = TaskOfShell::of(&format!("{PROGRAM} tasks move"), task_dir.as_deref())?;
+    task.folders_of_its_board()?;
+    move_card_of_task(&task.repo_path, &task.task_id, column)
+}
+
+/// [`move_card`], for a task named by its folder rather than by the shell it was typed in.
+pub fn move_card_of_task(repo_path: &Path, task_id: &str, column: &str) -> Result<String> {
+    let handle = handles::handle_of(task_id, &store::list_task_ids(repo_path)?);
+    let board = store::read_board(repo_path);
+    let column = column_called(&board.columns, column)?;
+
+    let metadata = store::read_task(repo_path, task_id)?;
+    if metadata.status.as_ref() == Some(&column.id) {
+        return Ok(format!("@{handle} is already in {}\n", column.label));
+    }
+    // The shells of this process, which has none: the task's own are held by the moon whose
+    // board started them.
+    let shells_held_here = TerminalRegistry::new(Arc::new(Mutex::new(Instant::now())));
+    service::place_tasks_in_repo(
+        &shells_held_here,
+        repo_path,
+        &[task_id.to_string()],
+        column.id.clone(),
+        BOTTOM_OF_THE_COLUMN,
+        None,
+    )?;
+    Ok(format!("moved @{handle} to {}\n", column.label))
+}
+
+/// The column the board shows under this name, letter for letter: `IN PROGRESS`, not
+/// `in progress`, and not the `in_progress` its cards are written down as being in. A name
+/// the board does not show is refused with the ones it does.
+pub fn column_called<'board>(
+    columns: &'board [BoardColumn],
+    name: &str,
+) -> Result<&'board BoardColumn> {
+    let called: Vec<&BoardColumn> = columns
+        .iter()
+        .filter(|column| column.label == name)
+        .collect();
+    match called.as_slice() {
+        [column] => Ok(column),
+        [] => bail!(
+            "{name:?} is no column of this board: its columns are {}",
+            columns
+                .iter()
+                .map(|column| column.label.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        _ => bail!(
+            "{} columns of this board are called {name:?}, so the name does not say which",
+            called.len()
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::moontasks::{
+        ColumnId,
+        store::{BoardConfig, ColumnSort},
+    };
+
+    /// A repo whose board has the three columns named, the last of them sorted by title.
+    fn board(name: &str) -> PathBuf {
+        let repo = std::env::temp_dir().join(format!(
+            "moontasks-tasks-cli-{}-{name}-{}",
+            std::process::id(),
+            store::new_uuid()
+        ));
+        std::fs::create_dir_all(&repo).expect("failed to create the test repo");
+        let column = |id: &str, label: &str, arrivals, sort| BoardColumn {
+            id: ColumnId::new(id),
+            label: label.to_string(),
+            arrivals,
+            sort,
+            marks_a_days_work: None,
+        };
+        let columns = vec![
+            column("big", "TODO", None, None),
+            column("in_progress", "IN PROGRESS", None, None),
+            column("done", "DONE", Some(ColumnEnd::Top), None),
+            column("later", "later", None, Some(ColumnSort::Alphabetical)),
+        ];
+        store::write_board(&repo, &BoardConfig { columns }).expect("expected the board");
+        repo
+    }
+
+    fn card(repo: &Path, title: &str, column: &str) -> String {
+        store::create_task(repo, title, &ColumnId::new(column), ColumnEnd::Bottom)
+            .expect("expected the card to be made")
+    }
+
+    /// The folder a shell of this task is told it is in.
+    fn task_dir(repo: &Path, task_id: &str) -> Option<OsString> {
+        Some(
+            store::task_dir(repo, task_id)
+                .expect("expected the task's folder")
+                .into_os_string(),
+        )
+    }
+
+    #[test]
+    fn the_list_is_every_column_by_its_name_with_its_cards_under_it() {
+        let repo = board("list");
+        let races = card(&repo, "Fix the races", "big");
+        let step_10 = card(&repo, "Step 10", "later");
+        let step_2 = card(&repo, "Step 2", "later");
+        let folder = |task_id: &str| {
+            store::task_dir(&repo, task_id)
+                .expect("expected the task's folder")
+                .display()
+                .to_string()
+        };
+        let widest = folder(&races).len();
+
+        assert_eq!(
+            list(&repo, appears_on::today_here()).expect("expected the list"),
+            format!(
+                "TODO\n  {}  Fix the races\nIN PROGRESS\nDONE\nlater\n  {:<widest$}  Step 2\n  {:<widest$}  Step 10\n",
+                folder(&races),
+                folder(&step_2),
+                folder(&step_10),
+            )
+        );
+    }
+
+    /// A card made ahead of time is listed from the start, with its day until that day comes.
+    #[test]
+    fn a_card_still_to_come_is_listed_with_its_day() {
+        let repo = board("appears-on");
+        let day = appears_on::parse_day("2026-11-02").expect("expected a day");
+        let renew = store::create_task_appearing_on(
+            &repo,
+            "Renew the certificate",
+            &ColumnId::new("big"),
+            ColumnEnd::Top,
+            Some(day),
+        )
+        .expect("expected the card to be made");
+        let folder = store::task_dir(&repo, &renew)
+            .expect("expected the task's folder")
+            .display()
+            .to_string();
+        let listed_on = |today: &str| {
+            list(&repo, appears_on::parse_day(today).expect("expected a day"))
+                .expect("expected the list")
+        };
+
+        assert_eq!(
+            listed_on("2026-11-01"),
+            format!(
+                "TODO\n  {folder}  Renew the certificate  (appears on 2026-11-02)\nIN PROGRESS\nDONE\nlater\n"
+            )
+        );
+        assert_eq!(
+            listed_on("2026-11-02"),
+            format!("TODO\n  {folder}  Renew the certificate\nIN PROGRESS\nDONE\nlater\n")
+        );
+    }
+
+    /// Moved from a task's shell, a card arrives the way one dragged there does: at the end
+    /// the column takes its arrivals at, and dated.
+    #[test]
+    fn a_card_is_moved_to_the_column_called_what_the_board_shows() {
+        let repo = board("move");
+        let races = card(&repo, "Fix the races", "big");
+        let finished = card(&repo, "Bing bong", "done");
+        let mut made_earlier = store::read_task(&repo, &races).expect("expected the task");
+        made_earlier.entered_column_at_unix = Some(1);
+        store::write_task(&repo, &races, &made_earlier).expect("expected the task written");
+
+        assert_eq!(
+            move_card("IN PROGRESS", task_dir(&repo, &races)).expect("expected the move"),
+            "moved @fix-the-races to IN PROGRESS\n"
+        );
+        let moved = store::read_task(&repo, &races).expect("expected the task");
+        assert_eq!(moved.status, Some(ColumnId::new("in_progress")));
+        assert!(
+            moved.entered_column_at_unix > Some(1),
+            "the arrival is dated"
+        );
+
+        assert_eq!(
+            move_card("IN PROGRESS", task_dir(&repo, &races)).expect("expected no refusal"),
+            "@fix-the-races is already in IN PROGRESS\n"
+        );
+
+        assert_eq!(
+            move_card("DONE", task_dir(&repo, &races)).expect("expected the move"),
+            "moved @fix-the-races to DONE\n"
+        );
+        let place = |task_id: &str| {
+            let card = store::read_task(&repo, task_id).expect("expected the task");
+            (card.status, card.position)
+        };
+        assert_eq!(place(&races), (Some(ColumnId::new("done")), 0));
+        assert_eq!(place(&finished), (Some(ColumnId::new("done")), 1));
+    }
+
+    #[test]
+    fn a_move_from_outside_a_tasks_shell_or_to_no_column_of_the_board_is_refused() {
+        let repo = board("refused");
+        let races = card(&repo, "Fix the races", "big");
+
+        let error = move_card("DONE", None).expect_err("expected a refusal");
+        assert_eq!(
+            error.to_string(),
+            "`moon tasks move` is run from a task's shell, and this is not one: \
+             MOONTASKS_TASK_DIR is not set"
+        );
+
+        // The name the board shows, not the one it is written down under, and letter for
+        // letter.
+        for no_column in ["in_progress", "in progress", "Done"] {
+            let error =
+                move_card(no_column, task_dir(&repo, &races)).expect_err("expected a refusal");
+            assert_eq!(
+                error.to_string(),
+                format!(
+                    "{no_column:?} is no column of this board: its columns are TODO, IN \
+                     PROGRESS, DONE, later"
+                )
+            );
+        }
+        let untouched = store::read_task(&repo, &races).expect("expected the task");
+        assert_eq!(untouched.status, Some(ColumnId::new("big")));
+    }
+}

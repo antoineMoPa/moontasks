@@ -6,6 +6,7 @@
 //! from another before reading a name - two on the same project are told apart by how they
 //! are split.
 
+use crate::native::workspace_color::WorkspaceGround;
 use egui::{Color32, CornerRadius, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use egui_frames::{FrameId, LayoutNode, SplitDirection};
 

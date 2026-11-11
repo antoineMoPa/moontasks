@@ -48,8 +48,7 @@ use axum::{
 };
 
 use crate::{
-    agent::detect_agent_availability,
-    api::{AppState, ServerState, bind_host, port, server_url},
+    api::{AppState, bind_host, port, server_url},
     pass_keys::{LONGEST_TICKET_LIFETIME, PassKeys, RedeemedTickets, SERVE_TICKET_LIFETIME},
 };
 use users::Users;
@@ -58,19 +57,7 @@ const SERVER_LIFETIME: Duration = Duration::from_secs(30 * 60);
 /// The state the window and the server share. The app builds this once and hands a clone to
 /// the server it carries, so a remote window reviews the same sessions this one does.
 pub(crate) fn build_state(last_activity: Arc<Mutex<Instant>>) -> AppState {
-    AppState {
-        inner: Arc::new(Mutex::new(ServerState {
-            home_repo: repo_started_in(),
-            ..ServerState::default()
-        })),
-        agent_availability: detect_agent_availability(),
-        last_activity: Arc::clone(&last_activity),
-        terminals: Arc::new(crate::terminal::TerminalRegistry::new(last_activity)),
-        display: Arc::default(),
-        lsp: Arc::new(crate::lsp::LanguageServers::new()),
-        settings_path: crate::settings::path(),
-        palette_history_path: crate::palette_history::path(),
-    }
+    AppState::build(last_activity, repo_started_in())
 }
 
 /// The repo around the folder this process was started in. A folder that cannot be read -
@@ -535,7 +522,7 @@ pub(crate) async fn run_server() -> Result<()> {
     // this server's shells reaches it, kept until the server ends. Not fatal: the server
     // works, those commands just cannot reach this one.
     let _shell_asks = crate::instances::server::ServerAsks::listen(Arc::new(state.clone()))
-        .inspect(|asks| asks.shells_held_by(state.clone(), users.profiles.clone()))
+        .inspect(|asks| asks.shells_held_by(state.core.clone(), Arc::new(users.profiles.clone())))
         .inspect_err(|error| {
             eprintln!("[moon] the `moon` typed in a shell cannot reach this server: {error}")
         });
@@ -726,6 +713,16 @@ pub(crate) async fn session_work<T: Send + 'static>(
     // The work keeps its own copies, since it outlives the borrow the lookup is made with.
     let (asked_of, asked_about) = (state.clone(), session_id.clone());
     for_person_of(&asked_of, &asked_about, move || work(&state, &session_id)).await
+}
+
+/// [`session_work`] for work that is moon_core's, which is handed the core of the state - the
+/// sessions and shells - rather than the window's whole state.
+pub(crate) async fn core_session_work<T: Send + 'static>(
+    state: AppState,
+    session_id: String,
+    work: impl FnOnce(&moon_core::api::AppState, &str) -> Result<T> + Send + 'static,
+) -> Result<T, crate::api::AppError> {
+    session_work(state, session_id, move |state, session_id| work(&state.core, session_id)).await
 }
 
 /// [`for_person_of`] for a request that has no session yet - one that opens a session, or

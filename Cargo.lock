@@ -3410,6 +3410,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "moon_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "getrandom 0.3.4",
+ "libc",
+ "libghostty-vt",
+ "miniz_oxide",
+ "moon_lsp",
+ "portable-pty",
+ "pulldown-cmark",
+ "serde",
+ "serde_json",
+ "sha1 0.10.6",
+ "sha2 0.10.9",
+ "time",
+ "tokio",
+ "toml 1.1.4+spec-1.1.0",
+ "uuid",
+ "web-time",
+ "zeroize",
+]
+
+[[package]]
 name = "moon_display"
 version = "0.1.0"
 dependencies = [
@@ -3471,6 +3496,7 @@ dependencies = [
  "minerve",
  "minerve-gui",
  "miniz_oxide",
+ "moon_core",
  "moon_display",
  "moon_launcher",
  "moon_lsp",

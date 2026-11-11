@@ -8,7 +8,12 @@ use std::{
 };
 
 use super::*;
-use crate::{api::FileContentPayload, git::run_git_no_output};
+use std::path::PathBuf;
+
+use crate::{
+    api::{FileContentPayload, OpenSessionRequest},
+    git::run_git_no_output,
+};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
