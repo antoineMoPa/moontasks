@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# build-release.sh - builds `moon` for the machine it runs on and packages it as that target's
-# release archive. scripts/bin-release.sh runs it on the publishing machine, and
+# build-release.sh - builds `moon`, the window-free `moon` and `moon-mux` for the machine it runs
+# on, and packages each as that target's release archive. scripts/bin-release.sh runs it on the publishing machine, and
 # .github/workflows/release.yml on a runner for each other target.
 
 set -euo pipefail
@@ -16,8 +16,6 @@ TARGET_TRIPLE="$1"
 
 TAG="v$(bash "$ROOT_DIR/scripts/_internal/version.sh")"
 OUTPUT_DIR="$ROOT_DIR/target/release-artifacts/$TAG"
-# The executable Cargo builds. install.sh expects it in the archive.
-PROGRAM="moon"
 ZIG_MAJOR_MINOR="0.15"
 
 if [ "$TARGET_TRIPLE" != "$(bash "$ROOT_DIR/scripts/_internal/host-target.sh")" ]; then
@@ -60,28 +58,38 @@ require_zig
 
 echo "Building moontasks $TAG for $TARGET_TRIPLE..."
 cargo build --release --locked
+# The window-free `moon` and moon-mux are workspaces of their own, with their own lockfiles.
+cargo build --release --locked --manifest-path crates/moon_tui/Cargo.toml
+cargo build --release --locked --manifest-path crates/moon_mux/Cargo.toml
 
 # Only this release's archives are kept: the earlier releases have theirs on GitHub.
 find "$ROOT_DIR/target/release-artifacts" -mindepth 1 -maxdepth 1 ! -name "$TAG" -exec rm -rf {} + 2>/dev/null || true
 mkdir -p "$OUTPUT_DIR"
 
-archive_name="moontasks-${TARGET_TRIPLE}.tar.gz"
-stage_dir="$OUTPUT_DIR/stage/${TARGET_TRIPLE}"
-rm -rf "$stage_dir"
-mkdir -p "$stage_dir"
-cp "$ROOT_DIR/target/release/$PROGRAM" "$stage_dir/$PROGRAM"
-chmod 0755 "$stage_dir/$PROGRAM"
-tar -C "$stage_dir" -czf "$OUTPUT_DIR/$archive_name" "$PROGRAM"
+# Packages one executable as <archive>-<target>.tar.gz, with its checksum. install.sh expects
+# the executable alone in the archive.
+package() {
+    archive_name="$1-${TARGET_TRIPLE}.tar.gz"
+    built="$2"
+    program="$(basename "$built")"
+    stage_dir="$OUTPUT_DIR/stage/$1"
+    rm -rf "$stage_dir"
+    mkdir -p "$stage_dir"
+    cp "$built" "$stage_dir/$program"
+    chmod 0755 "$stage_dir/$program"
+    tar -C "$stage_dir" -czf "$OUTPUT_DIR/$archive_name" "$program"
+    (
+        cd "$OUTPUT_DIR"
+        if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "$archive_name" >"$archive_name.sha256"
+        else
+            sha256sum "$archive_name" >"$archive_name.sha256"
+        fi
+    )
+    echo "  $OUTPUT_DIR/$archive_name"
+}
+
+package moontasks "$ROOT_DIR/target/release/moon"
+package moontasks-tui "$ROOT_DIR/crates/moon_tui/target/release/moon"
+package moon-mux "$ROOT_DIR/crates/moon_mux/target/release/moon-mux"
 rm -rf "$OUTPUT_DIR/stage"
-
-(
-    cd "$OUTPUT_DIR"
-    if command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 "$archive_name" >"$archive_name.sha256"
-    else
-        sha256sum "$archive_name" >"$archive_name.sha256"
-    fi
-)
-
-echo "  $OUTPUT_DIR/$archive_name"
-echo "  $OUTPUT_DIR/$archive_name.sha256"

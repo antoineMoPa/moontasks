@@ -20,6 +20,13 @@ your `PATH`, add it in your shell configuration.
 To take both away again, run `moon uninstall` - or pick **Window › Uninstall moon** twice.
 Settings, boards and each repo's `.moontasks` folder are left as they are.
 
+Terminal only:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moontasks/main/install.sh | sh -s tui   # a `moon` without the window
+curl -fsSL https://raw.githubusercontent.com/antoineMoPa/moontasks/main/install.sh | sh -s mux   # moon-mux, a terminal multiplexer
+```
+
 ## Build from source
 
 Requirements:

@@ -16,7 +16,13 @@ fi
 
 TAG="v$(bash scripts/_internal/version.sh)"
 WORKFLOW="release.yml"
-# Every archive the release carries; install.sh downloads one of these.
+# Every archive the release carries, as the program it holds; install.sh downloads one of these
+# for each target.
+ARCHIVES=(
+    "moontasks:moon"
+    "moontasks-tui:moon"
+    "moon-mux:moon-mux"
+)
 TARGET_TRIPLES=(
     "aarch64-apple-darwin"
     "x86_64-unknown-linux-gnu"
@@ -40,8 +46,7 @@ sh -n install.sh
 
 LOCAL_TARGET="$(bash scripts/_internal/host-target.sh)"
 bash scripts/_internal/build-release.sh "$LOCAL_TARGET"
-local_archive="target/release-artifacts/$TAG/moontasks-${LOCAL_TARGET}.tar.gz"
-gh release upload "$TAG" "$local_archive" "$local_archive.sha256" --clobber
+gh release upload "$TAG" "target/release-artifacts/$TAG/"*"-${LOCAL_TARGET}.tar.gz"* --clobber
 
 newest_run_id() {
     gh run list --workflow "$WORKFLOW" --branch "$TAG" --event workflow_dispatch \
@@ -69,12 +74,15 @@ downloaded_dir="target/release-artifacts/$TAG/downloaded"
 rm -rf "$downloaded_dir"
 gh release download "$TAG" --dir "$downloaded_dir"
 for target_triple in "${TARGET_TRIPLES[@]}"; do
-    archive_name="moontasks-${target_triple}.tar.gz"
-    (cd "$downloaded_dir" && shasum -a 256 -c "$archive_name.sha256")
-    if [ "$(tar -tzf "$downloaded_dir/$archive_name")" != "moon" ]; then
-        echo "$archive_name holds something other than just moon" >&2
-        exit 1
-    fi
+    for archive in "${ARCHIVES[@]}"; do
+        archive_name="${archive%%:*}-${target_triple}.tar.gz"
+        program="${archive#*:}"
+        (cd "$downloaded_dir" && shasum -a 256 -c "$archive_name.sha256")
+        if [ "$(tar -tzf "$downloaded_dir/$archive_name")" != "$program" ]; then
+            echo "$archive_name holds something other than just $program" >&2
+            exit 1
+        fi
+    done
 done
 
 gh release edit "$TAG" --draft=false --latest

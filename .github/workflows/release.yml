@@ -95,8 +95,8 @@ jobs:
         with:
           name: moontasks-${{ matrix.target }}
           # The folder named in full, so the artifact holds the files without it, and the upload
-          # job can hand them to the release as they are.
-          path: target/release-artifacts/${{ steps.version.outputs.tag }}/moontasks-${{ matrix.target }}.tar.gz*
+          # job can hand them to the release as they are: moon, the window-free moon, moon-mux.
+          path: target/release-artifacts/${{ steps.version.outputs.tag }}/*-${{ matrix.target }}.tar.gz*
           if-no-files-found: error
           retention-days: 7
   upload:

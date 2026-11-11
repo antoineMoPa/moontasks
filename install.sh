@@ -4,8 +4,27 @@ set -eu
 
 REPO="${MOONTASKS_REPO:-${MOONREVIEW_REPO:-antoineMoPa/moontasks}}"
 INSTALL_DIR="${MOONTASKS_INSTALL_DIR:-${MOONREVIEW_INSTALL_DIR:-$HOME/.local/bin}}"
-# The one executable: the three windows and the commands that reach them are all `moon`.
-PROGRAM="moon"
+# What to install, from the first argument: `moon` with its windows, `tui` for a `moon` without
+# them, or `mux` for moon-mux.
+FLAVOR="${1:-moon}"
+case "$FLAVOR" in
+    moon)
+        ARCHIVE_PREFIX="moontasks"
+        PROGRAM="moon"
+        ;;
+    tui)
+        ARCHIVE_PREFIX="moontasks-tui"
+        PROGRAM="moon"
+        ;;
+    mux)
+        ARCHIVE_PREFIX="moon-mux"
+        PROGRAM="moon-mux"
+        ;;
+    *)
+        echo "moontasks installer: unknown flavor $FLAVOR (moon, tui or mux)" >&2
+        exit 1
+        ;;
+esac
 INSTALL_PATH="${INSTALL_DIR}/${PROGRAM}"
 DOWNLOAD_BASE_URL="${MOONTASKS_DOWNLOAD_BASE_URL:-${MOONREVIEW_DOWNLOAD_BASE_URL:-}}"
 
@@ -66,13 +85,13 @@ verify_platform() {
 
     case "${os}:${arch}" in
         Darwin:arm64)
-            echo "moontasks-aarch64-apple-darwin"
+            echo "aarch64-apple-darwin"
             ;;
         Linux:x86_64 | Linux:amd64)
-            echo "moontasks-x86_64-unknown-linux-gnu"
+            echo "x86_64-unknown-linux-gnu"
             ;;
         Linux:aarch64 | Linux:arm64)
-            echo "moontasks-aarch64-unknown-linux-gnu"
+            echo "aarch64-unknown-linux-gnu"
             ;;
         *)
             echo "moontasks installer supports macOS arm64, Linux amd64, and Linux arm64 only (detected ${os} ${arch})." >&2
@@ -99,7 +118,8 @@ need_cmd curl
 need_cmd tar
 need_cmd mktemp
 
-ASSET_BASENAME="$(verify_platform)"
+TARGET_TRIPLE="$(verify_platform)"
+ASSET_BASENAME="${ARCHIVE_PREFIX}-${TARGET_TRIPLE}"
 ARCHIVE_NAME="${ASSET_BASENAME}.tar.gz"
 CHECKSUM_NAME="${ARCHIVE_NAME}.sha256"
 
@@ -123,10 +143,14 @@ else
     CHECKSUM_URL="https://github.com/${REPO}/releases/latest/download/${CHECKSUM_NAME}"
 fi
 
-echo "Downloading moontasks from ${REPO}..."
+echo "Downloading ${ARCHIVE_PREFIX} from ${REPO}..."
 if ! curl -fsSL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}" 2>/dev/null; then
+    if [ "$FLAVOR" != moon ]; then
+        echo "moontasks installer: the latest release has no ${ARCHIVE_NAME}" >&2
+        exit 1
+    fi
     # Releases before the rename named their archives moonreview-<target>.
-    OLD_ARCHIVE_NAME="moonreview-${ASSET_BASENAME#moontasks-}.tar.gz"
+    OLD_ARCHIVE_NAME="moonreview-${TARGET_TRIPLE}.tar.gz"
     ARCHIVE_URL="${ARCHIVE_URL%/*}/${OLD_ARCHIVE_NAME}"
     CHECKSUM_URL="${CHECKSUM_URL%/*}/${OLD_ARCHIVE_NAME}.sha256"
     ARCHIVE_NAME="$OLD_ARCHIVE_NAME"
@@ -175,8 +199,8 @@ echo "Installed ${PROGRAM} to ${INSTALL_DIR}"
 
 # The executables are on PATH now; this is what puts them in Spotlight, Launchpad or an
 # application menu as well. A platform with nowhere to write a launcher refuses here, which is
-# not a failed install.
-if "$INSTALL_PATH" install-launchers >/dev/null 2>&1; then
+# not a failed install. Only the `moon` with windows has any.
+if [ "$FLAVOR" = moon ] && "$INSTALL_PATH" install-launchers >/dev/null 2>&1; then
     echo "Installed desktop launchers"
 fi
 
@@ -189,7 +213,17 @@ if [ -n "$current_shell_hint" ]; then
     echo "  ${current_shell_hint}"
 fi
 
-echo "Run: moon tasks       — the task board"
-echo "     moon review      — a review of the repo"
-echo "     moon shell       — a shell in the repo"
-echo "     moon open <file> — a file, in the window already open on it"
+case "$FLAVOR" in
+    moon)
+        echo "Run: moon tasks       — the task board"
+        echo "     moon review      — a review of the repo"
+        echo "     moon shell       — a shell in the repo"
+        echo "     moon open <file> — a file, in the window already open on it"
+        ;;
+    tui)
+        echo "Run: moon tui         — the task board, in this terminal"
+        ;;
+    mux)
+        echo "Run: moon-mux         — shells in tabs and splits"
+        ;;
+esac
