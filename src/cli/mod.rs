@@ -12,7 +12,8 @@ mod frame;
 mod launch;
 #[cfg(not(target_arch = "wasm32"))]
 mod open;
-// The commands that need no window are moon_core's - see `moon_core::cli`.
+// The commands that need no window are moon_core's, answered the same by `moon_tui` - see
+// `moon_core::cli`.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use moon_core::cli::{agent, mcp, tasks, wire};
 #[cfg(test)]

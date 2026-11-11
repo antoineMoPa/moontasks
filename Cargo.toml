@@ -47,6 +47,8 @@ uuid = "1"
 rhai = { version = "1.25.1", features = ["serde"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# `moon tui`: the board in a terminal - see crates/moon_tui, which is also a `moon` of its own.
+moon_tui = { version = "0.1", path = "crates/moon_tui" }
 # Minerve, served from moon's own executable (`moon __minerve`) and drawn in a pane - see
 # `native::minerve_pane`. Submodules, edited together with moon.
 minerve = { version = "0.8", path = "crates/minerve" }

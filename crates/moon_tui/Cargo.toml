@@ -1,0 +1,36 @@
+[package]
+name = "moon_tui"
+version = "0.1.0"
+edition = "2024"
+description = "moon in a terminal: the task board, its agents and shells as tabs, the wire, and the board served over MCP"
+license = "MIT"
+
+# Like moon_core, nothing here draws a window - `scripts/check-core-has-no-gui.sh`. The
+# binary is called `moon` too, so the commands agents are told to type work the same with it.
+
+[lib]
+name = "moon_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "moon"
+path = "src/bin/moon.rs"
+
+[dependencies]
+anyhow = "1"
+moon_core = { version = "0.1", path = "../moon_core" }
+moon_tui_frames = { version = "0.1", path = "../moon_tui_frames" }
+moon_tui_terminal = { version = "0.1", path = "../moon_tui_terminal" }
+# Its own crossterm is the one used, re-exported as `ratatui::crossterm`, so there is one.
+ratatui = "0.29"
+
+[profile.release]
+strip = true
+lto = "thin"
+
+[workspace]
+
+# Ghostty's VT engine, built from the vendored copy the full moon builds - see
+# ../libghostty-vt-sys/VENDORED.md. Only read when this crate is built on its own.
+[patch.crates-io]
+libghostty-vt-sys = { path = "../libghostty-vt-sys" }

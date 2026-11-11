@@ -1,0 +1,21 @@
+[package]
+name = "moon_tui_terminal"
+version = "0.1.0"
+edition = "2024"
+description = "A shell drawn live in ratatui: Ghostty's VT engine, its grid copied into the frame, keys and the mouse sent back"
+license = "MIT"
+
+# Used by moon_tui and moon_mux. Nothing in it is moon's: whatever leads into a shell - a PTY,
+# a socket - implements `ShellLink`.
+[workspace]
+
+[dependencies]
+anyhow = "1"
+libghostty-vt = "0.2.1"
+# Its own crossterm is the one used, re-exported as `ratatui::crossterm`, so there is one.
+ratatui = "0.29"
+
+# Ghostty's VT engine, built from the vendored copy the full moon builds - see
+# ../libghostty-vt-sys/VENDORED.md. Only read when this crate is built on its own.
+[patch.crates-io]
+libghostty-vt-sys = { path = "../libghostty-vt-sys" }

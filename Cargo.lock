@@ -3468,6 +3468,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "moon_tui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "moon_core",
+ "moon_tui_frames",
+ "moon_tui_terminal",
+ "ratatui",
+]
+
+[[package]]
+name = "moon_tui_frames"
+version = "0.1.0"
+dependencies = [
+ "ratatui",
+]
+
+[[package]]
+name = "moon_tui_terminal"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libghostty-vt",
+ "ratatui",
+]
+
+[[package]]
 name = "moontasks"
 version = "0.61.0"
 dependencies = [
@@ -3501,6 +3528,7 @@ dependencies = [
  "moon_launcher",
  "moon_lsp",
  "moon_toggle_switch",
+ "moon_tui",
  "muda",
  "objc2 0.6.4",
  "objc2-foundation 0.3.2",

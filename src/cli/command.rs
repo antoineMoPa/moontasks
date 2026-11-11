@@ -86,6 +86,11 @@ pub(super) enum MoonCommand {
     /// The board of this repo served to an agent as an MCP server, and the help for setting
     /// it up - see [`super::mcp`].
     Mcp(mcp::McpCommand),
+    /// The board of this repo - or of the one named - drawn in this terminal rather than in a
+    /// window: its agents and shells as tabs, the wire beside it - see `moon_tui`.
+    Tui {
+        repo: Option<std::path::PathBuf>,
+    },
     /// The window as the desktop of the X11 session it was started in: full screen, and the
     /// window manager of every program started from it - see
     /// [`crate::native::application_pane`]. This is what the session file of `os/` runs.
@@ -171,6 +176,7 @@ pub(crate) fn run() -> Result<()> {
         MoonCommand::Wire(command) => wire::run(command),
         MoonCommand::Agent(command) => agent::run(command),
         MoonCommand::Mcp(command) => mcp::run(command),
+        MoonCommand::Tui { repo } => moon_tui::run_the_tui_with(repo, true),
         MoonCommand::Desktop { path } => open_desktop(path.as_deref()),
         MoonCommand::Window { frame, args } => open_window(frame, args),
     }
@@ -245,6 +251,13 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
         "agent" => Ok(MoonCommand::Agent(agent::parse(&rest, asks_for_help)?)),
         // And the MCP server, for its tools.
         "mcp" => Ok(MoonCommand::Mcp(mcp::parse(&rest, asks_for_help)?)),
+        // The board in this terminal, read the way the `moon` without a window reads it.
+        "tui" => match moon_tui::lite_cli::parse_lite_command(
+            &std::iter::once("tui".to_string()).chain(rest).collect::<Vec<_>>(),
+        )? {
+            moon_tui::lite_cli::LiteCommand::Tui { repo } => Ok(MoonCommand::Tui { repo }),
+            _ => Ok(MoonCommand::Help),
+        },
         "list" | "serve" | "licenses" | "install-launchers" | "uninstall" | "generate-pass-key"
         | "desktop"
             if asks_for_help =>
@@ -614,6 +627,7 @@ Usage:
   {PROGRAM} wire post <one line>      tell the board's other agents
   {PROGRAM} agent <command>           list, start, view or tell the board's agents
   {PROGRAM} mcp [--repo <path>]       serve the board to an agent, as an MCP server
+  {PROGRAM} tui [--repo <path>]       the task board, its agents and shells, in this terminal
   {PROGRAM} edit <path>[:<line>]      Open a file for edition
   {PROGRAM} edit <folder>             pick a file of a folder to open
   {PROGRAM} open <path>[:<line>]      same as `{PROGRAM} edit`

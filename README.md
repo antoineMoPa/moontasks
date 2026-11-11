@@ -65,6 +65,7 @@ moon install-launchers
 
 ```bash
 moon tasks              # the sprint board
+moon tui                # the sprint board, in a terminal
 moon review             # review local changes
 moon shell              # a shell in the folder
 moon edit src/main.rs   # open a file for edition
