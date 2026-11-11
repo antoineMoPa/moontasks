@@ -1,0 +1,30 @@
+[package]
+name = "moon_mux"
+version = "0.1.0"
+edition = "2024"
+description = "A terminal multiplexer on moon_tui_frames: shells in tabs and splits, dragged with the mouse"
+license = "MIT"
+
+# Nothing of moon's board is in it: frames, live shells, and PTYs.
+[workspace]
+
+[[bin]]
+name = "moon-mux"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+moon_tui_frames = { version = "0.1", path = "../moon_tui_frames" }
+moon_tui_terminal = { version = "0.1", path = "../moon_tui_terminal" }
+portable-pty = "0.9.0"
+# Its own crossterm is the one used, re-exported as `ratatui::crossterm`, so there is one.
+ratatui = "0.29"
+
+[profile.release]
+strip = true
+lto = "thin"
+
+# Ghostty's VT engine, built from the vendored copy the full moon builds - see
+# ../libghostty-vt-sys/VENDORED.md.
+[patch.crates-io]
+libghostty-vt-sys = { path = "../libghostty-vt-sys" }
