@@ -165,3 +165,38 @@ fn the_close_button_asks_and_a_click_in_a_pane_is_the_panes() {
     );
     assert!(matches!(inside, PointerOutcome::InPane { .. }));
 }
+
+#[test]
+fn a_click_on_the_new_tab_button_asks_for_a_tab_in_its_frame() {
+    let (mut terminal, _, mut layout) = three_tabs();
+    let mut frames = Frames::new().with_new_tab_button(true);
+    draw(&mut terminal, &mut frames, &layout);
+    assert!(row_of(&terminal, 0).starts_with(" alpha ×  beta ×  gamma ×  + "));
+    let outcome = frames.handle_the_mouse(
+        mouse(MouseEventKind::Down(MouseButton::Left), 27, 0),
+        &mut layout,
+    );
+    assert_eq!(
+        outcome,
+        PointerOutcome::Taken(vec![FramesEvent::NewTabRequested(layout.active_frame())])
+    );
+}
+
+#[test]
+fn the_strip_has_no_new_tab_button_unless_asked() {
+    let (terminal, _, _) = three_tabs();
+    assert!(!row_of(&terminal, 0).contains('+'));
+}
+
+#[test]
+fn the_new_tab_button_under_the_pointer_is_lit() {
+    let (mut terminal, _, mut layout) = three_tabs();
+    let mut frames = Frames::new().with_new_tab_button(true);
+    draw(&mut terminal, &mut frames, &layout);
+    let unlit = terminal.backend().buffer()[(27, 0)].fg;
+    frames.handle_the_mouse(mouse(MouseEventKind::Moved, 27, 0), &mut layout);
+    draw(&mut terminal, &mut frames, &layout);
+    let lit = terminal.backend().buffer()[(27, 0)].fg;
+    assert_ne!(lit, unlit);
+    assert_eq!(lit, crate::FramesStyle::default().accent);
+}

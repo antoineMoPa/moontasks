@@ -81,7 +81,7 @@ impl Mux {
         let size = screen.size()?;
         let mut mux = Self {
             layout: Layout::new(),
-            frames: Frames::new(),
+            frames: Frames::new().with_new_tab_button(true),
             shells: HashMap::new(),
             next_shell: 1,
             folder,
@@ -300,8 +300,11 @@ impl Mux {
         match self.frames.handle_the_mouse(mouse, &mut self.layout) {
             PointerOutcome::Taken(events) => {
                 for happened in events {
-                    if let FramesEvent::PaneCloseRequested(pane) = happened {
-                        self.close_the_pane(pane);
+                    match happened {
+                        FramesEvent::PaneCloseRequested(pane) => self.close_the_pane(pane),
+                        // The frame clicked is the active one now: the shell opens there.
+                        FramesEvent::NewTabRequested(_) => self.open_a_shell(None),
+                        FramesEvent::PaneFocused(_) | FramesEvent::PaneMoved(_) => {}
                     }
                 }
             }

@@ -87,6 +87,8 @@ pub enum FramesEvent {
     PaneFocused(PaneId),
     /// A tab was dropped somewhere new.
     PaneMoved(PaneId),
+    /// Reports a click on a strip's new-tab button - see [`Frames::with_new_tab_button`].
+    NewTabRequested(FrameId),
 }
 
 /// Says what became of a mouse event.
@@ -126,6 +128,8 @@ pub(crate) struct DrawnFrame {
     pub strip: Rect,
     pub body: Rect,
     pub front: Option<PaneId>,
+    /// Holds where its new-tab button was drawn, when it has one.
+    pub new_tab: Option<Rect>,
 }
 
 pub(crate) struct DrawnTab {
@@ -182,6 +186,9 @@ pub struct Frames {
     /// Holds where each tab is drawn, in columns from its strip's start, on its way to where it
     /// belongs.
     pub(crate) slides: HashMap<PaneId, f32>,
+    pub(crate) new_tab_button: bool,
+    /// Holds where the pointer was last, to light what a click there would do.
+    pub(crate) pointer_at: Option<Position>,
 }
 
 impl Frames {
@@ -196,6 +203,13 @@ impl Frames {
     /// Gives the frames other colors.
     pub fn with_style(mut self, style: FramesStyle) -> Self {
         self.style = style;
+        self
+    }
+
+    /// Sets whether each tab strip ends with a `+` button. It reports
+    /// [`FramesEvent::NewTabRequested`]; without one, an application opens tabs its own way.
+    pub fn with_new_tab_button(mut self, show: bool) -> Self {
+        self.new_tab_button = show;
         self
     }
 
@@ -280,7 +294,7 @@ impl Frames {
             );
             let keyboard_here = layout.active_frame() == frame_id;
             let front = layout_frame.active_pane();
-            self.draw_the_strip(
+            let new_tab = self.draw_the_strip(
                 frame,
                 &mut drawn,
                 layout,
@@ -302,6 +316,7 @@ impl Frames {
                 strip,
                 body,
                 front,
+                new_tab,
             });
         }
 
@@ -311,6 +326,41 @@ impl Frames {
         }
         if let Some((pane, at)) = self.carried() {
             self.draw_the_carried_tab(frame, layout, view, pane, at);
+        } else {
+            self.light_what_the_pointer_is_over(frame);
+        }
+    }
+
+    /// Lights the tab, close button or new-tab button under the pointer: a button turns the
+    /// accent, a tab takes the hover shade - but for the lit one in front, which is already lit.
+    fn light_what_the_pointer_is_over(&self, frame: &mut Frame) {
+        let Some(at) = self.pointer_at else {
+            return;
+        };
+        let button = self
+            .drawn
+            .frames
+            .iter()
+            .filter_map(|frame| frame.new_tab)
+            .chain(self.drawn.tabs.iter().filter_map(|tab| tab.close))
+            .find(|button| button.contains(at));
+        let buffer = frame.buffer_mut();
+        if let Some(button) = button {
+            for x in button.left()..button.right() {
+                buffer[(x, button.y)]
+                    .set_fg(self.style.accent)
+                    .set_bg(self.style.hover)
+                    .modifier
+                    .insert(Modifier::BOLD);
+            }
+            return;
+        }
+        if let Some(tab) = self.drawn.tabs.iter().find(|tab| tab.rect.contains(at))
+            && buffer[(tab.rect.x, tab.rect.y)].bg != self.style.accent
+        {
+            for x in tab.rect.left()..tab.rect.right() {
+                buffer[(x, tab.rect.y)].set_bg(self.style.hover);
+            }
         }
     }
 
@@ -335,7 +385,7 @@ impl Frames {
         keyboard_here: bool,
         carried: Option<PaneId>,
         target: Option<DropTarget>,
-    ) {
+    ) -> Option<Rect> {
         let buffer = frame.buffer_mut();
         for x in strip.left()..strip.right() {
             buffer[(x, strip.y)]
@@ -343,7 +393,7 @@ impl Frames {
                 .set_style(Style::new().bg(self.style.strip));
         }
         let Some(layout_frame) = layout.frame(frame_id) else {
-            return;
+            return None;
         };
         let front = layout_frame.active_pane();
         // The carried tab leaves its place, and a gap opens where it would land.
@@ -428,6 +478,22 @@ impl Frames {
                 close: close.filter(|close| close.x < strip.right()),
             });
         }
+        self.draw_the_new_tab_button(frame, strip, x)
+    }
+
+    /// Draws ` + ` right after the tabs, and returns where the `+` is, to be clicked.
+    fn draw_the_new_tab_button(&self, frame: &mut Frame, strip: Rect, after: u16) -> Option<Rect> {
+        const BUTTON: &str = " + ";
+        let width = BUTTON.len() as u16;
+        if !self.new_tab_button || strip.height == 0 || after + width > strip.width {
+            return None;
+        }
+        let rect = Rect::new(strip.x + after, strip.y, width, 1);
+        frame.render_widget(
+            Line::styled(BUTTON, Style::new().fg(self.style.dim).bg(self.style.strip)),
+            rect,
+        );
+        Some(rect)
     }
 
     fn draw_the_drop_zone(&self, frame: &mut Frame, target: DropTarget) {

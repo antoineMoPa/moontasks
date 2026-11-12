@@ -13,8 +13,8 @@ use moon_tui_terminal::LiveTerminal;
 
 use crate::{
     app::App,
-    draw::{GOING, HANDLE},
     shell_links::{Attached, CoreShell},
+    theme::{GOING, HANDLE},
     watched_run::{WatchedKey, WatchedRun},
 };
 
@@ -131,7 +131,7 @@ impl App {
             }
             Err(error) => {
                 self.flash(format!(
-                    "moon {moon} owns this agent and would not share it ({error:#}) - watching it instead"
+                    "watching: moon {moon} holds this agent ({error:#})"
                 ));
                 self.watch_the_run_elsewhere(moon, terminal_id, title);
             }
@@ -227,6 +227,18 @@ impl App {
         }
     }
 
+    /// Closes the tab showing a terminal, if one does - its run has ended.
+    pub fn close_the_tab_on(&mut self, terminal_id: &str) {
+        if let Some(pane) = self.pane_on_terminal(terminal_id) {
+            self.layout.close_pane(pane);
+            self.shells.remove(terminal_id);
+            self.watched.remove(terminal_id);
+        }
+        if self.layout.active_pane().is_none() {
+            self.focus_the_board();
+        }
+    }
+
     /// Closes a run's pane. A plain shell ends with it; an agent goes on running on its card,
     /// where it can be opened again, and one another moon holds goes on there. The board does
     /// not close.
@@ -234,13 +246,19 @@ impl App {
         match self.layout.pane(pane).cloned() {
             Some(MoonPane::Shell { terminal_id }) => {
                 self.layout.close_pane(pane);
-                self.shells.remove(&terminal_id);
+                let title = self
+                    .shells
+                    .remove(&terminal_id)
+                    .map(|shell| shell.title)
+                    .unwrap_or_default();
                 let is_an_agent = self.board.tasks.iter().any(|task| {
                     task.resources
                         .iter()
                         .any(|run| run.terminal_id.as_deref() == Some(terminal_id.as_str()))
                 });
-                if !is_an_agent {
+                if is_an_agent {
+                    self.flash(format!("{title} keeps going on its task"));
+                } else {
                     self.session.state.terminals.remove(&terminal_id);
                 }
             }
@@ -292,7 +310,16 @@ impl App {
 impl PaneView<MoonPane> for App {
     fn tab(&mut self, _id: PaneId, pane: &MoonPane) -> Tab {
         match pane {
-            MoonPane::Board => Tab::new("board").closable(false),
+            // The board's tab is named for its repo, which no other line says.
+            MoonPane::Board => Tab::new(format!(
+                "☾ {}",
+                self.session
+                    .repo_path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            ))
+            .closable(false),
             MoonPane::Shell { terminal_id } => {
                 let title = self
                     .shells
@@ -332,13 +359,13 @@ impl PaneView<MoonPane> for App {
                 if back == 0 {
                     return cursor;
                 }
-                let label = format!(" ↑ {back} lines back · type to return ");
+                let label = format!(" ↑ {back} lines back ");
                 let width = (label.chars().count() as u16).min(area.width);
                 frame.render_widget(
                     ratatui::text::Line::styled(
                         label,
                         ratatui::style::Style::new()
-                            .fg(ratatui::style::Color::Black)
+                            .fg(crate::theme::ON_ACCENT)
                             .bg(HANDLE),
                     ),
                     Rect::new(area.right() - width, area.y, width, 1),

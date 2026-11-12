@@ -18,7 +18,7 @@ use moon_core::{
 };
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
-    layout::{Position, Rect},
+    layout::Position,
 };
 
 use moon_tui_frames::{Frames, Layout, PaneId};
@@ -30,6 +30,8 @@ use moon_tui_terminal::{
 
 use crate::{
     board_session::{BoardSession, BoardSnapshot},
+    hits::HitMap,
+    keys,
     line_input::{LineEdit, LineInput},
     panes::MoonPane,
     watched_run::WatchedRun,
@@ -41,6 +43,8 @@ const BOARD_READ_EVERY: Duration = Duration::from_millis(1500);
 const REVIEWS_READ_EVERY: Duration = Duration::from_secs(5);
 /// Sets how long a key or the shells are waited on before the screen is looked at again.
 const TICK: Duration = Duration::from_millis(30);
+/// Sets how long a run's `[x]`, clicked once, waits for the second click that deletes it.
+const DELETE_ARMED_FOR: Duration = Duration::from_secs(3);
 /// Sets how long a message in the status bar stays.
 const FLASH_FOR: Duration = Duration::from_secs(4);
 
@@ -86,12 +90,12 @@ pub enum Overlay {
         title: String,
         body: String,
     },
-    /// Shows a card's runs, to open, stop, resume or tell.
-    RunMenu {
-        task_id: String,
+    ConfirmQuit,
+    /// Shows the commands matching what is typed - see [`crate::palette`].
+    Palette {
+        line: LineInput,
         index: usize,
     },
-    ConfirmQuit,
 }
 
 /// Holds what a drag carries.
@@ -107,22 +111,6 @@ pub struct Drag {
     pub at: Position,
     /// Says whether it has moved far enough to be a drag rather than a click.
     pub moving: bool,
-}
-
-/// Records where things were drawn last, which is what a click is measured against.
-#[derive(Default)]
-pub struct HitMap {
-    pub cards: Vec<(Rect, usize, String)>,
-    pub headings: Vec<(Rect, usize)>,
-    pub columns: Vec<(Rect, usize)>,
-    /// Holds the places columns are drawn in, by place on the board - which, while a column is
-    /// carried, is not the column drawn there.
-    pub column_slots: Vec<(Rect, usize)>,
-    /// Holds the runs listed on cards: the task, and the run.
-    pub card_runs: Vec<(Rect, String, String)>,
-    /// Holds the `▾` on each heading and each folded column's strip, which a click folds or
-    /// unfolds.
-    pub folds: Vec<(Rect, usize)>,
 }
 
 pub struct App {
@@ -149,19 +137,22 @@ pub struct App {
     pub task_pane_open: bool,
     /// Holds the columns folded to a narrow strip, by column id.
     pub folded_columns: BTreeSet<String>,
-    /// Says whether cards show their title alone, on one line, with their runs as marks.
-    pub one_line_cards: bool,
     /// Holds a run picked on the picked card, by its place among the runs the card lists -
     /// `None` when it is the card itself that is picked.
     pub picked_run: Option<usize>,
     pub overlay: Option<Overlay>,
-    flash: Option<(String, Instant)>,
+    /// Holds the message at the foot, whether it says something failed, and since when.
+    flash: Option<(String, bool, Instant)>,
     /// `ctrl-a` was pressed: the next key is moon's rather than the shell's.
     pub prefix_armed: bool,
     pub drag: Option<Drag>,
     /// Holds the card last clicked, and when - a second click on it soon after is a double click.
     pub last_click: Option<(String, Instant)>,
     pub hits: HitMap,
+    /// Holds where the pointer was last, to light what a click there would do.
+    pub pointer_at: Option<Position>,
+    /// Holds the run whose `[x]` was clicked once, and when: a second click soon deletes it.
+    pub armed_delete: Option<(String, Instant)>,
     pub edit_notes_at: Option<PathBuf>,
     /// Says whether Minerve can be started here: it runs as `moon __minerve`, which only the
     /// full moon is.
@@ -190,7 +181,9 @@ impl App {
             board,
             last_read: Instant::now(),
             layout,
-            frames: Frames::new(),
+            frames: Frames::new()
+                .with_style(crate::theme::frames_style())
+                .with_new_tab_button(true),
             board_pane,
             shells: HashMap::new(),
             watched: HashMap::new(),
@@ -199,7 +192,6 @@ impl App {
             filter: String::new(),
             task_pane_open: false,
             folded_columns: BTreeSet::new(),
-            one_line_cards: false,
             picked_run: None,
             overlay: None,
             flash: None,
@@ -207,6 +199,8 @@ impl App {
             drag: None,
             last_click: None,
             hits: HitMap::default(),
+            pointer_at: None,
+            armed_delete: None,
             edit_notes_at: None,
             offers_minerve,
             quit: false,
@@ -275,27 +269,34 @@ impl App {
                     .collect();
                 self.marked.retain(|task_id| tasks.contains(task_id));
             }
-            Err(error) => self.flash(format!("could not read the board: {error:#}")),
+            Err(error) => self.flash_failure(format!("could not read the board: {error:#}")),
         }
         self.last_read = Instant::now();
     }
 
+    /// Says, at the foot, what happened.
     pub fn flash(&mut self, message: String) {
-        self.flash = Some((message, Instant::now()));
+        self.flash = Some((message, false, Instant::now()));
     }
 
-    pub fn flashed(&self) -> Option<&str> {
+    /// Says, at the foot and in red, what failed.
+    pub fn flash_failure(&mut self, message: String) {
+        self.flash = Some((message, true, Instant::now()));
+    }
+
+    /// Returns the message at the foot while it lasts, and whether it says something failed.
+    pub fn flashed(&self) -> Option<(&str, bool)> {
         self.flash
             .as_ref()
-            .filter(|(_, at)| at.elapsed() < FLASH_FOR)
-            .map(|(message, _)| message.as_str())
+            .filter(|(_, _, at)| at.elapsed() < FLASH_FOR)
+            .map(|(message, failed, _)| (message.as_str(), *failed))
     }
 
     pub fn say_if_it_failed<T>(&mut self, result: Result<T>) -> Option<T> {
         match result {
             Ok(done) => Some(done),
             Err(error) => {
-                self.flash(format!("{error:#}"));
+                self.flash_failure(format!("{error:#}"));
                 None
             }
         }
@@ -357,6 +358,13 @@ impl App {
         }
     }
 
+    /// Says whether a run's `[x]` was clicked once, recently enough for a second to delete it.
+    pub fn delete_is_armed_for(&self, run_id: &str) -> bool {
+        self.armed_delete
+            .as_ref()
+            .is_some_and(|(armed, at)| armed == run_id && at.elapsed() <= DELETE_ARMED_FOR)
+    }
+
     /// Returns every agent's run on the board that is going.
     pub fn agents_going(&self) -> Vec<&TaskResourceView> {
         self.board
@@ -382,6 +390,9 @@ impl App {
             self.prefix_armed = true;
             return;
         }
+        if key.modifiers.contains(KeyModifiers::ALT) && key.code == KeyCode::Char('x') {
+            return crate::palette::open_the_palette(self);
+        }
         if self.board_is_focused() {
             crate::board_keys::press_on_the_board(self, key);
         } else if let Some(shell) = self.focused_shell() {
@@ -392,28 +403,28 @@ impl App {
     }
 
     /// Handles the key after `ctrl-a`: the frames and their tabs, from anywhere.
-    fn press_after_the_prefix(&mut self, key: KeyEvent) {
+    pub(crate) fn press_after_the_prefix(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if let Some(shell) = self.focused_shell() {
                     shell.type_key(&key);
                 }
             }
-            KeyCode::Char('o') | KeyCode::Tab => {
+            KeyCode::Char(keys::NEXT_FRAME) | KeyCode::Tab => {
                 self.layout.focus_next_frame();
             }
-            KeyCode::Char('n') | KeyCode::Right => {
+            KeyCode::Char(keys::NEXT_TAB) | KeyCode::Right => {
                 self.layout.focus_tab_after(1);
             }
-            KeyCode::Char('p') | KeyCode::Left => {
+            KeyCode::Char(keys::PREVIOUS_TAB) | KeyCode::Left => {
                 self.layout.focus_tab_after(-1);
             }
-            KeyCode::Char('b') | KeyCode::Char('0') => self.focus_the_board(),
+            KeyCode::Char('b') | KeyCode::Char(keys::SHOW_BOARD) => self.focus_the_board(),
             KeyCode::Char(digit @ '1'..='9') => {
                 self.focus_the_nth_shell(digit as usize - '1' as usize)
             }
-            KeyCode::Char('x') => self.close_the_focused_pane(),
-            KeyCode::Char('t') => {
+            KeyCode::Char(keys::CLOSE_TAB) => self.close_the_focused_pane(),
+            KeyCode::Char(keys::TELL_THE_TAB) => {
                 if let Some(terminal_id) = self.focused_terminal_id() {
                     let title = self
                         .shells
@@ -428,14 +439,17 @@ impl App {
                     self.ask_for_a_line(asks, "");
                 }
             }
-            KeyCode::Char('?') => self.show_the_keys(),
-            KeyCode::Char('q') => self.ask_to_quit(),
+            KeyCode::Char(keys::HELP) => self.show_the_keys(),
+            KeyCode::Char(keys::PALETTE) => crate::palette::open_the_palette(self),
+            KeyCode::Char(keys::QUIT) => self.ask_to_quit(),
             _ => {}
         }
     }
 
     fn paste(&mut self, text: &str) {
-        if let Some(Overlay::Prompt { line, .. }) = &mut self.overlay {
+        if let Some(Overlay::Prompt { line, .. } | Overlay::Palette { line, .. }) =
+            &mut self.overlay
+        {
             line.type_text(text);
         } else if self.overlay.is_none()
             && let Some(shell) = self.focused_shell()
@@ -458,7 +472,7 @@ impl App {
     pub fn show_the_keys(&mut self) {
         self.overlay = Some(Overlay::Text {
             title: "keys".to_string(),
-            body: crate::board_keys::KEYS_HELP.to_string(),
+            body: crate::keys::write_the_keys_page(),
         });
     }
 
@@ -529,8 +543,8 @@ impl App {
                     })
                 }
             },
-            Overlay::RunMenu { task_id, index } => {
-                crate::run_menu::press_on_the_run_menu(self, task_id, index, key)
+            Overlay::Palette { line, index } => {
+                crate::palette::press_on_the_palette(self, line, index, key)
             }
             Overlay::Text { .. } => {}
             Overlay::ConfirmQuit => match key.code {

@@ -1,18 +1,24 @@
-//! This module draws the board's columns and their cards.
+//! This module draws the board's columns and their tasks.
 
+use moon_core::moontasks::{ColumnEnd, TaskResourceView};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph},
 };
 
-use super::{ACCENT, DIM, GOING, HANDLE, PICKED, REVIEW, age_of, cut_to, tag_color_of};
+use super::{
+    cut_to,
+    widgets::{Look, draw_a_button, draw_a_run_row},
+};
 use crate::{
     app::{App, Dragged},
+    hits::Hit,
     pointer::{where_a_column_would_land, where_cards_would_land},
-    run_menu::{RUNS_LISTED, label_on_the_card, runs_listed_on},
+    run_menu::{RUNS_LISTED, runs_listed_on},
+    theme::{ACCENT, DIM, ON_ACCENT, PICKED, REVIEW, tag_color_of},
 };
 
 /// Sets the narrowest a column is drawn: past that, the board scrolls sideways instead.
@@ -120,96 +126,50 @@ pub fn draw_the_columns(frame: &mut Frame, app: &mut App, area: Rect, focused: b
         let width = (label.chars().count() as u16).min(area.width);
         let x = at.x.min(area.right().saturating_sub(width));
         frame.render_widget(
-            Line::styled(
-                label,
-                Style::new().fg(ratatui::style::Color::Black).bg(ACCENT),
-            ),
+            Line::styled(label, Style::new().fg(ON_ACCENT).bg(ACCENT)),
             Rect::new(x, at.y.min(area.bottom().saturating_sub(1)), width, 1),
         );
     }
 }
 
-/// Holds what one card shows, read off the board before it is drawn.
+/// Holds what one task shows, read off the board before it is drawn.
 struct CardShown {
     task_id: String,
     title: String,
     tags: Vec<String>,
     review: bool,
-    /// Holds the runs listed, as (run id, mark, its color, label, age).
-    runs: Vec<(String, &'static str, ratatui::style::Color, String, String)>,
+    /// Holds the agents and shells listed on it.
+    runs: Vec<TaskResourceView>,
+    /// Counts the ones past those, which its details list.
     more_runs: usize,
-    /// Says whether it shows its title alone, on one line, with its runs as marks after it.
-    one_line: bool,
 }
 
 impl CardShown {
     /// Returns the rows it is drawn on.
     fn rows(&self) -> u16 {
-        if self.one_line {
-            return 1;
-        }
         let marks = u16::from(!self.tags.is_empty() || self.review);
         1 + marks + self.runs.len() as u16 + u16::from(self.more_runs > 0)
     }
 
-    /// Returns the rows it takes, the gap under it included - which one-line cards go without.
+    /// Returns the rows it takes, the gap under it included.
     fn height(&self) -> u16 {
-        self.rows() + u16::from(!self.one_line)
-    }
-
-    /// Returns what a one-line card shows after its title: a review waiting, and a mark per
-    /// run.
-    fn marks_after_the_title(&self) -> Vec<Span<'static>> {
-        let mut marks = Vec::new();
-        if self.review {
-            marks.push(Span::styled(" ◆", Style::new().fg(REVIEW)));
-        }
-        if !self.runs.is_empty() {
-            marks.push(Span::raw(" "));
-        }
-        for (_, mark, color, _, _) in &self.runs {
-            marks.push(Span::styled(*mark, Style::new().fg(*color)));
-        }
-        if self.more_runs > 0 {
-            marks.push(Span::styled(
-                format!("+{}", self.more_runs),
-                Style::new().fg(DIM),
-            ));
-        }
-        marks
+        self.rows() + 1
     }
 }
 
 fn card_shown_of(app: &App, task: &moon_core::moontasks::TaskView) -> CardShown {
-    let own = std::process::id();
     let listed = runs_listed_on(task);
-    let runs = listed
-        .iter()
-        .take(RUNS_LISTED)
-        .map(|run| {
-            let (mark, color) = match (run.running, run.going_elsewhere_in) {
-                (_, Some(moon)) if moon != own => ("◌", HANDLE),
-                (true, _) if run.attention.is_some() => ("!", REVIEW),
-                (true, _) => ("●", GOING),
-                (false, _) => ("○", DIM),
-            };
-            (
-                run.id.clone(),
-                mark,
-                color,
-                label_on_the_card(run, &task.title),
-                age_of(run.started_at_unix),
-            )
-        })
-        .collect();
     CardShown {
         task_id: task.id.clone(),
         title: task.title.clone(),
         tags: task.tags.clone(),
         review: app.board.has_a_review_waiting(&task.id),
-        runs,
+        runs: listed
+            .iter()
+            .take(RUNS_LISTED)
+            .map(|run| (*run).clone())
+            .collect(),
         more_runs: listed.len().saturating_sub(RUNS_LISTED),
-        one_line: app.one_line_cards,
     }
 }
 
@@ -231,7 +191,7 @@ fn draw_one_column(
         .map(|task| card_shown_of(app, task))
         .collect();
     let all = app.board.cards_in(&app.board.columns[column].id).len();
-    let label = &app.board.columns[column].label;
+    let label = app.board.columns[column].label.clone();
     let count = if cards.len() == all {
         format!("{all}")
     } else {
@@ -245,194 +205,99 @@ fn draw_one_column(
     let block = Block::new()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::new().fg(border))
-        .title(Line::from(vec![
-            Span::styled(" ▾", Style::new().fg(DIM)),
-            Span::styled(
-                format!(" {label} "),
-                Style::new()
-                    .fg(if picked_column {
-                        ACCENT
-                    } else {
-                        ratatui::style::Color::Reset
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(format!("{count} "), Style::new().fg(DIM)),
-        ]));
+        .border_style(Style::new().fg(border));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     app.hits.columns.push((area, column));
-    app.hits
-        .headings
-        .push((Rect::new(area.x, area.y, area.width, 1), column));
-    app.hits
-        .folds
-        .push((Rect::new(area.x + 1, area.y, 3, 1), column));
+    // The heading is drawn over the top border: `▾`, the name, the count.
+    let heading = Rect::new(area.x + 1, area.y, area.width.saturating_sub(2), 1);
+    app.hits.record(heading, Hit::Heading(column));
+    frame.render_widget(
+        Line::from(vec![
+            // Room for the `▾` drawn over it next.
+            Span::raw("  "),
+            Span::styled(
+                format!(" {label} "),
+                Style::new()
+                    .fg(if picked_column { ACCENT } else { Color::Reset })
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("{count} "), Style::new().fg(DIM)),
+        ]),
+        heading,
+    );
+    draw_a_button(
+        frame,
+        app,
+        (area.x + 1, area.y),
+        area.right(),
+        " ▾",
+        Look::Quiet,
+        Hit::Fold(column),
+    );
 
     if cards.is_empty() {
-        let says = if all > 0 {
-            "  (filtered out)"
-        } else {
-            "  (empty)"
-        };
-        frame.render_widget(Line::styled(says, Style::new().fg(DIM)), inner);
+        let mut y = inner.y;
+        if all > 0 {
+            frame.render_widget(
+                Line::styled("  (filtered out)", Style::new().fg(DIM)),
+                Rect::new(inner.x, y, inner.width, 1),
+            );
+            y += 2;
+        }
+        draw_the_new_task_button(app, frame, column, inner, y, ColumnEnd::Top);
         return;
     }
 
-    // Scroll so the picked card is on screen, whole.
+    // Scroll so the picked task is on screen, whole.
     let picked = app.card_in_column[column].min(cards.len() - 1);
     let scroll = &mut app.scroll_in_column[column];
     if picked < *scroll {
         *scroll = picked;
     }
+    // The `+` above the first task and the gap under it take two rows.
     while *scroll < picked
         && cards[*scroll..=picked]
             .iter()
             .map(CardShown::height)
             .sum::<u16>()
-            > inner.height
+            > inner.height.saturating_sub(2)
     {
         *scroll += 1;
     }
     let scroll = *scroll;
 
-    let width = inner.width.saturating_sub(1) as usize;
+    // A row keeps a column clear of the right border.
+    let width = inner.width.saturating_sub(1);
     let mut y = inner.y;
+    if scroll == 0 {
+        draw_the_new_task_button(app, frame, column, inner, y, ColumnEnd::Top);
+        y += 2;
+    }
     let mut drawn = 0;
     for (offset, card) in cards.iter().enumerate().skip(scroll) {
         let height = card.rows();
         if y + height > inner.bottom() {
             break;
         }
-        let is_picked = offset == picked && picked_column;
-        let marked = app.marked.contains(&card.task_id);
-        let style = if is_picked {
-            Style::new().bg(PICKED)
-        } else {
-            Style::new()
-        };
-        let mark = if marked {
-            Span::styled("▌", Style::new().fg(ACCENT))
-        } else {
-            Span::raw(" ")
-        };
-        let after_the_title = if card.one_line {
-            card.marks_after_the_title()
-        } else {
-            Vec::new()
-        };
-        let after_width: usize = after_the_title.iter().map(Span::width).sum();
-        let title_width = width.saturating_sub(after_width);
-        let mut lines = vec![
-            Line::from(
-                [
-                    mark.clone(),
-                    Span::styled(
-                        if card.one_line {
-                            format!("{:<title_width$}", cut_to(&card.title, title_width))
-                        } else {
-                            cut_to(&card.title, width)
-                        },
-                        if is_picked {
-                            style.add_modifier(Modifier::BOLD)
-                        } else {
-                            style
-                        },
-                    ),
-                ]
-                .into_iter()
-                .chain(after_the_title)
-                .collect::<Vec<_>>(),
-            )
-            .style(style),
-        ];
-        if !card.one_line && (!card.tags.is_empty() || card.review) {
-            let mut marks = vec![mark.clone()];
-            for tag in card.tags.iter().take(3) {
-                marks.push(Span::styled(
-                    format!(" {tag} "),
-                    Style::new()
-                        .fg(ratatui::style::Color::Black)
-                        .bg(tag_color_of(tag)),
-                ));
-                marks.push(Span::raw(" "));
-            }
-            if card.review {
-                marks.push(Span::styled("◆ review", Style::new().fg(REVIEW)));
-            }
-            lines.push(Line::from(marks).style(style));
-        }
-        let card_area = Rect::new(inner.x, y, inner.width, height);
-        for (index, (run_id, run_mark, color, label, age)) in card.runs.iter().enumerate() {
-            let run_picked = is_picked && app.picked_run == Some(index);
-            let style = if run_picked {
-                Style::new()
-                    .fg(ratatui::style::Color::Black)
-                    .bg(ACCENT)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                style
-            };
-            let row = y + lines.len() as u16;
-            let label_width = width.saturating_sub(age.len() + 5);
-            lines.push(
-                Line::from(vec![
-                    mark.clone(),
-                    Span::styled(
-                        format!(" {run_mark} "),
-                        if run_picked {
-                            style
-                        } else {
-                            Style::new().fg(*color)
-                        },
-                    ),
-                    Span::styled(
-                        format!("{:<label_width$}", cut_to(label, label_width)),
-                        if run_picked {
-                            style
-                        } else {
-                            Style::new().fg(HANDLE)
-                        },
-                    ),
-                    Span::styled(
-                        format!(" {age}"),
-                        if run_picked {
-                            style
-                        } else {
-                            Style::new().fg(DIM)
-                        },
-                    ),
-                ])
-                .style(style),
-            );
-            let _ = index;
-            app.hits.card_runs.push((
-                Rect::new(inner.x, row, inner.width, 1),
-                card.task_id.clone(),
-                run_id.clone(),
-            ));
-        }
-        if card.more_runs > 0 {
-            lines.push(
-                Line::from(vec![
-                    mark,
-                    Span::styled(
-                        format!("   +{} more · o", card.more_runs),
-                        Style::new().fg(DIM),
-                    ),
-                ])
-                .style(style),
-            );
-        }
-        frame.render_widget(Paragraph::new(lines), card_area);
-        app.hits
-            .cards
-            .push((card_area, column, card.task_id.clone()));
+        draw_one_task(
+            app,
+            frame,
+            card,
+            column,
+            Rect::new(inner.x, y, width, height),
+            (
+                offset == picked && picked_column,
+                offset == picked && column == app.column,
+            ),
+        );
         y += card.height();
         drawn += 1;
     }
     let hidden = cards.len() - scroll - drawn;
+    if hidden == 0 && y < inner.bottom() {
+        draw_the_new_task_button(app, frame, column, inner, y, ColumnEnd::Bottom);
+    }
     if hidden > 0 {
         let more = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
         frame.render_widget(
@@ -442,7 +307,137 @@ fn draw_one_column(
     }
 }
 
-/// Draws a folded column as a narrow strip: its name down it, and how many cards it holds. A
+/// Draws one task: its title, its tags and review, its agents and shells - and `[start]` while
+/// it is picked or under the pointer. `(lit, picked)` says whether it is lit as the keys'
+/// choice, and whether it is the picked one, lit or not.
+fn draw_one_task(
+    app: &mut App,
+    frame: &mut Frame,
+    card: &CardShown,
+    column: usize,
+    area: Rect,
+    (lit, picked): (bool, bool),
+) {
+    let style = if lit {
+        Style::new().bg(PICKED)
+    } else {
+        Style::new()
+    };
+    let mark = if app.marked.contains(&card.task_id) {
+        Span::styled("▌", Style::new().fg(ACCENT))
+    } else {
+        Span::raw(" ")
+    };
+    let width = area.width as usize;
+    let mut lines = vec![
+        Line::from(vec![
+            mark.clone(),
+            Span::styled(
+                cut_to(&card.title, width.saturating_sub(1)),
+                if lit {
+                    style.add_modifier(Modifier::BOLD)
+                } else {
+                    style
+                },
+            ),
+        ])
+        .style(style),
+    ];
+    if !card.tags.is_empty() || card.review {
+        let mut marks = vec![mark.clone()];
+        for tag in card.tags.iter().take(3) {
+            marks.push(Span::styled(
+                format!(" {tag} "),
+                Style::new().fg(ON_ACCENT).bg(tag_color_of(tag)),
+            ));
+            marks.push(Span::raw(" "));
+        }
+        if card.review {
+            marks.push(Span::styled("◆ review", Style::new().fg(REVIEW)));
+        }
+        lines.push(Line::from(marks).style(style));
+    }
+    let runs_from = area.y + lines.len() as u16;
+    frame.render_widget(Paragraph::new(lines).style(style), area);
+    // The task is recorded first: what is drawn on it is reached before it.
+    app.hits.record(
+        area,
+        Hit::Task {
+            column,
+            task_id: card.task_id.clone(),
+        },
+    );
+    for (index, run) in card.runs.iter().enumerate() {
+        let row = Rect::new(area.x, runs_from + index as u16, area.width, 1);
+        let run_picked = lit && app.picked_run == Some(index);
+        draw_a_run_row(
+            frame,
+            app,
+            row,
+            (&card.task_id, &card.title),
+            run,
+            run_picked,
+            false,
+        );
+    }
+    if card.more_runs > 0 {
+        let row = Rect::new(area.x, runs_from + card.runs.len() as u16, area.width, 1);
+        frame.render_widget(
+            Line::styled(
+                format!("    +{} more", card.more_runs),
+                Style::new().fg(DIM),
+            ),
+            row,
+        );
+        app.hits.record(row, Hit::Details(card.task_id.clone()));
+    }
+    let hovered = app.pointer_at.is_some_and(|at| area.contains(at));
+    if picked || hovered {
+        let width = START_BUTTON.len() as u16;
+        if area.width >= width + 6 {
+            draw_a_button(
+                frame,
+                app,
+                (area.right() - width, area.y),
+                area.right(),
+                START_BUTTON,
+                Look::Main,
+                Hit::StartOn(card.task_id.clone()),
+            );
+        }
+    }
+}
+
+/// Sets what a task's button says, which a click offers what to start on it.
+const START_BUTTON: &str = "[start]";
+
+/// Draws `[  +  ]` across the column on row `y`: above its first task, a click asks a new
+/// task's name for the top; below its last, for the bottom.
+fn draw_the_new_task_button(
+    app: &mut App,
+    frame: &mut Frame,
+    column: usize,
+    inner: Rect,
+    y: u16,
+    joins: ColumnEnd,
+) {
+    const BUTTON: &str = "[  +  ]";
+    let width = BUTTON.len() as u16;
+    if inner.width < width || y >= inner.bottom() {
+        return;
+    }
+    draw_a_button(
+        frame,
+        app,
+        (inner.x + (inner.width - width) / 2, y),
+        inner.right(),
+        BUTTON,
+        Look::Quiet,
+        Hit::NewTask { column, joins },
+    );
+}
+
+/// Draws a folded column as a narrow strip: its name down it, and how many tasks it holds. A
 /// click on it unfolds it.
 fn draw_a_folded_column(app: &mut App, frame: &mut Frame, column: usize, area: Rect, lit: bool) {
     let block = Block::new()
@@ -452,10 +447,11 @@ fn draw_a_folded_column(app: &mut App, frame: &mut Frame, column: usize, area: R
     let inner = block.inner(area);
     frame.render_widget(block, area);
     app.hits.columns.push((area, column));
-    app.hits
-        .headings
-        .push((Rect::new(area.x, area.y, area.width, 1), column));
-    app.hits.folds.push((inner, column));
+    app.hits.record(
+        Rect::new(area.x, area.y, area.width, 1),
+        Hit::Heading(column),
+    );
+    app.hits.record(inner, Hit::Fold(column));
     let all = app.board.cards_in(&app.board.columns[column].id).len();
     let label = &app.board.columns[column].label;
     let down: Vec<Line> = std::iter::once(Line::styled("▸", Style::new().fg(DIM)))
@@ -463,11 +459,7 @@ fn draw_a_folded_column(app: &mut App, frame: &mut Frame, column: usize, area: R
             Line::styled(
                 letter.to_string(),
                 Style::new()
-                    .fg(if lit {
-                        ACCENT
-                    } else {
-                        ratatui::style::Color::Reset
-                    })
+                    .fg(if lit { ACCENT } else { Color::Reset })
                     .add_modifier(Modifier::BOLD),
             )
         }))

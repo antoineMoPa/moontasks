@@ -239,6 +239,11 @@ impl BoardSession {
         service::stop_resource(&self.state, &self.session_id, task_id, run_id)
     }
 
+    /// Ends a run if it is going and takes it off its task for good.
+    pub fn delete_run(&self, task_id: &str, run_id: &str) -> Result<()> {
+        service::delete_resource(&self.state, &self.session_id, task_id, run_id)
+    }
+
     /// Starts a past run again where it left off, and says which shell it is in.
     pub fn resume_run(&self, task_id: &str, run_id: &str) -> Result<String> {
         service::resume_resource(&self.state, &self.session_id, task_id, run_id)

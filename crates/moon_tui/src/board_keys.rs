@@ -5,62 +5,22 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     app::{App, PromptAsks},
-    board_actions, run_menu,
+    board_actions,
+    keys::{
+        COLUMN_LEFT, COLUMN_RIGHT, FILTER, FOLD, HELP, MARK, NEW_TASK, NEW_TASK_AT_THE_BOTTOM,
+        NOTES, PALETTE, QUIT, RENAME, START, TAGS,
+    },
+    run_menu,
 };
-
-/// This is what `?` shows.
-pub const KEYS_HELP: &str = "\
-on the board
-  arrows             pick a column or a card; up and down also step through a card's runs
-  home  end          pick the first / last card of the column
-  shift + arrows     move the card (or the marked ones) to the column left / right, or
-                     down / up its column
-  < >                move the column left / right
-  space              mark a card, so several move together
-  enter              open or close the task's details: notes, runs, files, review
-  n  N               create a card at the top / bottom of the column
-  r  t  e            rename the card · edit its tags · edit its notes in $EDITOR
-  s                  start an agent or a shell on the task
-  o                  list the card's runs, to open, stop, resume or tell one
-  c                  fold the column to a narrow strip, or unfold it
-  C                  show every card on one line, or whole again
-  /                  filter the board; esc clears the filter
-  tab                move to the next frame
-  1-9                show a run's tab, by its place
-  q                  quit (what this moon started ends with it)
-
-on a run picked on its card
-  enter              open the run beside the board
-  x                  stop the run
-  R                  resume the run
-  T                  tell the run's agent a line
-
-the mouse
-  drag a card        moves it to another column, or to another place in its own
-  double-click one   opens its details beside the board
-  drag a heading     moves the column
-  click a ▾          folds the column; a click on a folded one unfolds it
-  click a run        opens it beside the board
-  click a tab        shows it; its × closes it
-  drag a tab         moves it along its strip, onto another frame, or against an edge
-                     to split the frame
-  drag a line        between two frames resizes them
-
-from anywhere, ctrl-a and then
-  o  tab             move to the next frame
-  n  p               show the next / previous tab of the frame
-  1-9                show a run's tab, by its place
-  0                  show the board
-  t                  tell the shell's agent a line
-  x                  close the tab: a shell ends, an agent keeps running on its card
-  ctrl-a             send a ctrl-a to the shell itself";
 
 pub fn press_on_the_board(app: &mut App, key: KeyEvent) {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
     match key.code {
-        KeyCode::Char('q') => return app.ask_to_quit(),
+        KeyCode::Char(QUIT) => return app.ask_to_quit(),
         KeyCode::Char('c') if ctrl => return app.ask_to_quit(),
-        KeyCode::Char('?') => return app.show_the_keys(),
+        KeyCode::Char(HELP) => return app.show_the_keys(),
+        KeyCode::Char('p') if ctrl => return crate::palette::open_the_palette(app),
+        KeyCode::Char(PALETTE) => return crate::palette::open_the_palette(app),
         KeyCode::Tab | KeyCode::BackTab => {
             app.layout.focus_next_frame();
             return;
@@ -68,7 +28,7 @@ pub fn press_on_the_board(app: &mut App, key: KeyEvent) {
         KeyCode::Char(digit @ '1'..='9') => {
             return app.focus_the_nth_shell(digit as usize - '1' as usize);
         }
-        KeyCode::Char('/') => {
+        KeyCode::Char(FILTER) => {
             let filter = app.filter.clone();
             return app.ask_for_a_line(PromptAsks::Filter, &filter);
         }
@@ -106,9 +66,9 @@ fn press_on_the_columns(app: &mut App, key: KeyEvent) {
         KeyCode::End => {
             app.card_in_column[app.column] = shown.saturating_sub(1);
         }
-        KeyCode::Char('<') => board_actions::move_the_column(app, -1),
-        KeyCode::Char('>') => board_actions::move_the_column(app, 1),
-        KeyCode::Char(' ') => {
+        KeyCode::Char(COLUMN_LEFT) => board_actions::move_the_column(app, -1),
+        KeyCode::Char(COLUMN_RIGHT) => board_actions::move_the_column(app, 1),
+        KeyCode::Char(MARK) => {
             if let Some(task_id) = app.picked_task_id()
                 && !app.marked.remove(&task_id)
             {
@@ -125,40 +85,34 @@ fn press_on_the_columns(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Enter => app.task_pane_open = !app.task_pane_open,
-        KeyCode::Char('n') => ask_for_a_new_card(app, ColumnEnd::Top),
-        KeyCode::Char('N') => ask_for_a_new_card(app, ColumnEnd::Bottom),
-        KeyCode::Char('r') => {
+        KeyCode::Char(NEW_TASK) => ask_for_a_new_card(app, ColumnEnd::Top),
+        KeyCode::Char(NEW_TASK_AT_THE_BOTTOM) => ask_for_a_new_card(app, ColumnEnd::Bottom),
+        KeyCode::Char(RENAME) => {
             if let Some(task) = app.picked_card() {
                 let (task_id, title) = (task.id.clone(), task.title.clone());
                 app.ask_for_a_line(PromptAsks::Rename { task_id }, &title);
             }
         }
-        KeyCode::Char('t') => {
+        KeyCode::Char(TAGS) => {
             if let Some(task) = app.picked_card() {
                 let (task_id, tags) = (task.id.clone(), task.tags.join(", "));
                 app.ask_for_a_line(PromptAsks::Tags { task_id }, &tags);
             }
         }
-        KeyCode::Char('e') => {
+        KeyCode::Char(NOTES) => {
             if let Some(task_id) = app.picked_task_id() {
                 let path = app.session.notes_file_of(&task_id);
                 app.edit_notes_at = app.say_if_it_failed(path);
             }
         }
-        KeyCode::Char('s') => board_actions::offer_what_to_start(app),
-        KeyCode::Char('o') => run_menu::open_the_runs_of_the_picked_card(app),
-        KeyCode::Char('c') => app.fold_or_unfold_the_column(app.column),
-        KeyCode::Char('C') => app.switch_one_line_cards(),
+        KeyCode::Char(START) => board_actions::offer_what_to_start(app),
+        KeyCode::Char(FOLD) => app.fold_or_unfold_the_column(app.column),
         _ => {}
     }
 }
 
-/// Counts the runs the picked card lists, which the up and down arrows step through - none
-/// while cards show one line each.
+/// Counts the runs the picked card lists, which the up and down arrows step through.
 fn runs_on_the_picked_card(app: &App) -> usize {
-    if app.one_line_cards {
-        return 0;
-    }
     app.picked_card()
         .map_or(0, |task| run_menu::runs_pickable_on(task).len())
 }
@@ -191,7 +145,8 @@ fn step_up(app: &mut App, index: usize) {
     };
 }
 
-fn ask_for_a_new_card(app: &mut App, joins: ColumnEnd) {
+/// Asks the name of a new card for the picked column.
+pub fn ask_for_a_new_card(app: &mut App, joins: ColumnEnd) {
     if let Some(column) = app.board.columns.get(app.column) {
         let column = column.id.clone();
         app.ask_for_a_line(PromptAsks::NewCard { column, joins }, "");

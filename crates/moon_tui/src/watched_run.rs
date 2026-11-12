@@ -21,8 +21,8 @@ use ratatui::{
 };
 
 use crate::{
-    draw::{DIM, HANDLE},
     line_input::{LineEdit, LineInput},
+    theme::{DIM, HANDLE, STRIP},
 };
 
 /// Sets how long the screen is left before it is read again.
@@ -131,7 +131,7 @@ impl WatchedRun {
                 Span::styled(prompt, Style::new().fg(HANDLE)),
                 Span::raw(shown),
             ])
-            .style(Style::new().bg(ratatui::style::Color::Indexed(235))),
+            .style(Style::new().bg(STRIP)),
             foot,
         );
         if self.line.text.is_empty() && foot.width > prompt_width + 30 {

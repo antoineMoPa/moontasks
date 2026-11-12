@@ -25,6 +25,7 @@ impl Frames {
         layout: &mut Layout<P>,
     ) -> PointerOutcome {
         let at = Position::new(mouse.column, mouse.row);
+        self.pointer_at = Some(at);
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => self.press(at, layout),
             MouseEventKind::Down(MouseButton::Middle) => match self.tab_at(at) {
@@ -58,6 +59,15 @@ impl Frames {
                 moving: false,
             }));
             return PointerOutcome::Taken(vec![FramesEvent::PaneFocused(pane)]);
+        }
+        if let Some(frame) = self
+            .drawn
+            .frames
+            .iter()
+            .find(|frame| frame.new_tab.is_some_and(|button| button.contains(at)))
+        {
+            layout.set_active_frame(frame.id);
+            return PointerOutcome::Taken(vec![FramesEvent::NewTabRequested(frame.id)]);
         }
         if let Some(index) = self
             .drawn

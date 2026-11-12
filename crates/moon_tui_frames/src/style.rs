@@ -17,6 +17,8 @@ pub struct FramesStyle {
     pub dim: Color,
     /// Shades the drop zones.
     pub drop_zone: Color,
+    /// Shades a tab or a button under the pointer.
+    pub hover: Color,
 }
 
 impl Default for FramesStyle {
@@ -28,6 +30,7 @@ impl Default for FramesStyle {
             front_tab: Color::Indexed(239),
             dim: Color::DarkGray,
             drop_zone: Color::Indexed(24),
+            hover: Color::Indexed(238),
         }
     }
 }

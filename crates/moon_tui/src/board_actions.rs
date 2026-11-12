@@ -97,6 +97,16 @@ pub fn offer_what_to_start(app: &mut App) {
     let Some(task_id) = app.picked_task_id() else {
         return;
     };
+    let items = list_what_can_start(app);
+    app.overlay = Some(Overlay::StartMenu {
+        task_id,
+        items,
+        index: 0,
+    });
+}
+
+/// Lists the agents installed here, then the shells: what can be started on a task.
+pub fn list_what_can_start(app: &App) -> Vec<StartItem> {
     let available = &app.session.state.agent_availability;
     let mut items: Vec<StartItem> = [
         (AgentKind::Claude, available.claude),
@@ -111,19 +121,15 @@ pub fn offer_what_to_start(app: &mut App) {
     .collect();
     items.push(StartItem::Shell(StartFolder::Repo));
     items.push(StartItem::Shell(StartFolder::TaskFolder));
-    app.overlay = Some(Overlay::StartMenu {
-        task_id,
-        items,
-        index: 0,
-    });
+    items
 }
 
 /// Says what a start menu's line is called.
 pub fn label_of(item: StartItem) -> String {
     match item {
-        StartItem::Agent(agent) => agent.label().to_lowercase(),
-        StartItem::Shell(StartFolder::Repo) => "shell, in the repo".to_string(),
-        StartItem::Shell(StartFolder::TaskFolder) => "shell, in the task's folder".to_string(),
+        StartItem::Agent(agent) => agent.label().to_string(),
+        StartItem::Shell(StartFolder::Repo) => "shell".to_string(),
+        StartItem::Shell(StartFolder::TaskFolder) => "shell in the task's folder".to_string(),
     }
 }
 
@@ -138,9 +144,38 @@ pub fn start_on_the_task(app: &mut App, task_id: &str, item: StartItem) {
         StartItem::Shell(opens_in) => app.session.start_shell_on(task_id, opens_in),
     };
     if let Some(terminal_id) = app.say_if_it_failed(started) {
-        let name = format!("{} · {title}", label_of(item));
-        open_a_tab_on(app, &terminal_id, &name);
         app.read_the_board_again();
+        // Its tab is named as it is on its task, now that the board lists it.
+        let name = find_the_name_of_the_run_on(app, &terminal_id)
+            .unwrap_or_else(|| format!("{} · {title}", label_of(item)));
+        open_a_tab_on(app, &terminal_id, &name);
+    }
+}
+
+/// Returns the name of the agent or shell in a terminal, as its task lists it.
+fn find_the_name_of_the_run_on(app: &App, terminal_id: &str) -> Option<String> {
+    app.board.tasks.iter().find_map(|task| {
+        let run = task
+            .resources
+            .iter()
+            .find(|run| run.terminal_id.as_deref() == Some(terminal_id))?;
+        Some(crate::run_menu::name_of_the_run(run, &task.title))
+    })
+}
+
+/// Starts a shell in the repo on the picked card, as a tab of `frame` - its strip's `+`.
+pub fn start_a_shell_in_the_frame(app: &mut App, frame: moon_tui_frames::FrameId) {
+    let Some(task_id) = app.picked_task_id() else {
+        return app.flash("pick a task first".to_string());
+    };
+    start_on_the_task(app, &task_id, StartItem::Shell(StartFolder::Repo));
+    if let Some((pane, _)) = app.layout.active_pane()
+        && app.layout.frame_of(pane) != Some(frame)
+        && pane != app.board_pane
+    {
+        app.layout
+            .move_pane_to_frame(pane, frame, moon_tui_frames::DropSide::Tabs, None);
+        app.layout.focus_pane(pane);
     }
 }
 
@@ -170,7 +205,7 @@ pub fn open_the_run(app: &mut App, task_id: &str, run: &TaskResourceView) {
             open_a_tab_on(app, &terminal_id, &title);
         }
         _ if run.resumable => resume_the_run(app, task_id, &run.id, &title),
-        _ => app.flash(format!("{title} is not going, and cannot be resumed")),
+        _ => app.flash_failure(format!("{title} has ended and can't be resumed")),
     }
 }
 
@@ -179,6 +214,46 @@ pub fn stop_the_run(app: &mut App, task_id: &str, run_id: &str) {
     if app.say_if_it_failed(stopped).is_some() {
         app.read_the_board_again();
     }
+}
+
+/// Ends a run and takes it off its card, closing its tab when one is open.
+pub fn delete_the_run(app: &mut App, task_id: &str, run_id: &str) {
+    let terminal_id = app
+        .board
+        .task(task_id)
+        .and_then(|task| task.resources.iter().find(|run| run.id == run_id))
+        .and_then(|run| run.terminal_id.clone());
+    let deleted = app.session.delete_run(task_id, run_id);
+    if app.say_if_it_failed(deleted).is_none() {
+        return;
+    }
+    if let Some(terminal_id) = terminal_id {
+        app.close_the_tab_on(&terminal_id);
+    }
+    app.read_the_board_again();
+}
+
+/// Returns the run the keyboard is on: the one in the tab in front, else the one picked on
+/// its card - with its task's id.
+pub fn find_the_run_in_focus(app: &App) -> Option<(String, TaskResourceView)> {
+    let in_front = match app.layout.active_pane() {
+        Some((_, crate::panes::MoonPane::Shell { terminal_id }))
+        | Some((_, crate::panes::MoonPane::Elsewhere { terminal_id })) => Some(terminal_id),
+        _ => None,
+    };
+    if let Some(terminal_id) = in_front {
+        return app.board.tasks.iter().find_map(|task| {
+            task.resources
+                .iter()
+                .find(|run| run.terminal_id.as_deref() == Some(terminal_id.as_str()))
+                .map(|run| (task.id.clone(), run.clone()))
+        });
+    }
+    let task = app.picked_card()?;
+    let run = crate::run_menu::runs_pickable_on(task)
+        .into_iter()
+        .nth(app.picked_run?)?;
+    Some((task.id.clone(), run))
 }
 
 pub fn resume_the_run(app: &mut App, task_id: &str, run_id: &str, title: &str) {
@@ -245,16 +320,5 @@ impl App {
         if !self.folded_columns.remove(&id) {
             self.folded_columns.insert(id);
         }
-    }
-
-    /// Shows every card on one line, its runs as marks after its title - or as they were.
-    pub fn switch_one_line_cards(&mut self) {
-        self.one_line_cards = !self.one_line_cards;
-        self.picked_run = None;
-        self.flash(if self.one_line_cards {
-            "cards show one line each · C shows them whole".to_string()
-        } else {
-            "cards show whole again".to_string()
-        });
     }
 }

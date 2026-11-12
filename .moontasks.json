@@ -14,6 +14,11 @@
       "name": "minerve gui",
       "build": "cargo install --locked --path crates/minerve-egui",
       "run": "minerve-gui"
+    },
+    {
+      "name": "moon mux",
+      "build": "cargo install --locked --path crates/moon_mux",
+      "run": "moon-mux"
     }
   ],
   "indent": {

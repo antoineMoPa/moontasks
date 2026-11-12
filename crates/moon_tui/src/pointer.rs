@@ -1,7 +1,7 @@
-//! This module handles the mouse: the frames' own first - tabs, splits, the lines between
-//! them - then the board's: a click picks, a drag carries cards or a column, a click on a card's
-//! run opens it beside the board. It is all measured against where things were drawn last - see
-//! [`crate::app::HitMap`].
+//! This module handles the mouse: an open menu's first, then the frames' own - tabs, splits,
+//! the lines between them - then the board's: a click picks, a drag carries tasks or a column,
+//! a button does what it says. It is all measured against where things were drawn last - see
+//! [`crate::hits`].
 
 use std::time::{Duration, Instant};
 
@@ -13,8 +13,9 @@ use ratatui::{
 use moon_tui_frames::{FramesEvent, PointerOutcome};
 
 use crate::{
-    app::{App, Drag, Dragged},
+    app::{App, Drag, Dragged, Overlay},
     board_actions,
+    hits::Hit,
 };
 
 /// Sets how soon a second click on a card has to follow the first to be a double click.
@@ -34,14 +35,23 @@ pub struct CardLanding {
 }
 
 pub fn handle_the_mouse(app: &mut App, mouse: MouseEvent) {
+    let at = Position::new(mouse.column, mouse.row);
+    app.pointer_at = Some(at);
     if app.overlay.is_some() {
+        if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+            click_on_the_overlay(app, at);
+        }
         return;
     }
     match app.frames.handle_the_mouse(mouse, &mut app.layout) {
         PointerOutcome::Taken(events) => {
             for event in events {
-                if let FramesEvent::PaneCloseRequested(pane) = event {
-                    app.close_the_pane(pane);
+                match event {
+                    FramesEvent::PaneCloseRequested(pane) => app.close_the_pane(pane),
+                    FramesEvent::NewTabRequested(frame) => {
+                        board_actions::start_a_shell_in_the_frame(app, frame)
+                    }
+                    FramesEvent::PaneFocused(_) | FramesEvent::PaneMoved(_) => {}
                 }
             }
         }
@@ -79,42 +89,113 @@ fn handle_the_mouse_on_the_board(app: &mut App, mouse: MouseEvent) {
     }
 }
 
-fn press(app: &mut App, at: Position, modifiers: KeyModifiers) {
-    if let Some((_, task_id, run_id)) = app
-        .hits
-        .card_runs
-        .iter()
-        .find(|(rect, _, _)| rect.contains(at))
-        .cloned()
-    {
-        open_the_run_clicked(app, &task_id, &run_id);
-        return;
-    }
-    if let Some((_, column)) = app.hits.folds.iter().find(|(rect, _)| rect.contains(at)) {
-        let column = *column;
-        app.column = column;
-        app.fold_or_unfold_the_column(column);
-        return;
-    }
-    if let Some((_, column)) = app.hits.headings.iter().find(|(rect, _)| rect.contains(at)) {
-        app.column = *column;
-        app.drag = Some(Drag {
-            what: Dragged::Column(*column),
-            from: at,
-            at,
-            moving: false,
-        });
-        return;
-    }
-    let Some((_, column, task_id)) = app
-        .hits
-        .cards
-        .iter()
-        .find(|(rect, _, _)| rect.contains(at))
-        .cloned()
-    else {
+/// Takes a click while a menu or a dialog is open: one of its rows or buttons, or - anywhere
+/// else - closing it.
+fn click_on_the_overlay(app: &mut App, at: Position) {
+    let hit = app.hits.find_the_spot_at(at).map(|(_, hit)| hit.clone());
+    let Some(overlay) = app.overlay.take() else {
         return;
     };
+    match (hit, overlay) {
+        (Some(Hit::MenuRow(index)), Overlay::Palette { line, .. }) => {
+            let picked = crate::palette::list_the_matching_commands(app, &line.text)
+                .into_iter()
+                .nth(index);
+            if let Some(picked) = picked {
+                crate::palette::run_the_command(app, picked.action);
+            }
+        }
+        (Some(Hit::MenuRow(index)), Overlay::StartMenu { task_id, items, .. }) => {
+            if let Some(item) = items.get(index) {
+                board_actions::start_on_the_task(app, &task_id, *item);
+            }
+        }
+        (Some(Hit::Quit), _) => app.quit = true,
+        // A click inside a box that is not one of its rows leaves it open.
+        (Some(Hit::Inside), overlay) => app.overlay = Some(overlay),
+        // Everything else closes it. A filter being typed is kept, as it was shown.
+        (_, Overlay::Prompt { .. } | Overlay::Text { .. } | Overlay::ConfirmQuit) => {}
+        (_, Overlay::Palette { .. } | Overlay::StartMenu { .. }) => {}
+    }
+}
+
+fn press(app: &mut App, at: Position, modifiers: KeyModifiers) {
+    let Some((_, hit)) = app.hits.find_the_spot_at(at).cloned() else {
+        return;
+    };
+    if !matches!(hit, Hit::DeleteRun { .. }) {
+        app.armed_delete = None;
+    }
+    match hit {
+        Hit::DeleteRun { task_id, run_id } => {
+            if app.delete_is_armed_for(&run_id) {
+                app.armed_delete = None;
+                board_actions::delete_the_run(app, &task_id, &run_id);
+            } else {
+                app.armed_delete = Some((run_id, Instant::now()));
+            }
+        }
+        Hit::StopRun { task_id, run_id } => board_actions::stop_the_run(app, &task_id, &run_id),
+        Hit::ResumeRun { task_id, run_id } => {
+            let title = app
+                .board
+                .task(&task_id)
+                .and_then(|task| {
+                    let run = task.resources.iter().find(|run| run.id == run_id)?;
+                    Some(crate::run_menu::name_of_the_run(run, &task.title))
+                })
+                .unwrap_or_default();
+            board_actions::resume_the_run(app, &task_id, &run_id, &title);
+        }
+        Hit::Run { task_id, run_id } => open_the_run_clicked(app, &task_id, &run_id),
+        Hit::Details(task_id) => {
+            app.pick_task(&task_id);
+            app.task_pane_open = true;
+        }
+        Hit::StartOn(task_id) => {
+            app.pick_task(&task_id);
+            board_actions::offer_what_to_start(app);
+        }
+        Hit::EditNotes(task_id) => {
+            let path = app.session.notes_file_of(&task_id);
+            app.edit_notes_at = app.say_if_it_failed(path);
+        }
+        Hit::NewTask { column, joins } => {
+            app.column = column;
+            crate::board_keys::ask_for_a_new_card(app, joins);
+        }
+        Hit::Fold(column) => {
+            app.column = column;
+            app.fold_or_unfold_the_column(column);
+        }
+        Hit::EditFilter => {
+            let filter = app.filter.clone();
+            app.ask_for_a_line(crate::app::PromptAsks::Filter, &filter);
+        }
+        Hit::ClearFilter => app.filter.clear(),
+        Hit::Heading(column) => {
+            app.column = column;
+            app.drag = Some(Drag {
+                what: Dragged::Column(column),
+                from: at,
+                at,
+                moving: false,
+            });
+        }
+        Hit::Task { column, task_id } => press_on_a_task(app, at, modifiers, column, task_id),
+        Hit::MenuRow(_) | Hit::Quit | Hit::Stay | Hit::Close | Hit::Inside => {}
+    }
+}
+
+/// Picks a task - marks it too, with a modifier held - opens its details on a double click,
+/// and picks it up to be carried.
+fn press_on_a_task(
+    app: &mut App,
+    at: Position,
+    modifiers: KeyModifiers,
+    column: usize,
+    task_id: String,
+) {
     if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER | KeyModifiers::ALT)
         && !app.marked.remove(&task_id)
     {
@@ -125,7 +206,7 @@ fn press(app: &mut App, at: Position, modifiers: KeyModifiers) {
     if clicked_twice(app, &task_id) {
         app.task_pane_open = true;
     }
-    // A card picked up that is marked carries every marked card with it; one that is not
+    // A task picked up that is marked carries every marked task with it; one that is not
     // goes alone.
     let cards = if app.marked.contains(&task_id) {
         app.cards_to_move()
@@ -200,11 +281,12 @@ pub fn where_cards_would_land(app: &App, carried: &[String], at: Position) -> Op
         .find(|(rect, _)| at.x >= rect.x && at.x < rect.right())
         .copied()?;
     // These are the cards drawn in that column, top to bottom, leaving out the carried ones.
-    let drawn: Vec<&(Rect, usize, String)> = app
+    let drawn: Vec<(Rect, usize, &str)> = app
         .hits
-        .cards
-        .iter()
-        .filter(|(_, card_column, task_id)| *card_column == column && !carried.contains(task_id))
+        .tasks_drawn()
+        .filter(|(_, card_column, task_id)| {
+            *card_column == column && !carried.iter().any(|carried| carried == task_id)
+        })
         .collect();
     let in_order: Vec<String> = app
         .board

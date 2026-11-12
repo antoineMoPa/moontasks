@@ -1,16 +1,17 @@
-//! This module shows a card's runs: listed on the card itself, and - with `o` - in a menu to
-//! open one, stop it, resume it or tell it a line. This is where the board's agents are, card by
-//! card.
+//! This module knows a task's agents and shells: which are listed on it, what each is called,
+//! and what the keys do to the one picked on its task. (In the code they are its runs; on
+//! screen each is named for what it is - an agent or a shell.)
 
 use moon_core::moontasks::{TaskResourceView, TaskView, store::TaskResourceKind};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use crate::{
-    app::{App, Overlay, PromptAsks},
-    board_actions,
+    app::{App, PromptAsks},
+    board_actions, keys,
 };
 
-/// Sets the most runs a card lists - the ones the up and down arrows step through; `o` shows the rest.
+/// Sets the most agents and shells a task lists - the ones the up and down arrows step through;
+/// its details list the rest.
 pub const RUNS_LISTED: usize = 3;
 
 /// Says whether a run is going: in one of this moon's shells, or in another moon - which a run's
@@ -38,11 +39,19 @@ pub fn label_on_the_card(run: &TaskResourceView, task_title: &str) -> String {
         .strip_prefix(task_title)
         .map(str::trim)
         .filter(|rest| !rest.is_empty())
-        .map(str::to_lowercase)
+        .map(|rest| rest.to_lowercase().replace(" - ", " "))
         .unwrap_or_else(|| match run.kind {
             TaskResourceKind::Shell => "shell".to_string(),
             _ => run.agent.label().to_lowercase(),
         })
+}
+
+/// Says what a run is, in a word a person reads: an agent or a shell.
+pub fn kind_of_the_run(run: &TaskResourceView) -> &'static str {
+    match run.kind {
+        TaskResourceKind::Shell => "shell",
+        _ => "agent",
+    }
 }
 
 /// Says what a run is called on its tab: what runs in it, and the task.
@@ -70,19 +79,24 @@ pub fn press_on_the_picked_run(app: &mut App, key: &KeyEvent) -> bool {
     };
     match key.code {
         KeyCode::Enter => board_actions::open_the_run(app, &task_id, &run),
-        KeyCode::Char('x') => {
+        KeyCode::Char(keys::STOP) => {
             if is_going(&run) {
                 board_actions::stop_the_run(app, &task_id, &run.id);
                 app.flash(format!("stopped {}", name_of_the_run(&run, &task_title)));
             } else {
-                app.flash("it is not going: R resumes it".to_string());
+                app.flash("not running".to_string());
             }
         }
-        KeyCode::Char('R') => {
+        KeyCode::Char(keys::DELETE) => {
+            board_actions::delete_the_run(app, &task_id, &run.id);
+            app.picked_run = None;
+            app.flash(format!("deleted {}", name_of_the_run(&run, &task_title)));
+        }
+        KeyCode::Char(keys::RESUME) => {
             let title = name_of_the_run(&run, &task_title);
             board_actions::resume_the_run(app, &task_id, &run.id, &title);
         }
-        KeyCode::Char('T') => match run.terminal_id.clone() {
+        KeyCode::Char(keys::TELL) => match run.terminal_id.clone() {
             Some(terminal_id) if is_going(&run) => {
                 let asks = PromptAsks::Tell {
                     terminal_id,
@@ -91,71 +105,9 @@ pub fn press_on_the_picked_run(app: &mut App, key: &KeyEvent) -> bool {
                 };
                 app.ask_for_a_line(asks, "");
             }
-            _ => app.flash("it is not going: R resumes it".to_string()),
+            _ => app.flash("not running".to_string()),
         },
         _ => return false,
     }
     true
-}
-
-/// Opens, on `o`, a card's one run, or a menu of them.
-pub fn open_the_runs_of_the_picked_card(app: &mut App) {
-    let Some(task) = app.picked_card() else {
-        return;
-    };
-    let task_id = task.id.clone();
-    let runs: Vec<TaskResourceView> = runs_listed_on(task).into_iter().cloned().collect();
-    match runs.as_slice() {
-        [] => app.flash("nothing has run on this card: s starts something".to_string()),
-        [run] => board_actions::open_the_run(app, &task_id, run),
-        _ => app.overlay = Some(Overlay::RunMenu { task_id, index: 0 }),
-    }
-}
-
-pub fn press_on_the_run_menu(app: &mut App, task_id: String, index: usize, key: KeyEvent) {
-    let Some(task) = app.board.task(&task_id) else {
-        return;
-    };
-    let task_title = task.title.clone();
-    let runs: Vec<TaskResourceView> = runs_listed_on(task).into_iter().cloned().collect();
-    if runs.is_empty() {
-        return;
-    }
-    let index = index.min(runs.len() - 1);
-    let run = &runs[index];
-    let stay = |app: &mut App, index: usize| {
-        app.overlay = Some(Overlay::RunMenu {
-            task_id: task_id.clone(),
-            index,
-        })
-    };
-    match key.code {
-        KeyCode::Down => stay(app, (index + 1) % runs.len()),
-        KeyCode::Up => stay(app, (index + runs.len() - 1) % runs.len()),
-        KeyCode::Enter => board_actions::open_the_run(app, &task_id, run),
-        KeyCode::Char('x') => {
-            board_actions::stop_the_run(app, &task_id, &run.id);
-            stay(app, index);
-        }
-        KeyCode::Char('R') => {
-            let title = name_of_the_run(run, &task_title);
-            board_actions::resume_the_run(app, &task_id, &run.id, &title);
-        }
-        KeyCode::Char('T') => match run.terminal_id.clone() {
-            Some(terminal_id) if is_going(run) => {
-                let asks = PromptAsks::Tell {
-                    terminal_id,
-                    held_by: run.going_elsewhere_in,
-                    title: name_of_the_run(run, &task_title),
-                };
-                app.ask_for_a_line(asks, "");
-            }
-            _ => {
-                app.flash("that run is not going: R resumes it".to_string());
-                stay(app, index);
-            }
-        },
-        KeyCode::Esc | KeyCode::Char('q') => {}
-        _ => stay(app, index),
-    }
 }

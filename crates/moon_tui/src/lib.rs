@@ -9,12 +9,16 @@ mod board_actions;
 mod board_keys;
 mod board_session;
 mod draw;
+mod hits;
+mod keys;
 mod line_input;
 pub mod lite_cli;
+mod palette;
 mod panes;
 mod pointer;
 mod run_menu;
 mod shell_links;
+mod theme;
 mod watched_run;
 
 use std::path::PathBuf;
