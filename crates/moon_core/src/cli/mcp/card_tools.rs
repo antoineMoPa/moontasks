@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-/// The file a task's review request is written in - see `request_review.md` in a task's folder.
+/// The file a task's review request is written in - see `request_review.md` in the board's `llms` folder.
 const REVIEW_REQUEST_FILE_NAME: &str = "request_for_review.txt";
 
 #[derive(Deserialize, Default)]

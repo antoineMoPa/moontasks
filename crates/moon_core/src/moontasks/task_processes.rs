@@ -187,7 +187,9 @@ pub const LAUNCH_PLACEHOLDERS: &[&str] = &["{session}", "{brief}", "{brief_file}
 /// It names the task and says where anything belonging to it goes; the person who opened the
 /// shell says the rest. `tracker_url` is the task's issue link, empty for a task with none: it
 /// is named here only when there is one, and the file that says how to set it is always pointed at.
-pub fn brief_for(title: &str, task_dir: &str, tracker_url: &str) -> String {
+/// `docs_dir` is the board's folder of agent docs, as the agent is to read it - see
+/// [`AGENT_DOCS_DIR_NAME`].
+pub fn brief_for(title: &str, task_dir: &str, tracker_url: &str, docs_dir: &str) -> String {
     let task = match tracker_url.is_empty() {
         true => format!("Task: {title}\nTask folder: {task_dir}"),
         false => format!("Task: {title}\nTask folder: {task_dir}\nTracker issue: {tracker_url}"),
@@ -197,13 +199,11 @@ pub fn brief_for(title: &str, task_dir: &str, tracker_url: &str) -> String {
          \n\
          {task}\n\
          \n\
-         To request code deploy/review, check {REVIEW_REQUEST_BRIEF_FILE_NAME}\n\
-         \n\
-         To attach a document to this task (a PDF, a spreadsheet, etc.), check {ATTACHMENTS_BRIEF_FILE_NAME}\n\
-         \n\
-         To link this task to its issue in Linear, Jira, GitHub or GitLab, check {TRACKER_LINK_BRIEF_FILE_NAME}\n\
-         \n\
-         If you will change code, check {COORDINATION_BRIEF_FILE_NAME} first\n\
+         moon's docs for agents are in {docs_dir}/ - the same for every task of the board:\n\
+         - {REVIEW_REQUEST_BRIEF_FILE_NAME}: to request code deploy/review\n\
+         - {ATTACHMENTS_BRIEF_FILE_NAME}: to attach a document to this task (a PDF, a spreadsheet, etc.)\n\
+         - {TRACKER_LINK_BRIEF_FILE_NAME}: to link this task to its issue in Linear, Jira, GitHub or GitLab\n\
+         - {COORDINATION_BRIEF_FILE_NAME}: check it first if you will change code\n\
          \n\
          New card on this board: `{program} tasks new \"<title>\"`, which prints its folder.",
         program = crate::PROGRAM
@@ -215,7 +215,7 @@ pub fn brief_for(title: &str, task_dir: &str, tracker_url: &str) -> String {
 /// It has no card to be about, so it is told where the board is and how it is laid out on
 /// disk instead: the board is what it is most likely to be asked to work on, and a board is
 /// changed by changing those files. The person who opened the shell says the rest.
-pub fn board_task_brief_for(board_dir: &str, home_dir: &str) -> String {
+pub fn board_task_brief_for(board_dir: &str, home_dir: &str, docs_dir: &str) -> String {
     format!(
         "You were started from moon's moontasks board itself, not from one of its cards: \
          for work on the board, or for work no card is about.\n\
@@ -230,9 +230,9 @@ pub fn board_task_brief_for(board_dir: &str, home_dir: &str) -> String {
          \n\
          Your own folder, for whatever you want kept: {home_dir}\n\
          \n\
-         To request code deploy/review, check {REVIEW_REQUEST_BRIEF_FILE_NAME} in it\n\
-         \n\
-         If you will change code, check {COORDINATION_BRIEF_FILE_NAME} in it first",
+         moon's docs for agents are in {docs_dir}/, where \"the task folder\" is your own folder:\n\
+         - {REVIEW_REQUEST_BRIEF_FILE_NAME}: to request code deploy/review\n\
+         - {COORDINATION_BRIEF_FILE_NAME}: check it first if you will change code",
         program = crate::PROGRAM
     )
 }
@@ -248,16 +248,27 @@ pub const NOTES_FILE_NAME: &str = "notes.md";
 /// The file in a task's folder that lists the documents the task is about, one per line.
 pub const ATTACHMENTS_FILE_NAME: &str = "file_attachments.txt";
 
-/// What the format is written down in, in the task's folder beside the file it describes. The
-/// brief only points here, as it does for the review request, so the agents that never attach
-/// anything are not made to read it.
+/// The folder of the board that holds what moon has written down for the agents: one copy for
+/// the whole board, beside the tasks, rather than one in every task's folder. Every file in it
+/// is moon's and is written over each time an agent is started, so none of them drifts from
+/// the moon that started the agent.
+pub const AGENT_DOCS_DIR_NAME: &str = "llms";
+
+/// That folder as an agent started in the repo reads it: relative to the repo root.
+pub fn agent_docs_repo_path() -> String {
+    format!("{}/{AGENT_DOCS_DIR_NAME}", store::TASKS_DIR_NAME)
+}
+
+/// What the format is written down in, in the board's folder of agent docs. The brief only
+/// points here, as it does for the review request, so the agents that never attach anything
+/// are not made to read it.
 pub const ATTACHMENTS_BRIEF_FILE_NAME: &str = "attach_files.md";
 
 /// The whole of the attachments format, for an agent that has a document to attach.
 pub const ATTACHMENTS_BRIEF: &str = "\
 # Attaching a document
 
-List the document in `file_attachments.txt` in this task folder, one path per line, for
+List the document in `file_attachments.txt` in your task folder, one path per line, for
 example a PDF you made or a spreadsheet you were given:
 
 ```
@@ -265,7 +276,7 @@ report.pdf
 /Users/someone/Documents/figures.xlsx
 ```
 
-A relative path is from this task folder, so a file left in the folder is just its name.
+A relative path is from the task folder, so a file left in the folder is just its name.
 Anything else is an absolute path. Add a line, and leave the other lines alone: the file is
 also written by hand.
 
@@ -275,9 +286,13 @@ mark at the end of a file's row takes its line out of `file_attachments.txt`, an
 document where it is.
 ";
 
-/// What an agent is told about the other agents of the board, in the task's folder. The brief
+/// What an agent is told about the other agents of the board, in the folder of agent docs. The brief
 /// only points here, as it does for the review request, so the brief stays a few lines.
-pub const COORDINATION_BRIEF_FILE_NAME: &str = "Coordination.md";
+pub const COORDINATION_BRIEF_FILE_NAME: &str = "coordination.md";
+
+/// What that file was called while it was written into every task's folder, with a capital
+/// the other docs never had. Only for finding the copies still lying about.
+pub const COORDINATION_BRIEF_FILE_NAME_ONCE: &str = "Coordination.md";
 
 /// The whole of that file. What a line may be, how a handle is read and what is refused are
 /// kept out of it: an agent reads this on every task, and a post that goes wrong says why.
@@ -286,13 +301,13 @@ pub fn coordination_brief(wire_file: &str) -> String {
     format!(
         "If you will change code, read {wire_file} first, then post the areas you will touch: \
          `{post} \"<one line>\"`. Start it with @handle to message one agent instead. Work that \
-         changes no repo file needs neither.\n",
+         changes no repo file needs neither. Don't overshare info if no other work clashes with yours.\n",
         post = super::wire::post_command()
     )
 }
 
-/// What the task's tracker link is, and how an agent sets it, in the task's folder beside the
-/// file it describes. The brief only points here, as for the attachments.
+/// What the task's tracker link is, and how an agent sets it, in the folder of agent docs. The
+/// brief only points here, as for the attachments.
 pub const TRACKER_LINK_BRIEF_FILE_NAME: &str = "tracker_link.md";
 
 /// The whole of the tracker-link format. There is no `moon` command for it: the link is a field
@@ -303,7 +318,7 @@ pub const TRACKER_LINK_BRIEF: &str = "\
 A task can name its issue in a tracker kept elsewhere - Linear, Jira, GitHub or GitLab. The
 card shows the issue's id, and a click opens the link.
 
-The link is `remote_task_tracker_url` in `metadata.json` in this task folder. Set it to the
+The link is `remote_task_tracker_url` in `metadata.json` in your task folder. Set it to the
 issue's full web address, as a string:
 
 ```

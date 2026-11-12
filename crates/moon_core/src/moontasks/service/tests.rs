@@ -262,7 +262,12 @@ fn every_agent_that_speaks_mcp_is_given_the_boards_server() {
 /// know beyond the work itself.
 #[test]
 fn the_brief_names_the_task_and_its_folder() {
-    let brief = crate::moontasks::brief_for("Fix the login page", "/repo/.moontasks/task", "");
+    let brief = crate::moontasks::brief_for(
+        "Fix the login page",
+        "/repo/.moontasks/task",
+        "",
+        ".moontasks/llms",
+    );
 
     assert!(brief.contains("Fix the login page"));
     assert!(brief.contains("/repo/.moontasks/task"));
@@ -272,8 +277,11 @@ fn the_brief_names_the_task_and_its_folder() {
 /// board is and where its own folder is.
 #[test]
 fn the_board_tasks_brief_names_the_board_and_no_task() {
-    let brief =
-        crate::moontasks::board_task_brief_for("/repo/.moontasks", "/repo/.moontasks/board-1234");
+    let brief = crate::moontasks::board_task_brief_for(
+        "/repo/.moontasks",
+        "/repo/.moontasks/board-1234",
+        ".moontasks/llms",
+    );
 
     assert!(brief.contains("Board folder: /repo/.moontasks\n"));
     assert!(brief.contains("/repo/.moontasks/board-1234"));
@@ -284,7 +292,12 @@ fn the_board_tasks_brief_names_the_board_and_no_task() {
 /// carry it.
 #[test]
 fn the_brief_points_at_the_attachments_format_without_spelling_it_out() {
-    let brief = crate::moontasks::brief_for("Fix the login page", "/repo/.moontasks/task", "");
+    let brief = crate::moontasks::brief_for(
+        "Fix the login page",
+        "/repo/.moontasks/task",
+        "",
+        ".moontasks/llms",
+    );
 
     assert!(brief.contains(crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME));
     assert!(!brief.contains(crate::moontasks::ATTACHMENTS_FILE_NAME));
@@ -294,13 +307,24 @@ fn the_brief_points_at_the_attachments_format_without_spelling_it_out() {
 /// where, and the one sentence about it is in that file.
 #[test]
 fn the_brief_points_at_the_coordination_file_without_spelling_it_out() {
-    let brief = crate::moontasks::brief_for("Fix the login page", "/repo/.moontasks/task", "");
-    let board_brief =
-        crate::moontasks::board_task_brief_for("/repo/.moontasks", "/repo/.moontasks/board-task");
+    let brief = crate::moontasks::brief_for(
+        "Fix the login page",
+        "/repo/.moontasks/task",
+        "",
+        ".moontasks/llms",
+    );
+    let board_brief = crate::moontasks::board_task_brief_for(
+        "/repo/.moontasks",
+        "/repo/.moontasks/board-task",
+        ".moontasks/llms",
+    );
 
-    assert!(brief.contains("\n\nIf you will change code, check Coordination.md first\n\n"));
+    assert!(brief.contains("\n- coordination.md: check it first if you will change code\n"));
+    assert!(board_brief.ends_with("\n- coordination.md: check it first if you will change code"));
+    assert!(brief.contains("in .moontasks/llms/"), "got {brief}");
     assert!(
-        board_brief.ends_with("\n\nIf you will change code, check Coordination.md in it first")
+        board_brief.contains("in .moontasks/llms/"),
+        "got {board_brief}"
     );
     for brief in [brief, board_brief] {
         assert!(
@@ -328,10 +352,18 @@ fn the_coordination_file_is_conditional_on_changing_code() {
 #[test]
 fn the_brief_names_the_tracker_issue_when_the_task_has_one() {
     let issue = "https://linear.app/acme/issue/BM-3343/remote-tracker-link-field";
-    let with_issue =
-        crate::moontasks::brief_for("Fix the login page", "/repo/.moontasks/task", issue);
-    let without_issue =
-        crate::moontasks::brief_for("Fix the login page", "/repo/.moontasks/task", "");
+    let with_issue = crate::moontasks::brief_for(
+        "Fix the login page",
+        "/repo/.moontasks/task",
+        issue,
+        ".moontasks/llms",
+    );
+    let without_issue = crate::moontasks::brief_for(
+        "Fix the login page",
+        "/repo/.moontasks/task",
+        "",
+        ".moontasks/llms",
+    );
 
     assert!(
         with_issue.contains(&format!("Tracker issue: {issue}\n")),
@@ -371,8 +403,9 @@ fn temp_repo(name: &str) -> PathBuf {
     repo
 }
 
-/// Every file the brief points at is in the task's folder by the time an agent is started
-/// there, and the file the wire's broadcasts are kept in is in the board's.
+/// Every file the brief points at is in the board's folder of agent docs by the time an agent
+/// is started in a task - not in the task's own - and the file the wire's broadcasts are kept
+/// in is in the board's.
 #[test]
 fn a_task_started_in_is_given_the_files_its_brief_points_at() {
     let repo = temp_repo("card");
@@ -388,6 +421,7 @@ fn a_task_started_in_is_given_the_files_its_brief_points_at() {
     write_task_files(&task_id, &repo, &metadata).expect("expected the files to be written");
 
     let dir = store::task_dir(&repo, &task_id).expect("expected the task's folder");
+    let docs = repo.join(".moontasks/llms");
     let brief = std::fs::read_to_string(dir.join(crate::moontasks::BRIEF_FILE_NAME))
         .expect("expected the brief");
     for pointed_at in [
@@ -401,12 +435,17 @@ fn a_task_started_in_is_given_the_files_its_brief_points_at() {
             "the brief should name {pointed_at}"
         );
         assert!(
-            dir.join(pointed_at).is_file(),
-            "{pointed_at} should be there"
+            docs.join(pointed_at).is_file(),
+            "{pointed_at} should be in the board's docs"
+        );
+        assert!(
+            !dir.join(pointed_at).exists(),
+            "{pointed_at} should not be in the task's folder"
         );
     }
+    assert!(brief.contains("in .moontasks/llms/"), "got {brief}");
     assert_eq!(
-        std::fs::read_to_string(dir.join("Coordination.md")).expect("expected the file"),
+        std::fs::read_to_string(docs.join("coordination.md")).expect("expected the file"),
         crate::moontasks::coordination_brief(&crate::moontasks::wire_repo_path())
     );
     assert_eq!(
@@ -418,7 +457,7 @@ fn a_task_started_in_is_given_the_files_its_brief_points_at() {
 }
 
 /// A card whose tracker link is set starts its agent with that link in the brief, and the file
-/// that says how to change it is in the folder.
+/// that says how to change it is in the board's docs.
 #[test]
 fn a_task_with_a_tracker_issue_has_it_in_its_brief() {
     let repo = temp_repo("tracker");
@@ -443,14 +482,17 @@ fn a_task_with_a_tracker_issue_has_it_in_its_brief() {
         "got {brief}"
     );
     assert_eq!(
-        std::fs::read_to_string(dir.join(crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME))
-            .expect("expected the tracker file"),
+        std::fs::read_to_string(
+            repo.join(".moontasks/llms")
+                .join(crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME)
+        )
+        .expect("expected the tracker file"),
         crate::moontasks::TRACKER_LINK_BRIEF
     );
 }
 
-/// The board task's folder is given the same files, and starting an agent leaves what has
-/// been posted to the wire as it is.
+/// The board task is pointed at the same docs, and starting an agent leaves what has been
+/// posted to the wire as it is.
 #[test]
 fn the_board_task_is_given_the_same_files_and_the_wire_keeps_its_lines() {
     let repo = temp_repo("board-task");
@@ -465,13 +507,14 @@ fn the_board_task_is_given_the_same_files_and_the_wire_keeps_its_lines() {
 
     let dir = store::task_dir(&repo, store::BOARD_TASK_ID).expect("expected the folder");
     assert_eq!(
-        std::fs::read_to_string(dir.join("Coordination.md")).expect("expected the file"),
+        std::fs::read_to_string(repo.join(".moontasks/llms/coordination.md"))
+            .expect("expected the file"),
         crate::moontasks::coordination_brief(&crate::moontasks::wire_repo_path())
     );
     assert!(
         std::fs::read_to_string(dir.join(crate::moontasks::BRIEF_FILE_NAME))
             .expect("expected the brief")
-            .contains("check Coordination.md in it")
+            .contains("in .moontasks/llms/")
     );
     assert_eq!(
         std::fs::read_to_string(repo.join(".moontasks/messageboard.txt"))
@@ -801,5 +844,54 @@ fn a_run_is_resumed_in_the_work_tree_it_went_in_or_not_at_all() {
     assert!(
         error.to_string().contains(&work_tree.display().to_string()),
         "{error}"
+    );
+}
+
+/// The docs are moon's: one changed by hand, or left by an older moon, is written over when
+/// the next agent is started, and the copies an older moon left in the task's folder go.
+#[test]
+fn starting_a_task_writes_over_the_docs_and_takes_the_old_copies_out_of_the_task() {
+    let repo = temp_repo("docs-overwritten");
+    let task_id = store::create_task(
+        &repo,
+        "Fix the login page",
+        &ColumnId::new("todo"),
+        ColumnEnd::Top,
+    )
+    .expect("expected the task to be made");
+    let metadata = store::read_task(&repo, &task_id).expect("expected the task");
+    let dir = store::task_dir(&repo, &task_id).expect("expected the task's folder");
+    let docs = repo.join(".moontasks/llms");
+    std::fs::create_dir_all(&docs).expect("failed to make the docs folder");
+    std::fs::write(docs.join("request_review.md"), "drifted\n").expect("failed to write");
+    std::fs::write(dir.join("request_review.md"), "an older moon's\n").expect("failed to write");
+    std::fs::write(dir.join("scratch.md"), "the task's own\n").expect("failed to write");
+    std::fs::write(docs.join("Coordination.md"), "once named so\n").expect("failed to write");
+
+    write_task_files(&task_id, &repo, &metadata).expect("expected the files to be written");
+
+    assert_eq!(
+        std::fs::read_to_string(docs.join("request_review.md")).expect("expected the file"),
+        crate::moontasks::review_request::REVIEW_REQUEST_BRIEF
+    );
+    assert!(!dir.join("request_review.md").exists());
+    let doc_names: Vec<String> = std::fs::read_dir(&docs)
+        .expect("expected the docs folder")
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .collect();
+    assert!(
+        doc_names.contains(&"coordination.md".to_string()),
+        "got {doc_names:?}"
+    );
+    assert!(
+        !doc_names.contains(&"Coordination.md".to_string()),
+        "got {doc_names:?}"
+    );
+    assert!(dir.join("scratch.md").is_file());
+    assert!(
+        !store::list_task_ids(&repo)
+            .expect("expected the tasks")
+            .contains(&"llms".to_string()),
+        "the docs folder is not a card"
     );
 }

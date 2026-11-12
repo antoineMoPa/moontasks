@@ -13,7 +13,7 @@ use crate::{commit_suggestion::CommitSuggestion, moontasks::ReviewRequestView, m
 /// The file, in the task's folder beside `notes.md`.
 pub const REVIEW_REQUEST_FILE_NAME: &str = "request_for_review.txt";
 
-/// What the format is written down in, in the task's folder beside the file it describes.
+/// What the format is written down in, in the board's folder of agent docs.
 pub const REVIEW_REQUEST_BRIEF_FILE_NAME: &str = "request_review.md";
 
 /// The whole of the format, for an agent that has come to write the list.
@@ -24,7 +24,7 @@ pub const REVIEW_REQUEST_BRIEF_FILE_NAME: &str = "request_review.md";
 pub const REVIEW_REQUEST_BRIEF: &str = "\
 # Asking for a review
 
-Write the repos your work touched to `request_for_review.txt` in this task folder, one per line,
+Write the repos your work touched to `request_for_review.txt` in your task folder, one per line,
 in the order they have to be committed and deployed. The board draws a row per line - `pending
 turbocharger review` - and the commit pane of each repo offers the message you wrote for it.
 Keep a single review per repo and branch.

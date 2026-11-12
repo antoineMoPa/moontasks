@@ -191,16 +191,18 @@ The board is a folder in the repo, which is the whole of its state:
   .gitignore          # ignores the whole board, written when the board is created
   board.json          # the columns, once you have changed them
   messageboard.txt    # the wire: the latest lines the agents posted to each other
+  llms/               # moon's docs for the agents, one copy for the board, written over each time an agent starts
+    request_review.md        # how to write a task's request_for_review.txt, for an agent about to
+    attach_files.md          # how an agent attaches a document to its task
+    coordination.md          # what an agent that will change code is told about the wire
+    tracker_link.md          # how an agent sets a task's tracker link, in metadata.json
   board-task/         # the board's own task, on no column: what `board [start]` over the columns starts is a run of it
     metadata.json     # its agent runs
   fix-the-login-page-6f9c1e2a-…/
     metadata.json     # title, column, place in the column, tags, the agent runs and the linked files
     brief.md          # what the agents working here have been told
     notes.md          # the task's description and shared notes, shown on the card
-    request_review.md        # how to write the file below, for an agent about to
     request_for_review.txt   # the repos this work touched, in deploy order, once there are any
-    Coordination.md          # what an agent that will change code is told about the wire
-    tracker_link.md          # how an agent sets the task's tracker link, in metadata.json
     …                 # anything you or an agent puts here
 ```
 
@@ -314,9 +316,10 @@ someone is writing is worse than no title, so the first keystroke of yours in th
 the end of it.
 
 The brief also says where to write the deploy list - `request_for_review.txt`, above - in one
-line, pointing at `request_review.md`, which is written into the folder beside it and holds the
-format. When the task has a tracker link, the brief names its issue, and it points at
-`tracker_link.md` for how to set one: `remote_task_tracker_url` in `metadata.json`, which an
+line, pointing at `.moontasks/llms/request_review.md`, which holds the format. That folder is
+the board's one copy of moon's docs for the agents, written over each time an agent is started
+so it cannot drift from the moon that started it. When the task has a tracker link, the brief names its issue, and it points at
+`tracker_link.md` there for how to set one: `remote_task_tracker_url` in `metadata.json`, which an
 agent can write there as it can any file of the task. There is no `moon` command for it. It is a file rather than more of the brief because the brief is a system prompt on every
 run of every task, and the format is read once, by the agent that has work to hand over.
 

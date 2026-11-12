@@ -572,16 +572,20 @@ pub(super) fn write_task_files(
     metadata: &TaskMetadata,
 ) -> Result<Fillings> {
     let dir = store::task_dir(repo_path, task_id)?;
+    let docs_dir = overwrite_agent_docs(repo_path)?;
+    remove_agent_docs_once_kept_in_task(&dir);
 
     let brief = match metadata.status {
         Some(_) => crate::moontasks::brief_for(
             &metadata.title,
             &dir.display().to_string(),
             &metadata.remote_task_tracker_url,
+            &docs_dir,
         ),
         None => crate::moontasks::board_task_brief_for(
             &store::tasks_root(repo_path).display().to_string(),
             &dir.display().to_string(),
+            &docs_dir,
         ),
     };
     let brief_path = dir.join(crate::moontasks::BRIEF_FILE_NAME);
@@ -592,40 +596,6 @@ pub(super) fn write_task_files(
     // Only made, never rewritten - it is the task's own record, unlike the brief.
     store::ensure_notes_file(repo_path, task_id)?;
 
-    // The format the brief sends the agent to read, written beside it for the same reason and
-    // rewritten for the same reason: it is ours, not the task's, and a task started today should
-    // be reading today's.
-    let path = dir.join(crate::moontasks::REVIEW_REQUEST_BRIEF_FILE_NAME);
-    std::fs::write(
-        &path,
-        crate::moontasks::review_request::REVIEW_REQUEST_BRIEF,
-    )
-    .with_context(|| format!("failed to write {}", path.display()))?;
-
-    let path = dir.join(crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME);
-    std::fs::write(&path, crate::moontasks::ATTACHMENTS_BRIEF)
-        .with_context(|| format!("failed to write {}", path.display()))?;
-
-    let path = dir.join(crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME);
-    std::fs::write(&path, crate::moontasks::TRACKER_LINK_BRIEF)
-        .with_context(|| format!("failed to write {}", path.display()))?;
-
-    // The wire's file is named from the repo, which is where an agent is started - except
-    // where people share the board, and an agent may be in a work tree that has no such
-    // file: there it is named in full.
-    let wire_file = match store::people_share_the_board() {
-        true => crate::moontasks::wire::broadcasts::file_path(repo_path)
-            .display()
-            .to_string(),
-        false => crate::moontasks::wire_repo_path(),
-    };
-    let path = dir.join(crate::moontasks::COORDINATION_BRIEF_FILE_NAME);
-    std::fs::write(&path, crate::moontasks::coordination_brief(&wire_file))
-        .with_context(|| format!("failed to write {}", path.display()))?;
-    // That file sends the agent to read the wire's, so by then it is there - empty, on a
-    // board nobody has posted to yet. Only made: what is in it is the agents'.
-    store::ensure_wire_file(repo_path)?;
-
     Ok(Fillings {
         values: vec![
             ("{brief}", brief),
@@ -633,4 +603,80 @@ pub(super) fn write_task_files(
             ("{moon_quoted}", quote_this_moon()?),
         ],
     })
+}
+
+/// The docs every brief points at, in the board's folder of them.
+const AGENT_DOC_FILE_NAMES: &[&str] = &[
+    crate::moontasks::REVIEW_REQUEST_BRIEF_FILE_NAME,
+    crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME,
+    crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME,
+    crate::moontasks::COORDINATION_BRIEF_FILE_NAME,
+];
+
+/// Write the docs the brief sends an agent to read into the board's one folder of them, over
+/// whatever is there, and answer with that folder as the agent is to read it.
+///
+/// They are written on every start rather than once: they are moon's, not the board's, and an
+/// agent started today should be reading today's - whichever moon wrote them last, and whatever
+/// has been done to them by hand since.
+fn overwrite_agent_docs(repo_path: &Path) -> Result<String> {
+    let dir = store::tasks_root(repo_path).join(crate::moontasks::AGENT_DOCS_DIR_NAME);
+    std::fs::create_dir_all(&dir).with_context(|| format!("failed to make {}", dir.display()))?;
+
+    // The folder and the wire's file are named from the repo, which is where an agent is
+    // started - except where people share the board, and an agent may be in a work tree that
+    // has neither: there they are named in full.
+    let (docs_dir, wire_file) = match store::people_share_the_board() {
+        true => (
+            dir.display().to_string(),
+            crate::moontasks::wire::broadcasts::file_path(repo_path)
+                .display()
+                .to_string(),
+        ),
+        false => (
+            crate::moontasks::agent_docs_repo_path(),
+            crate::moontasks::wire_repo_path(),
+        ),
+    };
+    let docs = [
+        (
+            crate::moontasks::REVIEW_REQUEST_BRIEF_FILE_NAME,
+            crate::moontasks::review_request::REVIEW_REQUEST_BRIEF.to_string(),
+        ),
+        (
+            crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME,
+            crate::moontasks::ATTACHMENTS_BRIEF.to_string(),
+        ),
+        (
+            crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME,
+            crate::moontasks::TRACKER_LINK_BRIEF.to_string(),
+        ),
+        (
+            crate::moontasks::COORDINATION_BRIEF_FILE_NAME,
+            crate::moontasks::coordination_brief(&wire_file),
+        ),
+    ];
+    // The coordination doc under the name it once had: on a disk that tells the two names
+    // apart it would be left beside the new one, and on one that does not, writing the new
+    // name into it would keep the old spelling.
+    let _ = std::fs::remove_file(dir.join(crate::moontasks::COORDINATION_BRIEF_FILE_NAME_ONCE));
+    for (name, text) in docs {
+        let path = dir.join(name);
+        std::fs::write(&path, text)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+    }
+    // The coordination doc sends the agent to read the wire's file, so by then it is there -
+    // empty, on a board nobody has posted to yet. Only made: what is in it is the agents'.
+    store::ensure_wire_file(repo_path)?;
+    Ok(docs_dir)
+}
+
+/// Take out of a task's folder the copies of the docs that moon used to write there, one set
+/// per task. They were moon's and rewritten on every start, so nothing of the task's is lost,
+/// and left there they would be read in place of the board's.
+fn remove_agent_docs_once_kept_in_task(task_dir: &Path) {
+    let once = [crate::moontasks::COORDINATION_BRIEF_FILE_NAME_ONCE];
+    for name in AGENT_DOC_FILE_NAMES.iter().chain(&once) {
+        let _ = std::fs::remove_file(task_dir.join(name));
+    }
 }

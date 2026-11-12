@@ -56,7 +56,7 @@ task with a folder of its own. This server's tools read and change it.
 - **"What should I work on?"** `tasks_list`, then `task_read` the top card of the first column.
 - **Starting a task**: `task_update` with `column: "IN PROGRESS"`, `wire_read`, `wire_post`.
 - **Progress**: `task_update` with `append_notes`.
-- **Finishing**: write the review request (see `request_review.md` in the task's folder),
+- **Finishing**: write the review request (see `.moontasks/llms/request_review.md`),
   `wire_post` that it is done, and move the card only if asked to.
 - **Delegating**: `task_create`, `agent_start`, `agent_tell` the brief, then `agent_view`
   with `lines` to check on it.
