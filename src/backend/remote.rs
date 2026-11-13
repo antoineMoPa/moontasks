@@ -7,19 +7,19 @@ mod addresses;
 mod running;
 // The same methods either way: blocking reqwest and tungstenite in a program of its own, and
 // the browser's own requests and sockets in the build for the browser.
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod rounds;
 #[cfg(not(target_arch = "wasm32"))]
 mod transport;
 #[cfg(target_arch = "wasm32")]
 #[path = "remote/transport_web.rs"]
 mod transport;
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod rounds;
 
 // The server spells repo paths into the addresses it redirects to the same way.
 pub(crate) use addresses::urlencode;
+use addresses::websocket_url;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use transport::PASS_KEY_ENV_VAR;
-use addresses::websocket_url;
 
 use std::path::Path;
 
@@ -28,19 +28,19 @@ use serde_json::json;
 
 use crate::{
     api::{
-        AgentKind, AgentLogPayload, BlameOf, BlamePayload, CommentRequest, RunningAgent, CommitHistoryPayload,
+        AgentKind, AgentLogPayload, BlameOf, BlamePayload, CommentRequest, CommitHistoryPayload,
         ContentMatch, FileContentPayload, LspCompletion, LspCompletionsPayload, LspDocumentRequest,
         LspLocation, LspLocationsPayload, LspPosition, LspPositionRequest, LspStatus,
         LspStatusPayload, LspTriggersPayload, LspWork, LspWorkPayload, OpenSessionRequest,
-        PatchPayload, SearchScope, SessionOpened, SessionPayload, SubmoduleHubPayload,
-        TerminalNameRequest, TerminalView,
+        PatchPayload, RunningAgent, SearchScope, SessionOpened, SessionPayload,
+        SubmoduleHubPayload, TerminalNameRequest, TerminalView,
     },
     backend::{Backend, SearchListener},
     moontasks::{
         AttachResourceRequest, BoardColumn, BoardTaskView, ColumnId, ColumnLabelRequest,
         ColumnPlacementRequest, CreateTaskRequest, LinkFileRequest, NewColumnRequest,
         ReviewRequestView, StartResourceRequest, TaskNotesPayload, TaskPlacementRequest, TaskView,
-        TerminalOpened, WirePayload, WorkLogPayload, review_request::Amend,
+        TerminalOpened, WirePayload, WorkLogPayload,
     },
     palette_history::{HistoryEntry, HistoryRecord},
     project::{ProjectConfig, ProjectRunRequest},
@@ -155,7 +155,10 @@ impl Backend for RemoteBackend {
         session_id: &str,
         request: &crate::api::encrypted_files::WriteEncryptedFileRequest,
     ) -> Result<()> {
-        self.post(&format!("/api/session/{session_id}/file/encrypted"), request)
+        self.post(
+            &format!("/api/session/{session_id}/file/encrypted"),
+            request,
+        )
     }
 
     fn list_folder(&self, folder: &str) -> Result<crate::api::folders::FolderListing> {
@@ -478,17 +481,22 @@ impl Backend for RemoteBackend {
         self.get(&format!("/api/session/{session_id}/review-requests"))
     }
 
-    fn amend_review_request(
+    fn move_review(
         &self,
         session_id: &str,
-        task_id: &str,
-        index: usize,
-        amend: Amend,
+        review_id: &str,
+        to_status: Option<&str>,
     ) -> Result<()> {
         self.post(
-            &format!("/api/session/{session_id}/tasks/{task_id}/review-requests/{index}"),
-            &amend,
+            &format!("/api/session/{session_id}/reviews/{review_id}/move"),
+            &crate::moontasks::reviews::MoveReviewRequest {
+                to_status: to_status.map(str::to_string),
+            },
         )
+    }
+
+    fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>> {
+        self.get(&format!("/api/session/{session_id}/review-statuses"))
     }
 
     fn settings(&self) -> Result<Settings> {
@@ -574,8 +582,10 @@ impl Backend for RemoteBackend {
     }
 
     fn open_work_log(&self, session_id: &str) -> Result<String> {
-        let work_log: WorkLogPayload =
-            self.post_json(&format!("/api/session/{session_id}/work-log/open"), &json!({}))?;
+        let work_log: WorkLogPayload = self.post_json(
+            &format!("/api/session/{session_id}/work-log/open"),
+            &json!({}),
+        )?;
         Ok(work_log.file_path)
     }
 

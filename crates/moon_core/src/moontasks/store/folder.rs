@@ -153,6 +153,10 @@ pub struct TaskResource {
     /// card says so beside the run. `None` for a run somebody started.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_by_hook: Option<String>,
+    /// The review file a review status's hook started the run for, by its id: the run is shown
+    /// on that review's card in the lane rather than on the task's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub for_review: Option<String>,
 }
 
 /// The person a run belongs to: the card shows their GitHub login, and the run is resumed as
@@ -394,6 +398,7 @@ fn ensure_tasks_root(repo_path: &Path) -> Result<PathBuf> {
     let ignore = root.join(".gitignore");
     fs::write(&ignore, TASKS_GITIGNORE)
         .with_context(|| format!("failed to write {}", ignore.display()))?;
+    crate::moontasks::reviews::make_review_status_folders(repo_path)?;
     Ok(root)
 }
 

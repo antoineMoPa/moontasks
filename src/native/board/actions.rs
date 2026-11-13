@@ -113,14 +113,20 @@ pub(crate) enum BoardAction {
     },
     /// Open the review of what the task has changed.
     OpenReview(String, String),
+    /// Bring the review lane's tab in front, showing this task's reviews alone.
+    ShowReviewsOf(String),
+    /// Open a review file's repo: at the commit it names, or its working tree.
+    OpenReviewOf(crate::moontasks::ReviewRequestView),
     /// Open every repo the task still has pending reviews in, as one diff.
-    OpenTaskReview { task_id: String, title: String },
-    /// Change one line of a task's `request_for_review.txt`: take it out, or cross it off. The
-    /// file is the list, so both are written to it rather than kept beside it.
-    AmendReviewRequest {
+    OpenTaskReview {
         task_id: String,
-        index: usize,
-        amend: crate::moontasks::review_request::Amend,
+        title: String,
+    },
+    /// Move a review file to another status, or take it away with `None` - see
+    /// [`super::review_lane`].
+    MoveReview {
+        review_id: String,
+        to_status: Option<String>,
     },
     /// Write what has been typed into a task's notes on its own pane.
     SaveNotes {
@@ -523,9 +529,11 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
             app.model.board.opened_visualization = Some(fragment_path)
         }
         BoardAction::RemoveAttachment { task_id, listed } => {
-            act(app, "could not take the file off the task", move |backend| {
-                backend.remove_task_attachment(&session_id, &task_id, &listed)
-            });
+            act(
+                app,
+                "could not take the file off the task",
+                move |backend| backend.remove_task_attachment(&session_id, &task_id, &listed),
+            );
         }
         BoardAction::AddColumn { label, at } => {
             // The box closes on the way out: the column it was standing in for is on its way.
@@ -576,10 +584,14 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
             );
         }
         BoardAction::OpenScheduleEditor => {
-            let under = app.model.board.board_start_at.unwrap_or(egui::Rect::from_min_size(
-                egui::pos2(24.0, 80.0),
-                egui::vec2(40.0, 16.0),
-            ));
+            let under = app
+                .model
+                .board
+                .board_start_at
+                .unwrap_or(egui::Rect::from_min_size(
+                    egui::pos2(24.0, 80.0),
+                    egui::vec2(40.0, 16.0),
+                ));
             super::hook_editor::open_hook_editor(
                 app,
                 super::hook_editor::HookEditorTarget::Schedule(None),
@@ -656,26 +668,22 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 title,
             }));
         }
-        BoardAction::AmendReviewRequest {
-            task_id,
-            index,
-            amend,
+        BoardAction::MoveReview {
+            review_id,
+            to_status,
         } => {
             let session_id = app.model.root_session_id.clone();
-            // The rows show the change now, and the server's file gets it behind them, the
-            // way the requests are read. Waiting for the file and the next read of it would leave
-            // the row up for a tick and the git it takes to tell how each row stands, which
-            // is long enough for a dismiss to look ignored - see `App::poll_review_requests`.
-            crate::moontasks::review_request::amend_views(
+            // Moved on the rows at once, the way a line crossed off is - see
+            // `App::poll_review_requests`.
+            move_review_in_rows(
                 &mut app.model.review_requests,
-                &task_id,
-                index,
-                amend,
+                &review_id,
+                to_status.as_deref(),
             );
             app.model.review_request_amendments += 1;
             app.tasks.spawn(
-                move |backend| backend.amend_review_request(&session_id, &task_id, index, amend),
-                |model, result| model.report(result, "could not change the review request"),
+                move |backend| backend.move_review(&session_id, &review_id, to_status.as_deref()),
+                |model, result| model.report(result, "could not move the review"),
             );
         }
         BoardAction::OpenTaskReview { task_id, title } => {
@@ -684,11 +692,45 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 title,
             }));
         }
+        BoardAction::ShowReviewsOf(task_id) => {
+            app.model.board.review_focus = Some(task_id);
+            app.pending_action = Some(CommandAction::OpenPane(OpenPaneRequest::Reviews));
+        }
+        BoardAction::OpenReviewOf(request) => {
+            let commit = request.file.commit.clone();
+            let title = match &commit {
+                Some(commit) => format!("{} @{}", request.name, &commit[..commit.len().min(7)]),
+                None => request.name.clone(),
+            };
+            app.pending_action = Some(CommandAction::OpenPane(OpenPaneRequest::ReviewRepo {
+                repo_path: request.repo_path.clone(),
+                title,
+                commit,
+            }));
+        }
         BoardAction::OpenReview(repo_path, title) => {
             app.pending_action = Some(CommandAction::OpenPane(OpenPaneRequest::ReviewRepo {
                 repo_path,
                 title,
+                commit: None,
             }));
+        }
+    }
+}
+
+/// The rows as the move will leave them: the review in its new status, or gone.
+fn move_review_in_rows(
+    requests: &mut Vec<crate::moontasks::ReviewRequestView>,
+    review_id: &str,
+    to_status: Option<&str>,
+) {
+    let is_it = |request: &crate::moontasks::ReviewRequestView| request.file.id == review_id;
+    match to_status {
+        None => requests.retain(|request| !is_it(request)),
+        Some(status) => {
+            for request in requests.iter_mut().filter(|request| is_it(request)) {
+                request.file.status = status.to_string();
+            }
         }
     }
 }

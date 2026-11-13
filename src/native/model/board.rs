@@ -47,6 +47,12 @@ pub(crate) struct BoardState {
     /// Set when something changed the board, so the next frame refetches rather than waiting
     /// out the poll interval.
     pub(crate) refresh_requested: bool,
+    /// Whether this launch has made sure a board restored from the last one has its review
+    /// lane - see [`crate::native::board::open_the_review_lane_under_a_restored_board`].
+    pub(crate) review_lane_offered: bool,
+    /// The task the reviews tab shows the reviews of alone, after a pending review on its card
+    /// was clicked - see [`crate::native::board::review_lane`]. `None` shows every task's.
+    pub(crate) review_focus: Option<String>,
     /// The task whose delete button has been pressed once, so a stray click cannot throw a
     /// task's folder away.
     pub(crate) pending_delete: Option<String>,

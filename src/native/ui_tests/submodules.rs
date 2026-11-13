@@ -366,6 +366,23 @@ fn the_submodule_hub_marks_an_unpushed_submodule_and_opens_a_shell_in_it() {
     );
 }
 
+/// Write the task's two reviews: the submodule first, then the root that takes it forward - the
+/// order they are to be committed in.
+fn ask_for_the_submodule_and_the_root_to_be_reviewed(fixture: &super::Fixture) {
+    fixture.write_review_file(
+        "requested",
+        "dirty-fix-the-submodule",
+        "task: deploy-the-thing-1111\nrepo: crates/dirty\norder: 1\n",
+        "fix: the submodule\n",
+    );
+    fixture.write_review_file(
+        "requested",
+        "root-take-the-module-forward",
+        "task: deploy-the-thing-1111\nrepo: .\norder: 2\n",
+        "chore: take the module forward\n",
+    );
+}
+
 /// A task that changed several repos offers them as one diff: a row over its pending reviews
 /// opens a pane with every repo's hunks one under the other, so nothing has to be clicked
 /// through a repo at a time.
@@ -378,10 +395,7 @@ fn a_task_with_several_pending_reviews_opens_them_as_one_diff() {
         "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
          \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
     );
-    fixture.write(
-        ".moontasks/deploy-the-thing-1111/request_for_review.txt",
-        "crates/dirty/ // fix: the submodule\n. // chore: take the module forward\n",
-    );
+    ask_for_the_submodule_and_the_root_to_be_reviewed(&fixture);
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     let opened = Arc::new(AtomicBool::new(false));
@@ -404,12 +418,10 @@ fn a_task_with_several_pending_reviews_opens_them_as_one_diff() {
                 .map(|pane| pane.kind());
         });
 
-    let row = "review all 2 repos";
     assert!(
-        wait_for_labels(&mut harness, &[row]),
-        "the card should offer every pending review at once"
+        review_all_from_the_card(&mut harness),
+        "the card's reviews row should offer every pending review at once"
     );
-    harness.get_by_label(row).click();
     assert!(
         super::settle(&mut harness, || *in_front.lock().expect("poisoned")
             == Some(crate::native::panes::PaneKind::TaskReview)),
@@ -445,10 +457,7 @@ fn a_repo_of_the_combined_review_is_committed_under_its_diff() {
         "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
          \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
     );
-    fixture.write(
-        ".moontasks/deploy-the-thing-1111/request_for_review.txt",
-        "crates/dirty/ // fix: the submodule\n. // chore: take the module forward\n",
-    );
+    ask_for_the_submodule_and_the_root_to_be_reviewed(&fixture);
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     let opened = Arc::new(AtomicBool::new(false));
@@ -465,16 +474,15 @@ fn a_repo_of_the_combined_review_is_committed_under_its_diff() {
             app.draw(ui);
         });
     assert!(
-        wait_for_labels(&mut harness, &["review all 2 repos"]),
-        "the card should offer every pending review at once"
+        review_all_from_the_card(&mut harness),
+        "the card's reviews row should offer every pending review at once"
     );
-    harness.get_by_label("review all 2 repos").click();
     assert!(
         wait_for_labels(&mut harness, &["fix: the submodule", "1 staged"]),
         "the submodule's commit row should carry its task's message and what is staged"
     );
 
-    // Act: the first commit row is the submodule's, the first line of the request.
+    // Act: the first commit row is the submodule's, the first review in the deploy order.
     harness
         .query_all_by_label("commit")
         .next()
@@ -493,7 +501,9 @@ fn a_repo_of_the_combined_review_is_committed_under_its_diff() {
     }
     assert!(
         committed(),
-        "the submodule should have been committed with its task's message"
+        "the submodule should have been committed with its task's message, its last commit is \
+         {:?}",
+        crate::git::run_git(&submodule, &["log", "-1", "--format=%s"])
     );
     assert!(
         wait_for_labels(&mut harness, &["push"]),
@@ -513,10 +523,7 @@ fn find_over_the_combined_review_steps_from_one_repo_into_the_next() {
         "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
          \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
     );
-    fixture.write(
-        ".moontasks/deploy-the-thing-1111/request_for_review.txt",
-        "crates/dirty/ // fix: the submodule\n. // chore: take the module forward\n",
-    );
+    ask_for_the_submodule_and_the_root_to_be_reviewed(&fixture);
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     let opened = Arc::new(AtomicBool::new(false));
@@ -549,10 +556,9 @@ fn find_over_the_combined_review_steps_from_one_repo_into_the_next() {
             *seen_in_ui.lock().expect("poisoned") = (total, holding);
         });
     assert!(
-        wait_for_labels(&mut harness, &["review all 2 repos"]),
-        "the card should offer every pending review at once"
+        review_all_from_the_card(&mut harness),
+        "the card's reviews row should offer every pending review at once"
     );
-    harness.get_by_label("review all 2 repos").click();
     assert!(
         wait_for_labels(&mut harness, &["new.rs", "src/extra.rs"]),
         "the combined review should show the changes of both repos"
@@ -573,7 +579,11 @@ fn find_over_the_combined_review_steps_from_one_repo_into_the_next() {
         total >= 3,
         "the submodule's match and the root's should all be counted, got {total}"
     );
-    assert_eq!(holding.len(), 1, "one repo holds the current match: {holding:?}");
+    assert_eq!(
+        holding.len(),
+        1,
+        "one repo holds the current match: {holding:?}"
+    );
     assert!(
         holding[0].ends_with("crates/dirty"),
         "the first match is the submodule's: {holding:?}"
@@ -581,7 +591,11 @@ fn find_over_the_combined_review_steps_from_one_repo_into_the_next() {
 
     super::press_key(&mut harness, egui::Key::Enter, egui::Modifiers::NONE);
     let (_, holding) = seen.lock().expect("poisoned").clone();
-    assert_eq!(holding.len(), 1, "one repo holds the current match: {holding:?}");
+    assert_eq!(
+        holding.len(),
+        1,
+        "one repo holds the current match: {holding:?}"
+    );
     assert!(
         !holding[0].ends_with("crates/dirty"),
         "Enter should have stepped into the root's diff: {holding:?}"
@@ -589,6 +603,20 @@ fn find_over_the_combined_review_steps_from_one_repo_into_the_next() {
 }
 
 /// Step the window until every one of `labels` is on screen, for up to the time `settle` gives.
+/// Open the combined review from a card's one row for its reviews: its menu offers every repo
+/// with work to commit as one diff.
+fn review_all_from_the_card(harness: &mut Harness<'_>) -> bool {
+    if !wait_for_labels(harness, &["2 reviews"]) {
+        return false;
+    }
+    harness.get_by_label("2 reviews").click_secondary();
+    if !wait_for_labels(harness, &["review all 2 repos"]) {
+        return false;
+    }
+    harness.get_by_label("review all 2 repos").click();
+    true
+}
+
 fn wait_for_labels(harness: &mut Harness<'_>, labels: &[&str]) -> bool {
     let deadline = Instant::now() + Duration::from_secs(20);
     while Instant::now() < deadline {

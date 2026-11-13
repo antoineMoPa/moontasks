@@ -18,7 +18,6 @@ use crate::{
         CreateTaskRequest, LinkFileRequest, NewColumnRequest, ReviewRequestView,
         StartResourceRequest, TaskNotesPayload, TaskPlacementRequest, TaskRemoteTrackerRequest,
         TaskTagsRequest, TaskTitleRequest, TaskView, TerminalOpened, WirePayload, WorkLogPayload,
-        review_request::Amend,
         store::{BoardColumn, ColumnId},
     },
 };
@@ -113,17 +112,27 @@ pub(super) async fn list_review_requests(
     Ok(Json(requests))
 }
 
-pub(super) async fn amend_review_request(
-    AxumPath((session_id, task_id, index)): AxumPath<(String, String, usize)>,
+pub(super) async fn move_review(
+    AxumPath((session_id, review_id)): AxumPath<(String, String)>,
     State(state): State<AppState>,
-    Json(amend): Json<Amend>,
+    Json(request): Json<moontasks::reviews::MoveReviewRequest>,
 ) -> Result<&'static str, AppError> {
     mark_activity(&state);
     session_work(state, session_id, move |state, session_id| {
-        moontasks::service::amend_review_request(state, session_id, &task_id, index, amend)
+        moontasks::service::move_review(state, session_id, &review_id, request.to_status.as_deref())
     })
     .await?;
     Ok("ok")
+}
+
+pub(super) async fn list_review_statuses(
+    AxumPath(session_id): AxumPath<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<String>>, AppError> {
+    mark_activity(&state);
+    let statuses =
+        core_session_work(state, session_id, moontasks::service::list_review_statuses).await?;
+    Ok(Json(statuses))
 }
 
 pub(super) async fn settings(State(state): State<AppState>) -> Json<crate::settings::Settings> {
@@ -371,7 +380,8 @@ pub(super) async fn list_agent_sessions(
 ) -> Result<Json<Vec<crate::agent_sessions::AgentSessionView>>, AppError> {
     mark_activity(&state);
     // The sessions are the ones the person's own agents keep, in the person's own home.
-    let sessions = core_session_work(state, session_id, crate::agent_sessions::list_for_session).await?;
+    let sessions =
+        core_session_work(state, session_id, crate::agent_sessions::list_for_session).await?;
     Ok(Json(sessions))
 }
 

@@ -6,8 +6,8 @@ use anyhow::{Result, bail};
 use super::{
     BoardHooks, RemoveHookRequest, SaveHookRequest,
     files::{
-        column_hook_path, read_board_hooks, remove_file, schedule_path, write_column_hook,
-        write_schedule,
+        column_hook_path, read_board_hooks, remove_file, review_hook_path, schedule_path,
+        write_column_hook, write_review_hook, write_schedule,
     },
     runner::claim_today_if_already_past,
 };
@@ -32,6 +32,7 @@ pub fn save_hook(state: &AppState, session_id: &str, request: SaveHookRequest) -
             }
             write_column_hook(&repo_path, &hook)
         }
+        SaveHookRequest::Review { hook } => write_review_hook(&repo_path, &hook),
         SaveHookRequest::Schedule {
             mut schedule,
             renamed_from,
@@ -66,5 +67,8 @@ pub fn remove_hook(state: &AppState, session_id: &str, request: RemoveHookReques
             remove_file(&column_hook_path(&repo_path, &column)?)
         }
         RemoveHookRequest::Schedule { name } => remove_file(&schedule_path(&repo_path, &name)?),
+        RemoveHookRequest::Review { status } => {
+            remove_file(&review_hook_path(&repo_path, &status)?)
+        }
     }
 }

@@ -20,8 +20,9 @@ use std::{
 use anyhow::{Context, Result, anyhow, bail};
 
 use super::{
-    BoardHooks, COLUMN_HOOKS_DIR_NAME, ColumnHook, HOOKS_DIR_NAME, SCHEDULES_DIR_NAME, Schedule,
-    ScheduleEvery, TimeOfDay, start_from_word, start_word,
+    BoardHooks, COLUMN_HOOKS_DIR_NAME, ColumnHook, HOOKS_DIR_NAME, REVIEW_HOOKS_DIR_NAME,
+    ReviewHook, SCHEDULES_DIR_NAME, Schedule, ScheduleEvery, TimeOfDay, start_from_word,
+    start_word,
 };
 use crate::moontasks::{ColumnId, store};
 
@@ -38,6 +39,15 @@ fn column_hooks_dir(repo_path: &Path) -> PathBuf {
 
 fn schedules_dir(repo_path: &Path) -> PathBuf {
     hooks_dir(repo_path).join(SCHEDULES_DIR_NAME)
+}
+
+fn review_hooks_dir(repo_path: &Path) -> PathBuf {
+    hooks_dir(repo_path).join(REVIEW_HOOKS_DIR_NAME)
+}
+
+pub(super) fn review_hook_path(repo_path: &Path, status: &str) -> Result<PathBuf> {
+    ensure_plain_file_name(status)?;
+    Ok(review_hooks_dir(repo_path).join(format!("{status}.md")))
 }
 
 pub(super) fn column_hook_path(repo_path: &Path, column: &ColumnId) -> Result<PathBuf> {
@@ -71,6 +81,12 @@ pub(super) fn read_board_hooks(repo_path: &Path) -> BoardHooks {
     for (stem, path) in markdown_files_in(&schedules_dir(repo_path)) {
         match read_to_string(&path).and_then(|text| parse_schedule(&stem, &text)) {
             Ok(schedule) => hooks.schedules.push(schedule),
+            Err(error) => hooks.unreadable.push(unreadable_line(&path, &error)),
+        }
+    }
+    for (status, path) in markdown_files_in(&review_hooks_dir(repo_path)) {
+        match read_to_string(&path).and_then(|text| parse_review_hook(&status, &text)) {
+            Ok(hook) => hooks.reviews.push(hook),
             Err(error) => hooks.unreadable.push(unreadable_line(&path, &error)),
         }
     }
@@ -116,12 +132,25 @@ pub(super) fn board_has_column_hooks(repo_path: &Path) -> bool {
     !markdown_files_in(&column_hooks_dir(repo_path)).is_empty()
 }
 
+pub(super) fn board_has_review_hooks(repo_path: &Path) -> bool {
+    !markdown_files_in(&review_hooks_dir(repo_path)).is_empty()
+}
+
 pub(super) fn board_has_schedules(repo_path: &Path) -> bool {
     !markdown_files_in(&schedules_dir(repo_path)).is_empty()
 }
 
 pub(super) fn write_column_hook(repo_path: &Path, hook: &ColumnHook) -> Result<()> {
     let path = column_hook_path(repo_path, &hook.column)?;
+    write_file(
+        &path,
+        &[("start", start_word(hook.start).to_string())],
+        &hook.prompt,
+    )
+}
+
+pub(super) fn write_review_hook(repo_path: &Path, hook: &ReviewHook) -> Result<()> {
+    let path = review_hook_path(repo_path, &hook.status)?;
     write_file(
         &path,
         &[("start", start_word(hook.start).to_string())],
@@ -179,6 +208,17 @@ pub(super) fn parse_column_hook(column: &ColumnId, text: &str) -> Result<ColumnH
     })
 }
 
+pub(super) fn parse_review_hook(status: &str, text: &str) -> Result<ReviewHook> {
+    let (mut keys, prompt) = split_front_matter(text)?;
+    let start = take_start(&mut keys)?;
+    refuse_leftover_keys(keys)?;
+    Ok(ReviewHook {
+        status: status.to_string(),
+        start,
+        prompt,
+    })
+}
+
 pub(super) fn parse_schedule(name: &str, text: &str) -> Result<Schedule> {
     let (mut keys, prompt) = split_front_matter(text)?;
     let every = keys.remove("every").unwrap_or_else(|| "day".to_string());
@@ -223,7 +263,7 @@ fn refuse_leftover_keys(keys: BTreeMap<String, String>) -> Result<()> {
 
 /// The keys between the fences, and the prompt after them. A file with no fences is all
 /// prompt, with every key left to its default.
-fn split_front_matter(text: &str) -> Result<(BTreeMap<String, String>, String)> {
+pub(crate) fn split_front_matter(text: &str) -> Result<(BTreeMap<String, String>, String)> {
     let mut lines = text.lines();
     let first = lines.clone().next().map(str::trim);
     if first != Some(FENCE) {

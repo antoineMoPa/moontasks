@@ -577,6 +577,7 @@ pub(crate) fn commands_for(app: &App) -> Vec<Command> {
             action: CommandAction::OpenPane(OpenPaneRequest::ReviewRepo {
                 repo_path: submodule.repo_path.clone(),
                 title: submodule.name.clone(),
+                commit: None,
             }),
             shortcut: None,
         });

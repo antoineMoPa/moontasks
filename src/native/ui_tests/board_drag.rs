@@ -13,8 +13,8 @@ use egui_kittest::Harness;
 use crate::native::theme::ThemeMode;
 
 use super::{
-    app_for, board_of, click_like_a_hand, drag_from_to, drag_like_a_hand, drag_like_a_hand_holding, notes_of,
-    press_modifiers, seeded_fixture, settle, title_of,
+    app_for, board_of, click_like_a_hand, drag_from_to, drag_like_a_hand, drag_like_a_hand_holding,
+    notes_of, press_modifiers, seeded_fixture, settle, title_of,
 };
 
 /// Dragging a card is how a column is put in order, so where it is let go of has to be where
@@ -612,7 +612,9 @@ fn a_card_passed_quickly_over_another_does_not_become_its_sub_task() {
     drag_like_a_hand_holding(&mut harness, from, onto, egui::Modifiers::NONE, 0);
     harness.run_steps(12);
     assert_eq!(
-        seen.lock().expect("poisoned").parent_of("drop-the-old-api-3333"),
+        seen.lock()
+            .expect("poisoned")
+            .parent_of("drop-the-old-api-3333"),
         None,
         "no parent without the pause"
     );

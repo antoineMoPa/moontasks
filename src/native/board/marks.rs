@@ -20,19 +20,6 @@ pub(crate) enum Activity {
     Ended,
 }
 
-/// Whether a resource is still going: a filled dot for running, a hollow one for ended.
-pub(super) fn running_dot(ui: &mut Ui, running: bool, palette: &Palette) {
-    activity_dot(
-        ui,
-        if running {
-            Activity::Running
-        } else {
-            Activity::Ended
-        },
-        palette,
-    );
-}
-
 /// The same dot, with the third state a run can be in - see [`Activity`].
 ///
 /// Drawn rather than typeset, because the bundled fonts have no circle glyph - the system

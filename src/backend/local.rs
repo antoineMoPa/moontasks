@@ -7,21 +7,21 @@ use anyhow::Result;
 
 use crate::{
     api::{
-        AgentKind, AgentLogPayload, AppState, BlameOf, BlamePayload, CommentRequest, RunningAgent,
+        AgentKind, AgentLogPayload, AppState, BlameOf, BlamePayload, CommentRequest,
         CommitHistoryPayload, ContentMatch, FileContentPayload, LspCompletion, LspLocation,
-        LspPosition, LspStatus, LspWork, OpenSessionRequest, PatchPayload, SearchScope,
-        SessionOpened, SessionPayload, SubmoduleHubPayload,
+        LspPosition, LspStatus, LspWork, OpenSessionRequest, PatchPayload, RunningAgent,
+        SearchScope, SessionOpened, SessionPayload, SubmoduleHubPayload,
     },
     backend::Backend,
     moontasks::{
         self, AttachResourceRequest, BoardColumn, BoardTaskView, ColumnId, CreateTaskRequest,
-        ReviewRequestView, StartResourceRequest, TaskView, review_request::Amend,
+        ReviewRequestView, StartResourceRequest, TaskView,
     },
     palette_history::{HistoryEntry, HistoryRecord},
     project::{ProjectConfig, ProjectRunRequest},
     search::SearchListener,
-    settings::{Settings, SettingsChange},
     service,
+    settings::{Settings, SettingsChange},
     terminal::TerminalSession,
 };
 
@@ -383,14 +383,17 @@ impl Backend for LocalBackend {
         moontasks::service::list_review_requests(&self.state, session_id)
     }
 
-    fn amend_review_request(
+    fn move_review(
         &self,
         session_id: &str,
-        task_id: &str,
-        index: usize,
-        amend: Amend,
+        review_id: &str,
+        to_status: Option<&str>,
     ) -> Result<()> {
-        moontasks::service::amend_review_request(&self.state, session_id, task_id, index, amend)
+        moontasks::service::move_review(&self.state, session_id, review_id, to_status)
+    }
+
+    fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>> {
+        moontasks::service::list_review_statuses(&self.state, session_id)
     }
 
     fn settings(&self) -> Result<Settings> {

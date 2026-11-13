@@ -13,16 +13,17 @@ mod board_day_lines;
 mod board_days_work;
 mod board_drag;
 mod board_hooks;
-mod board_task;
 mod board_new_task_pane;
 mod board_pending_card;
+mod board_review_lane;
 mod board_selection;
 mod board_tags;
+mod board_task;
+mod board_task_files;
+mod board_task_pane;
+mod board_task_pane_boxes;
 mod board_touch;
 mod board_tracker_link;
-mod board_task_pane;
-mod board_task_files;
-mod board_task_pane_boxes;
 mod command_launcher;
 mod diff_comments;
 mod diff_definition;
@@ -34,26 +35,26 @@ mod file_editing;
 mod file_encrypted;
 mod file_language_servers;
 mod file_picker;
-mod file_written_elsewhere;
 mod file_tree;
+mod file_written_elsewhere;
 mod files;
 mod finding;
 mod inspect_minerve;
-mod minerve_pane;
 mod launch;
 mod layout;
+mod minerve_pane;
 mod open_from_shell;
 mod palette;
-mod palette_long_rows;
 pub(crate) mod palette_history;
-pub(crate) mod palette_sections;
+mod palette_long_rows;
 mod palette_search_switch;
+pub(crate) mod palette_sections;
 mod project;
-mod settings_pane;
 mod review_header;
 mod review_large_images;
 mod review_minimap;
 mod review_phone;
+mod settings_pane;
 mod shell_input;
 mod shell_lifecycle;
 mod sidebar_menu;
@@ -150,6 +151,15 @@ impl Fixture {
             fs::create_dir_all(parent).expect("failed to create the fixture subdirectory");
         }
         fs::write(path, contents).expect("failed to write the fixture file");
+    }
+
+    /// Write a review file the way an agent asks for one: in the board's `reviews/<status>/`
+    /// folder, its `key: value` lines between the fences and the commit message after them.
+    pub(crate) fn write_review_file(&self, status: &str, id: &str, keys: &str, message: &str) {
+        self.write(
+            &format!(".moontasks/reviews/{status}/{id}.md"),
+            &format!("---\n{keys}---\n{message}"),
+        );
     }
 
     /// A solid PNG of the given color: the fixture's stand-in for a real picture.

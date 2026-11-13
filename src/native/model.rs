@@ -6,8 +6,8 @@ mod palette;
 mod review;
 
 pub(crate) use board::{
-    AttachPicker, BoardState, CardMenu, Carrying, ColumnRename, OpenedFile, OpenedShell,
-    Dwelling, PendingCard, PendingColumnPlace, PendingPlace, TabRename, TaskDraft, TaskEditor, TaskLanding,
+    AttachPicker, BoardState, CardMenu, Carrying, ColumnRename, Dwelling, OpenedFile, OpenedShell,
+    PendingCard, PendingColumnPlace, PendingPlace, TabRename, TaskDraft, TaskEditor, TaskLanding,
     TaskRename,
 };
 pub(crate) use palette::PaletteState;
@@ -123,6 +123,8 @@ pub(crate) struct Model {
     /// [`crate::moontasks::TaskView`] because the commit pane reads it too, and it has to be
     /// there whether or not a board is open.
     pub(crate) review_requests: Vec<ReviewRequestView>,
+    /// The board's review statuses, in the lane's order - see [`crate::moontasks::reviews`].
+    pub(crate) review_statuses: Vec<String>,
     /// How to open again the tabs that were closed, the last one closed at the end - what ⌘⇧T
     /// pops. See [`crate::native::panes::Pane::reopening`].
     /// The command being typed into the status bar, while the line is up - see
@@ -137,7 +139,7 @@ pub(crate) struct Model {
     /// the server's file behind them, and a read of the files that started before the change
     /// would put the row back for a tick: the read carries the count it started under, and
     /// is dropped if the count has moved on - see `App::poll_review_requests`.
-        pub(crate) review_request_amendments: u64,
+    pub(crate) review_request_amendments: u64,
     /// The review session of each repo a task's combined review shows, by repo path - see
     /// [`crate::native::review::task_review`]. A session lives as long as the server that made
     /// it, so that pane names its task rather than its sessions, and finds them here.

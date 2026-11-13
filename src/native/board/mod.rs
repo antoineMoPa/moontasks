@@ -7,6 +7,7 @@
 pub(crate) mod actions;
 pub(crate) mod attach;
 pub(crate) mod attachments;
+mod board_task;
 pub(crate) mod card_menu;
 pub(crate) mod cards;
 pub(crate) mod column;
@@ -16,7 +17,6 @@ pub(crate) mod days_work;
 pub(crate) mod filter;
 pub(crate) mod gesture;
 pub(crate) mod header;
-mod board_task;
 pub(crate) mod hook_editor;
 pub(crate) mod hooks;
 pub(crate) mod marks;
@@ -25,6 +25,7 @@ pub(crate) mod placing;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod quick_task;
 pub(crate) mod resources;
+pub(crate) mod review_lane;
 pub(crate) mod selection;
 pub(crate) mod start;
 pub(crate) mod tags;
@@ -75,9 +76,32 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
     // Over the whole board rather than inside the card it belongs to: the cards are laid out
     // and moved every frame, and the menu stands where the click was made.
     card_menu::draw(app, ui.ctx(), &mut actions);
-    hook_editor::draw(app, ui.ctx(), &palette, &mut actions);
+    // A review status's editor is the reviews frame's to draw - see [`draw_reviews`].
+    if !hook_editor::edits_a_review_status(app) {
+        hook_editor::draw(app, ui.ctx(), &palette, &mut actions);
+    }
     settle_gesture(app, ui, &mut actions);
 
+    for action in actions {
+        apply(app, action);
+    }
+}
+
+/// The review lane, in its own tab beside the board's - see [`review_lane`].
+pub(crate) fn draw_reviews(app: &mut App, ui: &mut Ui) {
+    let palette = app.palette_of();
+    let mut actions = Vec::new();
+    egui::Frame::new()
+        .inner_margin(egui::Margin {
+            left: 12,
+            right: 6,
+            top: 8,
+            bottom: 4,
+        })
+        .show(ui, |ui| review_lane::draw(app, ui, &palette, &mut actions));
+    if hook_editor::edits_a_review_status(app) {
+        hook_editor::draw(app, ui.ctx(), &palette, &mut actions);
+    }
     for action in actions {
         apply(app, action);
     }
@@ -202,6 +226,38 @@ pub(crate) fn close_pages_let_go_of(app: &mut App) {
             .map(|(pane, _)| pane);
         if let Some(page) = page {
             app.close_pane(page);
+        }
+    }
+}
+
+/// Give a board that came back with the window's saved layout the review lane's tab, once
+/// per launch: the lane is opened with the board, and a layout saved before the lane existed -
+/// or with the lane closed - has a board without one. Closing it again keeps it closed until
+/// the next launch.
+pub(crate) fn open_the_review_lane_under_a_restored_board(app: &mut App) {
+    if app.model.board.review_lane_offered {
+        return;
+    }
+    let has_board = app
+        .model
+        .layout
+        .find_pane(|pane| pane.kind() == PaneKind::Tasks)
+        .is_some();
+    if !has_board {
+        return;
+    }
+    app.model.board.review_lane_offered = true;
+    let has_lane = app
+        .model
+        .layout
+        .find_pane(|pane| pane.kind() == PaneKind::Reviews)
+        .is_some();
+    if !has_lane {
+        // A tab behind the board's: whatever was in front stays in front.
+        let in_front = app.model.layout.active_pane().map(|(pane, _)| pane);
+        app.open_pane(crate::native::panes::OpenPaneRequest::Reviews);
+        if let Some(pane) = in_front {
+            app.model.layout.focus_pane(pane);
         }
     }
 }
@@ -467,6 +523,11 @@ pub(crate) fn is_open(app: &App) -> bool {
     // saying whatever was true when it opened.
     app.model
         .layout
-        .find_pane(|pane| matches!(pane.kind(), PaneKind::Tasks | PaneKind::Start))
+        .find_pane(|pane| {
+            matches!(
+                pane.kind(),
+                PaneKind::Tasks | PaneKind::Reviews | PaneKind::Start
+            )
+        })
         .is_some()
 }

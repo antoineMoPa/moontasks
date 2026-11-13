@@ -12,8 +12,8 @@ use crate::{
     moontasks::{
         ColumnId,
         hooks::{
-            ColumnHook, RemoveHookRequest, SaveHookRequest, Schedule, ScheduleEvery, TimeAsked,
-            TimeOfDay, start_word,
+            ColumnHook, RemoveHookRequest, ReviewHook, SaveHookRequest, Schedule, ScheduleEvery,
+            TimeAsked, TimeOfDay, start_word,
         },
     },
     native::{
@@ -34,6 +34,8 @@ pub(crate) enum HookEditorTarget {
     Column(ColumnId),
     /// A schedule, by the name it was saved under - `None` for one not saved yet.
     Schedule(Option<String>),
+    /// A review status's hook - see [`crate::native::board::review_lane`].
+    Review(String),
 }
 
 /// The hook being edited, as it is being typed.
@@ -112,8 +114,24 @@ pub(crate) fn open_hook_editor(app: &mut App, target: HookEditorTarget, anchor: 
             editor.focus_prompt = false;
             editor.focus_title = true;
         }
+        HookEditorTarget::Review(status) => {
+            if let Some(hook) = hooks.of_review_status(status) {
+                editor.saved_before = true;
+                editor.start = hook.start;
+                editor.prompt = hook.prompt.clone();
+            }
+        }
     }
     app.model.board.hook_editor = Some(editor);
+}
+
+/// Whether the editor open is a review status's, which the reviews frame draws.
+pub(crate) fn edits_a_review_status(app: &App) -> bool {
+    app.model
+        .board
+        .hook_editor
+        .as_ref()
+        .is_some_and(|editor| matches!(editor.target, HookEditorTarget::Review(_)))
 }
 
 /// The editor, if one is open, over the board.
@@ -155,6 +173,7 @@ pub(super) fn draw(
             format!("When a card arrives in {}", column_label(&column))
         }
         Some(HookEditorTarget::Schedule(_)) => String::new(),
+        Some(HookEditorTarget::Review(status)) => format!("When a review arrives in {status}"),
         None => return,
     };
     let frame_nr = ctx.cumulative_frame_nr();
@@ -166,7 +185,7 @@ pub(super) fn draw(
     }
 
     let (pivot, at) = match editor.target {
-        HookEditorTarget::Column(_) => (
+        HookEditorTarget::Column(_) | HookEditorTarget::Review(_) => (
             Align2::RIGHT_TOP,
             editor.anchor.right_bottom() + vec2(0.0, GAP),
         ),
@@ -294,10 +313,15 @@ fn draw_contents(
         AgentKind::None => "Commands",
         _ => "Prompt",
     };
-    let placeholders = if is_schedule {
-        "{date} is filled in with today's date"
-    } else {
-        "{title} {notes} {from} {folder} {id} are filled in from the card"
+    let placeholders = match editor.target {
+        HookEditorTarget::Schedule(_) => "{date} is filled in with today's date",
+        HookEditorTarget::Review(_) => {
+            "{repo} {branch} {pr} {subject} {file} {from} {id} are filled in from the review, \
+             {title} {folder} from its card"
+        }
+        HookEditorTarget::Column(_) => {
+            "{title} {notes} {from} {folder} {id} are filled in from the card"
+        }
     };
     let prompt = ui
         .add(
@@ -374,6 +398,13 @@ fn request_to_save(editor: &HookEditor) -> Result<SaveHookRequest, String> {
                 prompt: editor.prompt.clone(),
             },
         }),
+        HookEditorTarget::Review(status) => Ok(SaveHookRequest::Review {
+            hook: ReviewHook {
+                status: status.clone(),
+                start: editor.start,
+                prompt: editor.prompt.clone(),
+            },
+        }),
         HookEditorTarget::Schedule(renamed_from) => {
             if editor.name.trim().is_empty() {
                 return Err("A schedule needs a title".to_string());
@@ -415,5 +446,8 @@ fn request_to_remove(editor: &HookEditor) -> Option<RemoveHookRequest> {
             Some(RemoveHookRequest::Schedule { name: name.clone() })
         }
         HookEditorTarget::Schedule(None) => None,
+        HookEditorTarget::Review(status) => Some(RemoveHookRequest::Review {
+            status: status.clone(),
+        }),
     }
 }

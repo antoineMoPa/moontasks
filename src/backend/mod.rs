@@ -22,16 +22,16 @@ use anyhow::Result;
 use crate::{
     agent_sessions::AgentSessionView,
     api::{
-        AgentKind, AgentLogPayload, BlameOf, BlamePayload, CommentRequest, RunningAgent, CommitHistoryPayload,
+        AgentKind, AgentLogPayload, BlameOf, BlamePayload, CommentRequest, CommitHistoryPayload,
         ContentMatch, FileContentPayload, LspCompletion, LspLocation, LspPosition, LspStatus,
-        LspWork, OpenSessionRequest, PatchPayload, SearchProgress, SearchScope, SessionOpened,
-        SessionPayload, SubmoduleHubPayload,
+        LspWork, OpenSessionRequest, PatchPayload, RunningAgent, SearchProgress, SearchScope,
+        SessionOpened, SessionPayload, SubmoduleHubPayload,
     },
     commit_suggestion::CommitSuggestion,
     committing::{CommitAction, CommitState},
     moontasks::{
         AttachResourceRequest, BoardColumn, BoardTaskView, ColumnId, CreateTaskRequest,
-        ReviewRequestView, StartResourceRequest, TaskView, review_request::Amend,
+        ReviewRequestView, StartResourceRequest, TaskView,
     },
     palette_history::{HistoryEntry, HistoryRecord},
     project::{ProjectConfig, ProjectRunRequest},
@@ -346,13 +346,12 @@ pub(crate) trait Backend: Send + Sync + 'static {
 
     /// Every repo the board's tasks ask to have looked at, read where the board's folder is.
     fn list_review_requests(&self, session_id: &str) -> Result<Vec<ReviewRequestView>>;
-    fn amend_review_request(
-        &self,
-        session_id: &str,
-        task_id: &str,
-        index: usize,
-        amend: Amend,
-    ) -> Result<()>;
+    /// Move a review file to another status, or take it away with `None` - see
+    /// [`crate::moontasks::reviews`].
+    fn move_review(&self, session_id: &str, review_id: &str, to_status: Option<&str>)
+    -> Result<()>;
+    /// The board's review statuses, in the lane's order.
+    fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>>;
 
     /// This server's `settings.json`, which every window on it shares - see [`crate::settings`].
     fn settings(&self) -> Result<Settings>;

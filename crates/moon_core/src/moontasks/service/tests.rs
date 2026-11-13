@@ -425,7 +425,7 @@ fn a_task_started_in_is_given_the_files_its_brief_points_at() {
     let brief = std::fs::read_to_string(dir.join(crate::moontasks::BRIEF_FILE_NAME))
         .expect("expected the brief");
     for pointed_at in [
-        crate::moontasks::REVIEW_REQUEST_BRIEF_FILE_NAME,
+        crate::moontasks::REVIEWS_BRIEF_FILE_NAME,
         crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME,
         crate::moontasks::COORDINATION_BRIEF_FILE_NAME,
         crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME,
@@ -547,6 +547,7 @@ fn a_finished_agent_is_cleared_without_moving_its_task() {
             started_by: None,
             work_tree: None,
             started_by_hook: None,
+            for_review: None,
         }],
         made_by: None,
         appears_on: None,
@@ -589,6 +590,7 @@ fn a_finished_agent_leaves_a_task_where_the_user_put_it() {
             started_by: None,
             work_tree: None,
             started_by_hook: None,
+            for_review: None,
         }],
         made_by: None,
         appears_on: None,
@@ -632,6 +634,7 @@ fn a_run_held_by_another_running_moon_is_left_alone_until_that_moon_exits() {
             started_by: None,
             work_tree: None,
             started_by_hook: None,
+            for_review: None,
         }],
         made_by: None,
         appears_on: None,
@@ -686,6 +689,7 @@ fn a_task_finished_from_another_moon_keeps_the_run_that_moon_holds() {
         started_by: None,
         work_tree: None,
         started_by_hook: None,
+        for_review: None,
     };
     // The process that started this test is running, and is not this one.
     let another_moon = std::os::unix::process::parent_id();
@@ -746,6 +750,7 @@ fn run_of_session(session_id: &str) -> TaskMetadata {
             started_by: None,
             work_tree: None,
             started_by_hook: None,
+            for_review: None,
         }],
         made_by: None,
         appears_on: None,
@@ -881,7 +886,7 @@ fn starting_a_task_writes_over_the_docs_and_takes_the_old_copies_out_of_the_task
 
     assert_eq!(
         std::fs::read_to_string(docs.join("request_review.md")).expect("expected the file"),
-        crate::moontasks::review_request::REVIEW_REQUEST_BRIEF
+        crate::moontasks::reviews::REVIEWS_BRIEF
     );
     assert!(!dir.join("request_review.md").exists());
     let doc_names: Vec<String> = std::fs::read_dir(&docs)

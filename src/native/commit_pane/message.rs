@@ -59,9 +59,8 @@ impl App {
     /// no line named it does the newest line for the repo stand, which is the single-line case
     /// and the one where there is nothing better to offer.
     ///
-    /// A line on a task that has been finished is not among them at all, not even for the
-    /// header's `asked for` pill: the card being in that column is the person saying the work is
-    /// behind them, and a commit pane opened afterwards has nothing to hear from it.
+    /// A review of a commit already made - one naming `commit:` - is not among them at all: it
+    /// is about that commit, not about what is waiting in the working tree to be committed.
     pub(super) fn requested_review_of(&self, session_id: &str) -> Option<&ReviewRequestView> {
         let repo_path = &self
             .model
@@ -73,7 +72,7 @@ impl App {
             .model
             .review_requests
             .iter()
-            .filter(|request| &request.repo_path == repo_path && !request.task_finished)
+            .filter(|request| &request.repo_path == repo_path && request.file.commit.is_none())
             .collect();
         // The newest file first: tasks that named the same repo on no branch are told apart by
         // which one wrote its line last, and an older task's line - work committed already -
@@ -109,7 +108,7 @@ impl App {
     /// commit has been made: what is staged now is the work after it.
     fn requested_commit_of(&self, session_id: &str) -> Option<&ReviewRequestView> {
         let request = self.requested_review_of(session_id)?;
-        if request.done || request.committed {
+        if !request.pending() || request.committed {
             return None;
         }
         match &request.branch {

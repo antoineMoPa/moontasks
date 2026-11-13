@@ -65,6 +65,7 @@ mod tests {
             work_tree: None,
             started_at_unix: 0,
             started_by_hook: None,
+            for_review: None,
         }
     }
 

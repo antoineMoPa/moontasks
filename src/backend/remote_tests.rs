@@ -18,7 +18,7 @@ use crate::{
     api::{LspPosition, LspStatus, LspTriggersPayload, OpenSessionRequest},
     backend::{Backend, remote::RemoteBackend},
     git::run_git_no_output,
-    moontasks::{ColumnEnd, ColumnId, CreateTaskRequest, review_request::Amend},
+    moontasks::{ColumnEnd, ColumnId, CreateTaskRequest},
     native::{language_source::SessionLanguages, workspace_color::WorkspaceColor},
     pass_keys::of_this_test_run,
     settings::SettingsChange,
@@ -42,8 +42,7 @@ pub(super) fn pass_key() -> String {
 
 /// Start a `moon serve` on a free port, over a throwaway repo with pending changes.
 pub(super) fn serve_a_repo(name: &str) -> ServedRepo {
-    let root =
-        std::env::temp_dir().join(format!("moontasks-remote-{}-{name}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("moontasks-remote-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("failed to create the fixture directory");
 
@@ -150,7 +149,10 @@ fn a_remote_window_reads_and_changes_the_server_s_settings() {
         .expect("expected the project to be remembered");
 
     let settings = backend.settings().expect("expected the server's settings");
-    assert_eq!(settings.workspace_color(&project_path), WorkspaceColor::Ember);
+    assert_eq!(
+        settings.workspace_color(&project_path),
+        WorkspaceColor::Ember
+    );
     assert_eq!(settings.recent_projects.first(), Some(&project_path));
     // The one change after the other: the second did not write back a file without the first.
     assert_eq!(
@@ -484,10 +486,10 @@ fn the_wire_opens_over_http_and_says_what_writes_it() {
     assert_eq!(content.only_written_by, None);
 }
 
-/// A task's `request_for_review.txt` is on the server, beside the board, so a remote window is
-/// told its rows over HTTP and crosses them off there - not in a folder of its own machine.
+/// A board's review files are on the server, beside the board, so a remote window is told its
+/// rows over HTTP and moves them between statuses there - not in a folder of its own machine.
 #[test]
-fn review_requests_are_read_and_crossed_off_over_http() {
+fn review_files_are_read_and_moved_over_http() {
     let served = serve_a_repo("review-requests");
     let backend =
         RemoteBackend::connect(&served.base_url, pass_key()).expect("expected to reach the server");
@@ -508,30 +510,46 @@ fn review_requests_are_read_and_crossed_off_over_http() {
             },
         )
         .expect("expected the remote task to be created");
-    // Written the way an agent writes it: straight into the task's folder on the server.
+    // Written the way an agent writes it: straight into the board's review folder on the server.
+    let requested = served.root.join(".moontasks/reviews/requested");
+    fs::create_dir_all(&requested).expect("expected the review folder to be made");
     fs::write(
-        served
-            .root
-            .join(format!(".moontasks/{}/request_for_review.txt", task.id)),
-        ". // fix: the thing\n",
+        requested.join("fix-the-thing.md"),
+        format!("---\ntask: {}\nrepo: .\n---\nfix: the thing\n", task.id),
     )
-    .expect("expected the request to be written");
+    .expect("expected the review file to be written");
 
     let requests = backend
         .list_review_requests(&opened.session_id)
         .expect("expected the remote review requests");
-    assert_eq!(requests.len(), 1, "expected the one line");
+    assert_eq!(requests.len(), 1, "expected the one review");
     assert_eq!(requests[0].task_id, task.id);
-    assert!(!requests[0].done);
+    assert_eq!(requests[0].file.id, "fix-the-thing");
+    assert!(requests[0].pending());
 
     backend
-        .amend_review_request(&opened.session_id, &task.id, 0, Amend::Done(true))
-        .expect("expected the line to be crossed off");
+        .move_review(&opened.session_id, "fix-the-thing", Some("done"))
+        .expect("expected the review to be moved to done");
 
     let requests = backend
         .list_review_requests(&opened.session_id)
         .expect("expected the remote review requests");
-    assert!(requests[0].done, "the line should read as crossed off");
+    assert!(!requests[0].pending(), "the review should read as done");
+    assert!(
+        served
+            .root
+            .join(".moontasks/reviews/done/fix-the-thing.md")
+            .is_file(),
+        "and its file should have moved on the server"
+    );
+
+    backend
+        .move_review(&opened.session_id, "fix-the-thing", None)
+        .expect("expected the review to be removed");
+    let requests = backend
+        .list_review_requests(&opened.session_id)
+        .expect("expected the remote review requests");
+    assert!(requests.is_empty(), "a removed review should be gone");
 }
 
 /// The card's notes and the file pane read the same file: opening the notes makes it real,

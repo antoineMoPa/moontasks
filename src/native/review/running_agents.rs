@@ -1,6 +1,6 @@
 //! Running agents - the agents already working on a task that a review's comments can go to,
 //! instead of a run started for them. The task is found from the repo: a review comes from an
-//! agent when a task's `request_for_review.txt` asks for it. Comments are pasted into the
+//! agent when it writes a review file for its task. Comments are pasted into the
 //! agent's shell by the server - see `crate::comments`.
 
 use crate::{

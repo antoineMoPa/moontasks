@@ -37,7 +37,11 @@ impl App {
                     .layout
                     .add_pane(frame, Pane::Review { session_id, title }, None);
             }
-            OpenPaneRequest::ReviewRepo { repo_path, title } => {
+            OpenPaneRequest::ReviewRepo {
+                repo_path,
+                title,
+                commit,
+            } => {
                 // The session has to exist before a pane can point at it, and creating one runs
                 // git in the repo, so the pane appears once that comes back.
                 self.tasks.spawn(
@@ -45,7 +49,7 @@ impl App {
                         backend.open_session(OpenSessionRequest {
                             repo_path: repo_path.clone(),
                             diff_target: None,
-                            active_commit: None,
+                            active_commit: commit.clone(),
                         })
                     },
                     move |model, result| match result {
@@ -443,11 +447,51 @@ impl App {
                     .find_pane(|pane| pane.kind() == PaneKind::Tasks)
                 {
                     self.model.layout.focus_pane(pane);
+                    // A board from a window laid out before the lane gets it here.
+                    if self
+                        .model
+                        .layout
+                        .find_pane(|pane| pane.kind() == PaneKind::Reviews)
+                        .is_none()
+                    {
+                        self.open_pane(OpenPaneRequest::Reviews);
+                        self.model.layout.focus_pane(pane);
+                    }
                     return;
                 }
                 let frame = self.frame_for(PaneKind::Tasks, active_frame);
-                self.model.layout.add_pane(frame, Pane::Tasks, None);
+                let board = self.model.layout.add_pane(frame, Pane::Tasks, None);
                 self.model.board.refresh_requested = true;
+                // The review lane comes with the board, in a frame under it - and the board
+                // keeps the keyboard.
+                self.open_pane(OpenPaneRequest::Reviews);
+                self.model.layout.focus_pane(board);
+            }
+            OpenPaneRequest::Reviews => {
+                if let Some((pane, _)) = self
+                    .model
+                    .layout
+                    .find_pane(|pane| pane.kind() == PaneKind::Reviews)
+                {
+                    self.model.layout.focus_pane(pane);
+                    return;
+                }
+                let board_frame = self
+                    .model
+                    .layout
+                    .find_pane(|pane| pane.kind() == PaneKind::Tasks)
+                    .and_then(|(board, _)| self.model.layout.frame_of(board));
+                match board_frame {
+                    // A tab beside the board's, in the same frame: there when it is wanted,
+                    // and taking no room from the board when it is not.
+                    Some(frame) => {
+                        self.model.layout.add_pane(frame, Pane::Reviews, None);
+                    }
+                    None => {
+                        let frame = self.frame_for(PaneKind::Reviews, active_frame);
+                        self.model.layout.add_pane(frame, Pane::Reviews, None);
+                    }
+                }
             }
         }
     }

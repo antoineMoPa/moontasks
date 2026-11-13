@@ -4,7 +4,6 @@
 //! What comes back is text an agent reads, short: a task is said by its handle, which is
 //! what every other tool takes.
 
-use std::fs;
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
@@ -19,8 +18,6 @@ use crate::{
     },
 };
 
-/// The file a task's review request is written in - see `request_review.md` in the board's `llms` folder.
-const REVIEW_REQUEST_FILE_NAME: &str = "request_for_review.txt";
 
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -249,10 +246,13 @@ pub fn read_task(board: &Board, read: &ReadTask) -> Result<String> {
     if !files.is_empty() {
         text.push_str(&format!("files: {}\n", files.join(", ")));
     }
-    if let Ok(asked) = fs::read_to_string(folder.join(REVIEW_REQUEST_FILE_NAME))
-        && !asked.trim().is_empty()
-    {
-        text.push_str(&format!("\nreview request:\n{}\n", asked.trim_end()));
+    let reviews: Vec<String> = crate::moontasks::reviews::read_review_files(repo_path)
+        .into_iter()
+        .filter(|review| review.task.as_deref() == Some(task.id.as_str()))
+        .map(|review| format!("{}/{}", review.status, review.id))
+        .collect();
+    if !reviews.is_empty() {
+        text.push_str(&format!("reviews: {}\n", reviews.join(", ")));
     }
 
     let notes = store::read_notes(repo_path, &task.id);

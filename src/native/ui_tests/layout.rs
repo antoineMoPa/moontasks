@@ -727,6 +727,7 @@ fn a_review_of_a_repo_that_is_already_open_is_brought_forward() {
                 app.open_pane(OpenPaneRequest::ReviewRepo {
                     repo_path: repo_path.clone(),
                     title: "asked for again".to_string(),
+                    commit: None,
                 });
                 step = 2;
             }

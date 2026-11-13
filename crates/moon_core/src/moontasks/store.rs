@@ -119,20 +119,6 @@ pub enum ColumnEnd {
 #[cfg(not(target_arch = "wasm32"))]
 pub const RELEASES_SHELLS_IN: &str = "done";
 
-/// The column a task stops asking for reviews in, by the same reckoning: a card let go of here
-/// is finished, and every repo its `request_for_review.txt` names reads as reviewed whether or
-/// not the lines were crossed off one at a time.
-///
-/// Its own rule rather than a second reading of [`RELEASES_SHELLS_IN`], though both point at the
-/// same column on a board that started from the defaults: they are two things the board does,
-/// and a board that keeps one of them and not the other is a board that deleted one column.
-///
-/// Nothing is written to the file for it. The lines are the agent's record of what the work
-/// touched, and a card dragged back out of this column is being worked on again - so it comes
-/// back asking for exactly what it was asking for before.
-#[cfg(not(target_arch = "wasm32"))]
-pub const CLOSES_REVIEWS_IN: &str = "done";
-
 /// The column a card's right-click menu offers to move it to, by the same reckoning: the
 /// column a finished card goes to on a board that started from the defaults. A board without
 /// it has no such entry on the menu - there is no guessing which of its columns means done.

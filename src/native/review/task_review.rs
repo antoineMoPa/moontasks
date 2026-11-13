@@ -2,7 +2,7 @@
 //!
 //! A task that touched eight submodules asks for eight reviews, and opening them one tab at a
 //! time is eight clicks and eight places to keep track of. This pane lays them one under the
-//! other in a single scroll, in the order the task's `request_for_review.txt` lists them, which
+//! other in a single scroll, in the order of the task's review files, which
 //! is the order they are to be committed and deployed. Each repo is still its own review: its
 //! hunks are drawn by the review pane's own code against its own session, so staging, comments
 //! and discards land in the repo they belong to.
@@ -63,7 +63,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, task_id: &str) {
         .iter()
         .filter(|request| {
             request.task_id == task_id
-                && (request.pending() || committed_in_this_pane(app, request))
+                && (request.has_work_to_commit() || committed_in_this_pane(app, request))
         })
         .cloned()
         .collect();
@@ -77,7 +77,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, task_id: &str) {
     // down to its committed line, so there is nothing of it left to find.
     let searched: Vec<String> = repos
         .iter()
-        .filter(|repo| repo.request.pending() && repo.payload.is_some())
+        .filter(|repo| repo.request.has_work_to_commit() && repo.payload.is_some())
         .filter_map(|repo| repo.session_id.clone())
         .collect();
     app.apply_review_find(pane_id, &searched);
@@ -243,9 +243,9 @@ fn open_sessions(app: &mut App, requests: &[ReviewRequestView]) {
                             .review_sessions_of_repos
                             .insert(repo_path, opened.session_id);
                     }
-                    Err(error) => model.error(format!(
-                        "could not open the review of {repo_path}: {error}"
-                    )),
+                    Err(error) => {
+                        model.error(format!("could not open the review of {repo_path}: {error}"))
+                    }
                 }
             },
         );
@@ -277,10 +277,17 @@ fn draw_header(ui: &mut Ui, repos: &[RepoUnderReview], palette: &Palette) {
         .filter_map(|repo| repo.payload.as_ref())
         .flat_map(|payload| &payload.hunks);
     let (added, removed) = hunks.fold((0, 0), |(added, removed), hunk| {
-        (added + hunk.added_line_count, removed + hunk.removed_line_count)
+        (
+            added + hunk.added_line_count,
+            removed + hunk.removed_line_count,
+        )
     });
     ui.horizontal(|ui| {
-        ui.label(RichText::new("all pending reviews").strong().color(palette.ink));
+        ui.label(
+            RichText::new("all pending reviews")
+                .strong()
+                .color(palette.ink),
+        );
         ui.label(
             RichText::new(format!(
                 "{} repos · {}",
@@ -307,8 +314,12 @@ fn draw_repo_list(app: &mut App, ui: &mut Ui, repos: &[RepoUnderReview], palette
                     .as_ref()
                     .and_then(|payload| payload.hunks.first());
                 let name = ui.add(
-                    egui::Label::new(RichText::new(&repo.request.name).strong().color(palette.ink))
-                        .sense(egui::Sense::click()),
+                    egui::Label::new(
+                        RichText::new(&repo.request.name)
+                            .strong()
+                            .color(palette.ink),
+                    )
+                    .sense(egui::Sense::click()),
                 );
                 if widgets::clickable(name).clicked()
                     && let (Some(session_id), Some(hunk)) = (&repo.session_id, first_hunk)
@@ -328,8 +339,7 @@ fn draw_repo_list(app: &mut App, ui: &mut Ui, repos: &[RepoUnderReview], palette
 /// Whether a repo whose line is no longer pending was committed from here, which keeps it in
 /// the pane as its committed line until the push.
 fn committed_in_this_pane(app: &App, request: &ReviewRequestView) -> bool {
-    !request.done
-        && !request.task_finished
+    request.pending()
         && app
             .model
             .review_sessions_of_repos
@@ -355,7 +365,7 @@ fn draw_repo(
     map: &mut Minimap,
     palette: &Palette,
 ) -> Option<CommitPlace> {
-    if !repo.request.pending() {
+    if !repo.request.has_work_to_commit() {
         let session_id = repo.session_id.as_deref()?;
         app.keep_inline_commit(session_id);
         inline::draw_committed_line(app, ui, session_id, &repo.request.name, palette);
@@ -410,7 +420,13 @@ fn draw_repo(
     match (&repo.session_id, &repo.payload, &repo.error) {
         (Some(session_id), Some(_), _) => {
             hunks::draw_in_place(app, ui, session_id, map, palette);
-            Some(draw_commit(app, ui, session_id, &repo.request.name, palette))
+            Some(draw_commit(
+                app,
+                ui,
+                session_id,
+                &repo.request.name,
+                palette,
+            ))
         }
         (_, _, Some(error)) => {
             ui.label(RichText::new(error).color(palette.warn));

@@ -14,12 +14,10 @@ use crate::native::{panes::Pane, theme::ThemeMode};
 
 use super::{app_for, press_key, seeded_fixture, settle, type_letter};
 
-/// The deploy list a task wrote sits under everything else on its card: a row per repo, in the
-/// order they are to be committed, and a click on one opens that repo's review.
+/// The deploy list a task wrote sits under everything else on its card: a row per review file,
+/// in the order their `order:` keys give, and a click on one opens that repo's review.
 ///
-/// Whether a row is still pending is the repo having changed files rather than anything written
-/// down, so the list ticks itself off as the repos are committed - here the fixture repo has
-/// changes and reads as pending.
+/// A review is pending until its file is moved to `done/` - here both are in `requested/`.
 #[test]
 fn a_tasks_deploy_list_is_drawn_under_its_card() {
     use egui_kittest::kittest::Queryable as _;
@@ -30,24 +28,25 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
         "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
          \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
     );
-    fixture.write(
-        ".moontasks/deploy-the-thing-1111/request_for_review.txt",
-        ". // chore: take the module forward\n\
-         vendor/turbocharger/#moontask/show-moon-icons-in-bootscreens-59c3e24c // chore: on a branch\n",
+    fixture.write_review_file(
+        "requested",
+        "root-take-the-module-forward",
+        "task: deploy-the-thing-1111\nrepo: .\norder: 1\n",
+        "chore: take the module forward\n",
+    );
+    fixture.write_review_file(
+        "requested",
+        "turbocharger-on-a-branch",
+        "task: deploy-the-thing-1111\nrepo: vendor/turbocharger\n\
+         branch: moontask/show-moon-icons-in-bootscreens-59c3e24c\norder: 2\n",
+        "chore: on a branch\n",
     );
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     app.set_theme(ThemeMode::Dark);
-    let repo_name = fixture
-        .root
-        .file_name()
-        .expect("the fixture repo has a name")
-        .to_string_lossy()
-        .to_string();
     let opened = Arc::new(AtomicBool::new(false));
     let opened_in_ui = Arc::clone(&opened);
-    // The reviews the window has open, and which pane is in front, watched from out here: the
-    // row's job is to put you in the review of the repo it names.
+    // The reviews the window has open, and which pane is in front, watched from out here.
     let reviews = Arc::new(Mutex::new(Vec::<String>::new()));
     let reviews_in_ui = Arc::clone(&reviews);
     let in_front = Arc::new(Mutex::new(None::<crate::native::panes::PaneKind>));
@@ -76,9 +75,9 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
                 .map(|pane| pane.kind());
         });
 
-    // The row waits on two answers from worker threads - the board, and the requests read off
-    // its task folders - so it is waited for rather than looked for on a fixed frame.
-    let row = format!("pending {repo_name} review");
+    // The row waits on two answers from worker threads - the board, and the board's review
+    // files - so it is waited for rather than looked for on a fixed frame.
+    let row = "2 reviews".to_string();
     let deadline = Instant::now() + Duration::from_secs(20);
     while Instant::now() < deadline && harness.query_by_label(row.as_str()).is_none() {
         harness.step();
@@ -87,57 +86,53 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
 
     assert!(
         harness.query_by_label(row.as_str()).is_some(),
-        "the card should list the repo the task asked to have reviewed"
+        "the card should say how many reviews the task has, and how many are open"
     );
 
-    // The line names the repo the board is in, whose review the window is already on, so the
-    // click brings that review forward rather than opening a second one of the same repo.
+    // The row says where the review stands, which is the lane's to show: the click brings the
+    // reviews tab in front rather than opening a diff.
     harness.get_by_label(row.as_str()).click();
     assert!(
         settle(&mut harness, || *in_front.lock().expect("poisoned")
-            == Some(crate::native::panes::PaneKind::Review)),
-        "clicking the row should put you in the review of the repo it names"
+            == Some(crate::native::panes::PaneKind::Reviews)),
+        "clicking the row should bring the reviews tab in front"
     );
-    assert_eq!(
-        reviews.lock().expect("poisoned").len(),
-        1,
-        "the repo already had a review open, so no second one should have been made"
+
+    assert!(
+        reviews.lock().expect("poisoned").len() <= 1,
+        "and no review of the repo should have been opened for it"
     );
 }
 
-/// A card in the column that finishes a task shows no review rows at all.
+/// A review moved to `done/` reads as reviewed on its card, though its repo still has changes.
 ///
-/// The repo still has changes and no line was crossed off, so under any other column the row
-/// would read as pending. Finishing the card is the person saying the work is behind them, so the
-/// rows are not drawn - and nothing is written to the file, so a card dragged back out asks again.
+/// Where the review file is is what says whether it is pending - not the card's column, and not
+/// whether the repo is clean - so moving the file back to `requested/` asks for it again.
 #[test]
-fn a_finished_cards_deploy_list_is_not_shown() {
+fn a_review_that_is_done_reads_as_reviewed_on_its_card() {
     use egui_kittest::kittest::Queryable as _;
 
-    let fixture = seeded_fixture("board-review-requests-finished");
+    let fixture = seeded_fixture("board-review-requests-done");
     fixture.write(
         ".moontasks/deploy-the-thing-1111/metadata.json",
-        &format!(
-            "{{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"{}\",\n  \
-             \"created_at_unix\": 1700000000,\n  \"resources\": []\n}}\n",
-            crate::moontasks::store::CLOSES_REVIEWS_IN
-        ),
+        "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
+         \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
     );
-    fixture.write(
-        ".moontasks/deploy-the-thing-1111/request_for_review.txt",
-        ". // chore: take the module forward\n",
+    fixture.write_review_file(
+        crate::moontasks::reviews::DONE_REVIEW_STATUS,
+        "root-take-the-module-forward",
+        "task: deploy-the-thing-1111\nrepo: .\n",
+        "chore: take the module forward\n",
     );
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     app.set_theme(ThemeMode::Dark);
-    let repo_name = fixture
-        .root
-        .file_name()
-        .expect("the fixture repo has a name")
-        .to_string_lossy()
-        .to_string();
     let opened = Arc::new(AtomicBool::new(false));
     let opened_in_ui = Arc::clone(&opened);
+    // Whether the review reads as pending, watched from out here: the row's dot says it, green
+    // or yellow, and a colour is not something to query for.
+    let pending_read = Arc::new(Mutex::new(None::<bool>));
+    let pending_in_ui = Arc::clone(&pending_read);
 
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1400.0, 800.0))
@@ -149,35 +144,29 @@ fn a_finished_cards_deploy_list_is_not_shown() {
                 opened_in_ui.store(true, Ordering::Relaxed);
             }
             app.draw(ui);
+            *pending_in_ui.lock().expect("poisoned") = app
+                .model
+                .review_requests
+                .first()
+                .map(|request| request.pending());
         });
 
-    // The board and the requests are read on worker threads. A row would be drawn once both had
-    // answered, so wait until the open card's title shows before deciding none is there.
-    let reviewed = format!("{repo_name} reviewed");
-    let pending = format!("pending {repo_name} review");
+    // The board and its review files are read on worker threads, so the row is waited for.
+    let reviewed = "1 review".to_string();
     let deadline = Instant::now() + Duration::from_secs(20);
-    while Instant::now() < deadline && harness.query_by_label("Deploy the thing").is_none() {
+    while Instant::now() < deadline && harness.query_by_label(reviewed.as_str()).is_none() {
         harness.step();
         std::thread::sleep(Duration::from_millis(10));
     }
 
     assert!(
-        harness.query_by_label(reviewed.as_str()).is_none(),
-        "a finished card should not show a review row, reviewed or not"
-    );
-    assert!(
-        harness.query_by_label(pending.as_str()).is_none(),
-        "and not as pending, though the repo still has changes to commit"
+        harness.query_by_label(reviewed.as_str()).is_some(),
+        "a review in done/ should be counted on its card"
     );
     assert_eq!(
-        std::fs::read_to_string(
-            fixture
-                .root
-                .join(".moontasks/deploy-the-thing-1111/request_for_review.txt"),
-        )
-        .expect("the file should still be there"),
-        ". // chore: take the module forward\n",
-        "nothing is written to the file, so moving the card back asks for it again"
+        *pending_read.lock().expect("poisoned"),
+        Some(false),
+        "and not as pending, though the repo still has changes to commit"
     );
 }
 

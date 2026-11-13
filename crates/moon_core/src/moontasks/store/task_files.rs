@@ -12,8 +12,7 @@ use super::{METADATA_FILE_NAME, task_dir};
 use crate::moontasks::{
     ATTACHMENTS_BRIEF_FILE_NAME, ATTACHMENTS_FILE_NAME, BRIEF_FILE_NAME,
     COORDINATION_BRIEF_FILE_NAME, COORDINATION_BRIEF_FILE_NAME_ONCE, NOTES_FILE_NAME,
-    REVIEW_REQUEST_BRIEF_FILE_NAME, TRACKER_LINK_BRIEF_FILE_NAME,
-    review_request::REVIEW_REQUEST_FILE_NAME,
+    REVIEWS_BRIEF_FILE_NAME, TRACKER_LINK_BRIEF_FILE_NAME,
 };
 
 /// The files in a task's folder that are not documents the task is about, by name.
@@ -22,11 +21,10 @@ const NOT_LISTED: &[&str] = &[
     BRIEF_FILE_NAME,
     NOTES_FILE_NAME,
     ATTACHMENTS_FILE_NAME,
-    REVIEW_REQUEST_FILE_NAME,
     // The docs moon wrote into every task's folder before they moved to the board's own
     // folder of them. A task not started since still has its copies.
     ATTACHMENTS_BRIEF_FILE_NAME,
-    REVIEW_REQUEST_BRIEF_FILE_NAME,
+    REVIEWS_BRIEF_FILE_NAME,
     COORDINATION_BRIEF_FILE_NAME,
     COORDINATION_BRIEF_FILE_NAME_ONCE,
     TRACKER_LINK_BRIEF_FILE_NAME,
@@ -88,7 +86,6 @@ mod tests {
                 "attach_files.md",
                 "request_review.md",
                 "Coordination.md",
-                "request_for_review.txt",
                 ".hidden",
                 "scratch.txt",
                 "figures.csv",

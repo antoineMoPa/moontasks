@@ -31,6 +31,8 @@ pub(crate) enum PaneKind {
     Terminal,
     File,
     Tasks,
+    /// The board's review files, a column per status - see [`crate::native::board::review_lane`].
+    Reviews,
     /// One task: what it has running, and what it can start - or one being written before it
     /// exists, which is the same pane with nothing to run in it yet.
     Start,
@@ -100,6 +102,8 @@ pub(crate) enum Pane {
     },
     /// The moontasks board of the repo being reviewed.
     Tasks,
+    /// The board's review files, in a frame of their own under the board.
+    Reviews,
     /// One task, in a tab of its own: what a click on its card opens. The title it was opened
     /// under is only the name for the tab until the board answers - the task's own is what the
     /// pane reads and writes.
@@ -189,6 +193,7 @@ impl Pane {
             Self::Terminal { .. } => PaneKind::Terminal,
             Self::File { .. } => PaneKind::File,
             Self::Tasks => PaneKind::Tasks,
+            Self::Reviews => PaneKind::Reviews,
             Self::Start { .. } | Self::NewTask { .. } => PaneKind::Start,
             Self::Commit { .. } => PaneKind::Commit,
             Self::Submodules => PaneKind::Submodules,
@@ -233,6 +238,7 @@ impl Pane {
                 }
             }
             Self::Tasks => "moontasks".to_string(),
+            Self::Reviews => "reviews".to_string(),
             // The task's own name: the tab is that task's, and what it offers is on the pane.
             Self::Start { title, .. } => title.clone(),
             Self::NewTask { .. } => "new task".to_string(),
@@ -321,6 +327,7 @@ impl Pane {
                 line: 1,
             }),
             Self::Tasks => Some(OpenPaneRequest::Tasks),
+            Self::Reviews => Some(OpenPaneRequest::Reviews),
             Self::Start { task_id, title } => Some(OpenPaneRequest::TaskStart {
                 task_id: task_id.clone(),
                 title: title.clone(),
@@ -363,6 +370,9 @@ pub(crate) enum OpenPaneRequest {
     ReviewRepo {
         repo_path: String,
         title: String,
+        /// A commit of it to review instead of its working tree - what a review file's
+        /// `commit:` names.
+        commit: Option<String>,
     },
     TaskReview {
         task_id: String,
@@ -430,6 +440,8 @@ pub(crate) enum OpenPaneRequest {
         placeholder_path: String,
     },
     Tasks,
+    /// The review lane, under the board.
+    Reviews,
     /// One task, in a tab of its own.
     TaskStart {
         task_id: String,
@@ -691,6 +703,7 @@ impl PaneView<Pane> for App {
                 self.draw_file_pane(ui, pane_id, &session_id, &file_path, revision.as_deref());
             }
             Pane::Tasks => crate::native::board::draw(self, ui),
+            Pane::Reviews => crate::native::board::draw_reviews(self, ui),
             Pane::Start { task_id, .. } => {
                 let task_id = task_id.clone();
                 crate::native::start_pane::draw(self, ui, pane_id, &task_id);

@@ -348,6 +348,7 @@ fn groups_of(app: &App, filter: &Filter) -> Vec<Group> {
             opens: OpenPaneRequest::ReviewRepo {
                 repo_path: submodule.repo_path.clone(),
                 title: submodule.name.clone(),
+                commit: None,
             },
             repo_path: submodule.repo_path.clone(),
             changes: changes_label(submodule.changed_files),

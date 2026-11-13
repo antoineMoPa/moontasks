@@ -34,6 +34,8 @@ pub fn start_resource(
 pub(crate) struct HookStart {
     pub(crate) label: String,
     pub(crate) shell_commands: Option<String>,
+    /// The review file the run is for, when a review status's hook fired it.
+    pub(crate) for_review: Option<String>,
 }
 
 /// Start the run a hook fires: an agent, or a shell with the hook's commands typed into it,
@@ -145,14 +147,43 @@ fn start_run(
             started_by: person.as_ref().map(started_by),
             work_tree: store::work_tree_apart_from(&repo_path, &works_in),
             started_by_hook: hook.as_ref().map(|hook| hook.label.clone()),
+            for_review: hook.as_ref().and_then(|hook| hook.for_review.clone()),
         });
         store::write_task(&repo_path, task_id, &metadata)?;
         if hook.is_none() {
             move_to_in_progress(state, &repo_path, task_id, &metadata)?;
         }
+    } else if let Some(hook) = &hook {
+        note_the_hook_of_a_shell(&terminal_id, hook);
     }
 
     Ok(terminal_id)
+}
+
+/// The hook that started each shell, by its terminal: a shell is not written down - see
+/// [`start_run`] - so this is where its run's hook mark, and the review it is for, are kept
+/// for as long as this moon is.
+static HOOKS_OF_SHELLS: std::sync::Mutex<
+    std::collections::BTreeMap<String, (String, Option<String>)>,
+> = std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+fn note_the_hook_of_a_shell(terminal_id: &str, hook: &HookStart) {
+    if let Ok(mut hooks) = HOOKS_OF_SHELLS.lock() {
+        hooks.insert(
+            terminal_id.to_string(),
+            (hook.label.clone(), hook.for_review.clone()),
+        );
+    }
+}
+
+/// The hook that started a shell, and the review it was started for - or nothing, for a shell
+/// somebody started.
+pub(crate) fn hook_of_shell(terminal_id: &str) -> (Option<String>, Option<String>) {
+    HOOKS_OF_SHELLS
+        .lock()
+        .ok()
+        .and_then(|hooks| hooks.get(terminal_id).cloned())
+        .map_or((None, None), |(label, review)| (Some(label), review))
 }
 
 /// The column a card goes to as soon as an agent is started on it.
@@ -325,6 +356,7 @@ pub fn attach_resource(
         started_by: person.as_ref().map(started_by),
         work_tree: store::work_tree_apart_from(&repo_path, &works_in),
         started_by_hook: None,
+        for_review: None,
     });
     store::write_task(&repo_path, task_id, &metadata)?;
 
@@ -655,7 +687,7 @@ pub(super) fn write_task_files(
 
 /// The docs every brief points at, in the board's folder of them.
 const AGENT_DOC_FILE_NAMES: &[&str] = &[
-    crate::moontasks::REVIEW_REQUEST_BRIEF_FILE_NAME,
+    crate::moontasks::REVIEWS_BRIEF_FILE_NAME,
     crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME,
     crate::moontasks::TRACKER_LINK_BRIEF_FILE_NAME,
     crate::moontasks::COORDINATION_BRIEF_FILE_NAME,
@@ -670,6 +702,8 @@ const AGENT_DOC_FILE_NAMES: &[&str] = &[
 fn overwrite_agent_docs(repo_path: &Path) -> Result<String> {
     let dir = store::tasks_root(repo_path).join(crate::moontasks::AGENT_DOCS_DIR_NAME);
     std::fs::create_dir_all(&dir).with_context(|| format!("failed to make {}", dir.display()))?;
+    // The folders the reviews doc tells the agent to write into, on a board made before them.
+    crate::moontasks::reviews::make_review_status_folders(repo_path)?;
 
     // The folder and the wire's file are named from the repo, which is where an agent is
     // started - except where people share the board, and an agent may be in a work tree that
@@ -688,8 +722,8 @@ fn overwrite_agent_docs(repo_path: &Path) -> Result<String> {
     };
     let docs = [
         (
-            crate::moontasks::REVIEW_REQUEST_BRIEF_FILE_NAME,
-            crate::moontasks::review_request::REVIEW_REQUEST_BRIEF.to_string(),
+            crate::moontasks::REVIEWS_BRIEF_FILE_NAME,
+            crate::moontasks::reviews::REVIEWS_BRIEF.to_string(),
         ),
         (
             crate::moontasks::ATTACHMENTS_BRIEF_FILE_NAME,

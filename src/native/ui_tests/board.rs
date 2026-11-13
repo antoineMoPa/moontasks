@@ -86,7 +86,11 @@ fn the_moontasks_board_draws_what_is_in_the_repo() {
                 "[\n    {{\n      \"id\": \"run-{task_id}\",\n      \"kind\": \"agent\",\n      \
                  \"agent\": \"{agent}\",\n      \"name\": \"{name}\",\n      \
                  \"started_at_unix\": 1700000100\n    }}\n  ]",
-                agent = if name.ends_with("codex") { "codex" } else { "claude" },
+                agent = if name.ends_with("codex") {
+                    "codex"
+                } else {
+                    "claude"
+                },
             ),
             None => "[]".to_string(),
         };
@@ -99,11 +103,13 @@ fn the_moontasks_board_draws_what_is_in_the_repo() {
             ),
         );
     }
-    // The in-progress task has handed work over: the fixture repo has uncommitted changes, so
-    // this reads as a pending review.
-    fixture.write(
-        ".moontasks/fix-the-login-page-2222/request_for_review.txt",
-        ". // fix(login): keep the session after a redirect\n",
+    // The in-progress task has handed work over: its review file is in `requested/`, so it
+    // reads as a pending review.
+    fixture.write_review_file(
+        "requested",
+        "fix-the-login-page",
+        "task: fix-the-login-page-2222\nrepo: .\n",
+        "fix(login): keep the session after a redirect\n",
     );
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
@@ -577,7 +583,10 @@ fn several_marked_cards_are_handed_to_one_new_task() {
     };
 
     step_until(&mut harness, &|| ready.load(Ordering::Relaxed));
-    assert!(ready.load(Ordering::Relaxed), "the board never read the three tasks");
+    assert!(
+        ready.load(Ordering::Relaxed),
+        "the board never read the three tasks"
+    );
     harness.run_steps(3);
     assert!(
         harness.query_by_label("Work on these tasks").is_none(),

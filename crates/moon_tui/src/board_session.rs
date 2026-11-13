@@ -56,7 +56,7 @@ impl BoardSnapshot {
         self.tasks.iter().find(|task| task.id == task_id)
     }
 
-    /// Says whether a task has a line waiting in its `request_for_review.txt`.
+    /// Says whether a task has a review file not yet done.
     pub fn has_a_review_waiting(&self, task_id: &str) -> bool {
         self.review_requests
             .iter()

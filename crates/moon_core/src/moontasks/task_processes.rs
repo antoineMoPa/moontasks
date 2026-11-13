@@ -1,7 +1,7 @@
 //! What the processes the server starts for a task are run with: each agent's command line,
 //! the brief it is told, and the files and environment that say which task it is in.
 
-use super::{review_request::REVIEW_REQUEST_BRIEF_FILE_NAME, store};
+use super::{reviews::REVIEWS_BRIEF_FILE_NAME, store};
 use crate::api::AgentKind;
 
 /// How each agent is run for a task: told which task it is on, and given the work.
@@ -200,7 +200,7 @@ pub fn brief_for(title: &str, task_dir: &str, tracker_url: &str, docs_dir: &str)
          {task}\n\
          \n\
          moon's docs for agents are in {docs_dir}/ - the same for every task of the board:\n\
-         - {REVIEW_REQUEST_BRIEF_FILE_NAME}: to request code deploy/review\n\
+         - {REVIEWS_BRIEF_FILE_NAME}: to request code deploy/review\n\
          - {ATTACHMENTS_BRIEF_FILE_NAME}: to attach a document to this task (a PDF, a spreadsheet, etc.)\n\
          - {TRACKER_LINK_BRIEF_FILE_NAME}: to link this task to its issue in Linear, Jira, GitHub or GitLab\n\
          - {COORDINATION_BRIEF_FILE_NAME}: check it first if you will change code\n\
@@ -231,7 +231,7 @@ pub fn board_task_brief_for(board_dir: &str, home_dir: &str, docs_dir: &str) -> 
          Your own folder, for whatever you want kept: {home_dir}\n\
          \n\
          moon's docs for agents are in {docs_dir}/, where \"the task folder\" is your own folder:\n\
-         - {REVIEW_REQUEST_BRIEF_FILE_NAME}: to request code deploy/review\n\
+         - {REVIEWS_BRIEF_FILE_NAME}: to request code deploy/review\n\
          - {COORDINATION_BRIEF_FILE_NAME}: check it first if you will change code",
         program = crate::PROGRAM
     )

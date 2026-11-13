@@ -53,6 +53,7 @@ fn quick_task_card() -> TaskView {
             started_by: None,
             work_tree: None,
             started_by_hook: None,
+            for_review: None,
         }],
         hooks_stopped: false,
     }

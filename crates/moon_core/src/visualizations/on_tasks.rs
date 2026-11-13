@@ -162,6 +162,7 @@ fn record_on_task(repo_path: &Path, task_id: &str, copy_path: &Path) -> Result<(
         started_by: None,
         work_tree: None,
         started_by_hook: None,
+        for_review: None,
     });
     store::write_task(repo_path, task_id, &metadata)
 }

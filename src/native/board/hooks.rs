@@ -227,15 +227,22 @@ pub(super) fn draw_hook_mark_on_run(ui: &mut Ui, resource: &TaskResourceView, pa
     let Some(label) = resource.started_by_hook.as_deref() else {
         return;
     };
+    // A review's run is on that review's card, in that status's column: the mark would say
+    // again what both already say.
+    if resource.for_review.is_some() {
+        return;
+    }
     let font = egui::FontId::proportional(SMALL_SIZE - 1.0);
     let word = ui
         .painter()
         .layout_no_wrap(label.to_string(), font, palette.accent_2);
     let icon_size = word.size().y.max(10.0);
-    let (rect, response) = ui.allocate_exact_size(
-        vec2(icon_size + 3.0 + word.size().x, icon_size),
-        Sense::hover(),
-    );
+    let size = vec2(icon_size + 3.0 + word.size().x, icon_size);
+    // Only in the room the run's name has left: drawn anyway, it would lie over the name.
+    if ui.available_width() < size.x {
+        return;
+    }
+    let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
     response.on_hover_text(format!("Started by the {label} hook"));
     if !ui.is_rect_visible(rect) {
         return;

@@ -67,6 +67,7 @@ fn run_an_agent(repo: &Path, task_id: &str, terminal_id: &str, name: &str, held_
         started_by: None,
         work_tree: None,
         started_by_hook: None,
+        for_review: None,
     });
     store::write_task(repo, task_id, &metadata).expect("expected the run to be written");
 }

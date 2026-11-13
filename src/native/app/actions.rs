@@ -334,7 +334,14 @@ impl App {
 
         self.tasks.spawn_keyed(
             Some(REVIEW_REQUESTS_KEY.to_string()),
-            move |backend| backend.list_review_requests(&session_id),
+            move |backend| {
+                let requests = backend.list_review_requests(&session_id)?;
+                // Read with the rows, so a status folder made by hand shows with them.
+                let statuses = backend
+                    .list_review_statuses(&session_id)
+                    .unwrap_or_default();
+                Ok((requests, statuses))
+            },
             move |model, result| {
                 // A read that started before a row was dismissed or crossed off from the
                 // board may not have seen the change yet; the rows already show it, and the
@@ -344,8 +351,9 @@ impl App {
                 }
                 // A failed read leaves the last answer standing, the way the hub's does: a list
                 // that is a poll out of date is worth more than an empty one.
-                if let Ok(requests) = result {
+                if let Ok((requests, statuses)) = result {
                     model.review_requests = requests;
+                    model.review_statuses = statuses;
                 }
             },
         );
@@ -580,13 +588,14 @@ impl App {
             self.model.error("no repo is open in this window yet");
             return;
         };
-        let in_use = |name: &str| {
-            repo_root.join(name).exists()
+        let in_use =
+            |name: &str| {
+                repo_root.join(name).exists()
                 || self.model.layout.find_pane(|pane| {
                     matches!(pane, Pane::File { file_path, .. } if file_path == name)
                 })
                 .is_some()
-        };
+            };
         let placeholder_path = (1..)
             .map(|number| match number {
                 1 => "untitled".to_string(),
@@ -768,7 +777,7 @@ impl App {
             // that is still being drawn from it.
             Action::NextSpace => self.pending_action = Some(CommandAction::NextSpace),
             Action::PreviousSpace => self.pending_action = Some(CommandAction::PreviousSpace),
-                        Action::Find => find::open(self),
+            Action::Find => find::open(self),
             Action::FindFile => {
                 let in_front = self.review_in_front();
                 self.model.palette.show_files(in_front);

@@ -36,7 +36,7 @@ use crate::{
     moontasks::{
         BoardTaskView, CreateTaskRequest, ReviewRequestView, TaskResourceView, TaskView,
         agent_launch, appears_on, column_sort,
-        review_request::{self, Amend},
+        review_request,
         store::{
             self, BoardConfig, ColumnEnd, ColumnId, TaskMetadata, TaskResource, TaskResourceKind,
         },
@@ -497,6 +497,7 @@ fn resources_of(
                     started_by: None,
                     work_tree: None,
                     started_by_hook: None,
+                    for_review: None,
                 }
             }
             TaskResourceKind::Shell | TaskResourceKind::Agent => {
@@ -547,6 +548,7 @@ fn resources_of(
                         .map(|by| by.github_login.clone()),
                     work_tree: resource.work_tree.clone(),
                     started_by_hook: resource.started_by_hook.clone(),
+                    for_review: resource.for_review.clone(),
                 }
             }
         })
@@ -556,7 +558,9 @@ fn resources_of(
             .terminals
             .owned_shells(&store::run_owner(repo_path, task_id))
             .into_iter()
-            .map(|shell| TaskResourceView {
+            .map(|shell| {
+                let (started_by_hook, for_review) = resources::hook_of_shell(&shell.terminal_id);
+                TaskResourceView {
                 // A shell is its terminal, so that is the name the board takes it off the task by.
                 id: shell.terminal_id.clone(),
                 kind: TaskResourceKind::Shell,
@@ -572,7 +576,9 @@ fn resources_of(
                 started_at_unix: shell.started_at_unix,
                 started_by: None,
                 work_tree: None,
-                started_by_hook: None,
+                started_by_hook,
+                for_review,
+            }
             }),
     );
     resources.sort_by_key(|resource| resource.started_at_unix);
@@ -698,6 +704,7 @@ pub fn link_file(state: &AppState, session_id: &str, task_id: &str, file_path: &
         started_by: None,
         work_tree: None,
         started_by_hook: None,
+        for_review: None,
     });
     store::write_task(&repo_path, task_id, &metadata)
 }
@@ -769,15 +776,22 @@ pub fn list_review_requests(state: &AppState, session_id: &str) -> Result<Vec<Re
     Ok(review_request::list_for_repo(&repo_of(state, session_id)?))
 }
 
-/// Dismiss one line of a task's `request_for_review.txt`, or cross it off or back on.
-pub fn amend_review_request(
+/// Move a review file to another status - or, with `None`, take it away - see
+/// [`crate::moontasks::reviews`].
+pub fn move_review(
     state: &AppState,
     session_id: &str,
-    task_id: &str,
-    index: usize,
-    amend: Amend,
+    review_id: &str,
+    to_status: Option<&str>,
 ) -> Result<()> {
-    review_request::amend(&repo_of(state, session_id)?, task_id, index, amend)
+    crate::moontasks::reviews::move_review_file(&repo_of(state, session_id)?, review_id, to_status)
+}
+
+/// The review statuses of the board, in the lane's order.
+pub fn list_review_statuses(state: &AppState, session_id: &str) -> Result<Vec<String>> {
+    Ok(crate::moontasks::reviews::list_review_statuses(
+        &repo_of(state, session_id)?,
+    ))
 }
 
 pub fn delete_task(state: &AppState, session_id: &str, task_id: &str) -> Result<()> {

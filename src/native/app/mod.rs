@@ -116,7 +116,7 @@ pub(crate) struct App {
     /// When the window last asked which shells have something running in them.
     last_running_shells_poll: Instant,
     /// When the board's review requests were last read - see [`App::poll_review_requests`].
-        last_review_requests_poll: Instant,
+    last_review_requests_poll: Instant,
     /// When the window last asked what the language servers are doing - see
     /// [`crate::native::status_bar`]. Kept here rather than per pane: the question is about
     /// the session's servers, and every pane on that session is waiting on the same answer.
@@ -350,10 +350,11 @@ impl App {
                 project_shell: None,
                 submodule_filter: String::new(),
                 review_requests: Vec::new(),
+                review_statuses: Vec::new(),
                 recently_closed: Vec::new(),
                 placing_reopened: None,
                 command_launcher: None,
-                                review_request_amendments: 0,
+                review_request_amendments: 0,
                 review_sessions_of_repos: HashMap::new(),
                 task_review_minimaps: HashMap::new(),
                 opening_review_sessions: Default::default(),
@@ -430,7 +431,7 @@ impl App {
             last_running_shells_poll: Instant::now()
                 .checked_sub(POLL_INTERVAL)
                 .unwrap_or_else(Instant::now),
-                        last_review_requests_poll: Instant::now()
+            last_review_requests_poll: Instant::now()
                 .checked_sub(BOARD_POLL_INTERVAL)
                 .unwrap_or_else(Instant::now),
             // Backdated like the rest, so the first pane that has a server behind it is asked
@@ -704,9 +705,11 @@ impl eframe::App for App {
     /// keyboard - see [`super::text_without_a_key`].
     #[cfg(target_os = "macos")]
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        raw_input
-            .events
-            .extend(super::text_without_a_key::take().into_iter().map(egui::Event::Text));
+        raw_input.events.extend(
+            super::text_without_a_key::take()
+                .into_iter()
+                .map(egui::Event::Text),
+        );
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -735,9 +738,10 @@ impl App {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn restore_layout_from(&mut self, storage: Option<&dyn eframe::Storage>) {
         let Some(encoded) = storage.and_then(|storage| {
-            storage.get_string(LAYOUT_STORAGE_KEY).or_else(|| storage.get_string(OLD_LAYOUT_STORAGE_KEY))
-        })
-        else {
+            storage
+                .get_string(LAYOUT_STORAGE_KEY)
+                .or_else(|| storage.get_string(OLD_LAYOUT_STORAGE_KEY))
+        }) else {
             return;
         };
         match serde_json::from_str::<Layout<Pane>>(&encoded) {
@@ -758,7 +762,6 @@ impl App {
             .map(|payload| payload.selected_agent)
             .unwrap_or_default()
     }
-
 
     /// Quitting kills every shell the window holds, along with whatever they were in the
     /// middle of, so the first ⌘Q says so and the second one goes through.
@@ -806,7 +809,6 @@ impl App {
         self.window_title = title.clone();
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
     }
-
 
     /// A session starts on no agent at all, so the one the last run ended on is put back - once
     /// the review has said which agents this machine actually has, since asking for one that is

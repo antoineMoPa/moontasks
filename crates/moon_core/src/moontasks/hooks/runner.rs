@@ -27,8 +27,11 @@ use anyhow::Result;
 
 use super::{
     clock::{LocalNow, due_slot_of},
-    files::{board_has_column_hooks, board_has_schedules, hooks_dir, read_board_hooks},
-    firing::{Arrival, Fired, fire_column_hook, fire_schedule},
+    files::{
+        board_has_column_hooks, board_has_review_hooks, board_has_schedules, hooks_dir,
+        read_board_hooks,
+    },
+    firing::{Arrival, Fired, fire_column_hook, fire_review_hook, fire_schedule},
 };
 use crate::{
     api::AppState,
@@ -80,6 +83,9 @@ struct Watch {
     /// hooks is not looked at, and loses its entry - so a hook written later fires on the moves
     /// after it, not on one made before.
     columns_seen: HashMap<PathBuf, HashMap<String, CardPlace>>,
+    /// The same for each board's review files: the status each was in, and when it arrived
+    /// there.
+    reviews_seen: HashMap<PathBuf, HashMap<String, (String, i64)>>,
     claims_swept_at: HashMap<PathBuf, Instant>,
 }
 
@@ -130,10 +136,14 @@ fn look_at_board(
 ) -> Result<()> {
     let has_column_hooks = board_has_column_hooks(repo_path);
     let has_schedules = board_has_schedules(repo_path);
+    let has_review_hooks = board_has_review_hooks(repo_path);
     if !has_column_hooks {
         watch.columns_seen.remove(repo_path);
     }
-    if !has_column_hooks && !has_schedules {
+    if !has_review_hooks {
+        watch.reviews_seen.remove(repo_path);
+    }
+    if !has_column_hooks && !has_schedules && !has_review_hooks {
         return Ok(());
     }
     if WINDOW_FOCUSED.load(Ordering::Relaxed) {
@@ -143,6 +153,9 @@ fn look_at_board(
     let hooks = read_board_hooks(repo_path);
     if has_column_hooks {
         fire_on_arrivals(state, session_id, repo_path, &hooks, watch, fires_here)?;
+    }
+    if has_review_hooks {
+        fire_on_review_arrivals(state, session_id, repo_path, &hooks, watch, fires_here);
     }
     if has_schedules && fires_here {
         fire_due_schedules(state, session_id, repo_path, &hooks.schedules);
@@ -218,6 +231,58 @@ fn fire_on_arrivals(
     }
     Ok(())
 }
+
+/// Start the hook of each review status a review file has arrived in since the last look: moved
+/// there from another folder, or written there new.
+fn fire_on_review_arrivals(
+    state: &AppState,
+    session_id: &str,
+    repo_path: &Path,
+    hooks: &super::BoardHooks,
+    watch: &mut Watch,
+    fires_here: bool,
+) {
+    let reviews = crate::moontasks::reviews::read_review_files(repo_path);
+    let now: HashMap<String, (String, i64)> = reviews
+        .iter()
+        .map(|review| (review.id.clone(), (review.status.clone(), review.arrived_at)))
+        .collect();
+    let Some(before) = watch.reviews_seen.insert(repo_path.to_path_buf(), now) else {
+        return;
+    };
+    if !fires_here {
+        return;
+    }
+    for review in &reviews {
+        let from = match before.get(&review.id) {
+            Some((status, _)) if *status == review.status => continue,
+            Some((status, _)) => status.clone(),
+            None => NEW_REVIEW_FROM.to_string(),
+        };
+        let Some(hook) = hooks.of_review_status(&review.status) else {
+            continue;
+        };
+        let claim_name = format!("review-{}-{}-{}", review.id, review.status, review.arrived_at);
+        if !claim(repo_path, &claim_name) {
+            continue;
+        }
+        let said = match fire_review_hook(state, session_id, repo_path, hook, review, &from) {
+            Ok(Fired::Started) => format!("review {}: started on {}", review.status, review.id),
+            Ok(Fired::StoppedForLoops) => format!(
+                "review {}: not started on {} - hooks have started {} runs on its card in a \
+                 row; moving the card yourself starts them again",
+                review.status,
+                review.id,
+                super::HOOK_RUNS_IN_A_ROW_CAP
+            ),
+            Err(error) => format!("review {}: failed on {}: {error:#}", review.status, review.id),
+        };
+        write_log_line(repo_path, &said);
+    }
+}
+
+/// What `{from}` says of a review file written straight into its folder.
+const NEW_REVIEW_FROM: &str = "a new review";
 
 /// What `{from}` says of a card made and moved between two looks.
 const NEW_CARD_FROM: &str = "a new card";

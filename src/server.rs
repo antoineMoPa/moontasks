@@ -10,15 +10,14 @@ pub(crate) mod users;
 mod web_page;
 
 use board_routes::{
-    amend_review_request, change_settings, list_review_requests, opencode_models,
-    palette_history, record_in_palette_history, settings,
-    add_column, attach_task_resource, board_task, create_task, list_hooks, remove_hook, save_hook, delete_column, delete_task,
-    delete_task_resource, link_task_file, list_agent_sessions, list_columns,
-    list_tasks, open_task_notes, open_wire, open_work_log, place_column, place_tasks,
-    project_commands, remove_task_attachment,
-    rename_column, rename_task, resume_task_resource, run_project_command, set_column_arrivals,
-    set_column_marks_a_days_work, set_column_sort, set_project_config,
-    set_task_remote_tracker_url, set_task_tags, start_task_resource, stop_task_resource,
+    add_column, attach_task_resource, board_task, change_settings, create_task, delete_column,
+    delete_task, delete_task_resource, link_task_file, list_agent_sessions, list_columns,
+    list_hooks, list_review_requests, list_review_statuses, list_tasks, move_review,
+    open_task_notes, open_wire, open_work_log, opencode_models, palette_history, place_column,
+    place_tasks, project_commands, record_in_palette_history, remove_hook, remove_task_attachment,
+    rename_column, rename_task, resume_task_resource, run_project_command, save_hook,
+    set_column_arrivals, set_column_marks_a_days_work, set_column_sort, set_project_config,
+    set_task_remote_tracker_url, set_task_tags, settings, start_task_resource, stop_task_resource,
 };
 use review_routes::{
     agent_dispatch_log_request, blame_session_file, cancel_comment_dispatch_request,
@@ -162,10 +161,7 @@ fn protected_routes() -> Router<Served> {
         .route("/api/me/github/device", post(profiles::device))
         .route("/api/me/github/poll", post(profiles::poll))
         .route("/api/me/disconnect", post(profiles::disconnect))
-        .route(
-            "/api/me/layout",
-            axum::routing::put(profiles::save_layout),
-        )
+        .route("/api/me/layout", axum::routing::put(profiles::save_layout))
         .route("/api/users", get(users::list))
         .route("/api/users/kick-all", post(users::kick_everyone))
         .route("/api/users/{id}/kick", post(users::kick))
@@ -293,8 +289,12 @@ fn protected_routes() -> Router<Served> {
             get(list_review_requests),
         )
         .route(
-            "/api/session/{session_id}/tasks/{task_id}/review-requests/{index}",
-            post(amend_review_request),
+            "/api/session/{session_id}/reviews/{review_id}/move",
+            post(move_review),
+        )
+        .route(
+            "/api/session/{session_id}/review-statuses",
+            get(list_review_statuses),
         )
         .route(
             "/api/session/{session_id}/project",
@@ -632,9 +632,8 @@ async fn stop_asked_for() {
     if !crate::unix_users::each_person_has_one() {
         return interrupted.await;
     }
-    let mut terminated =
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("a process can listen for SIGTERM");
+    let mut terminated = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("a process can listen for SIGTERM");
     tokio::select! {
         _ = interrupted => {}
         _ = terminated.recv() => {}
@@ -730,7 +729,10 @@ pub(crate) async fn core_session_work<T: Send + 'static>(
     session_id: String,
     work: impl FnOnce(&moon_core::api::AppState, &str) -> Result<T> + Send + 'static,
 ) -> Result<T, crate::api::AppError> {
-    session_work(state, session_id, move |state, session_id| work(&state.core, session_id)).await
+    session_work(state, session_id, move |state, session_id| {
+        work(&state.core, session_id)
+    })
+    .await
 }
 
 /// [`for_person_of`] for a request that has no session yet - one that opens a session, or

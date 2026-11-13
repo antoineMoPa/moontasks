@@ -62,7 +62,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str
         .model
         .review_ref(session_id)
         .and_then(|review| review.payload.clone());
-    // The branch a task's `request_for_review.txt` asked this commit to be made on, when one
+    // The branch a review file asked this commit to be made on, when one
     // did. Said beside the branch the repo is actually on, and no more than said - moving
     // someone's HEAD under a commit they are about to make is not the pane's to do.
     let asked_branch = app

@@ -192,17 +192,18 @@ The board is a folder in the repo, which is the whole of its state:
   board.json          # the columns, once you have changed them
   messageboard.txt    # the wire: the latest lines the agents posted to each other
   llms/               # moon's docs for the agents, one copy for the board, written over each time an agent starts
-    request_review.md        # how to write a task's request_for_review.txt, for an agent about to
+    request_review.md        # how an agent asks for a review: a file in reviews/requested/
     attach_files.md          # how an agent attaches a document to its task
     coordination.md          # what an agent that will change code is told about the wire
     tracker_link.md          # how an agent sets a task's tracker link, in metadata.json
+  reviews/            # one .md per pull request; its folder is its status
+    requested/  reviewing/  done/
   board-task/         # the board's own task, on no column: what `board [start]` over the columns starts is a run of it
     metadata.json     # its agent runs
   fix-the-login-page-6f9c1e2a-…/
     metadata.json     # title, column, place in the column, tags, the agent runs and the linked files
     brief.md          # what the agents working here have been told
     notes.md          # the task's description and shared notes, shown on the card
-    request_for_review.txt   # the repos this work touched, in deploy order, once there are any
     …                 # anything you or an agent puts here
 ```
 
@@ -245,6 +246,31 @@ for a schedule - marked with the hook that started it, and opened like any other
 - A schedule missed while moon was closed runs when moon opens later in its day (or hour); days
   gone by are not made up for.
 - What each hook did, or why it could not, is a line in `.moontasks/hooks/hooks.log`.
+
+## Reviews
+
+A pull request (or a branch to commit) is one file, `.moontasks/reviews/<status>/<name>.md`:
+
+```text
+---
+task: fix-the-races-3c62…   # the card it is for
+repo: repos/retro_encabulator
+branch: fix-the-races
+pr: 412
+deploy: pending             # pending, merged, deployed - written by whoever deploys
+---
+fix(encabulator): put the bearing races back
+
+They were reversed.
+```
+
+Its folder is its status: `requested/`, `reviewing/`, `done/`, and any folder you add. The lane
+under the board has a column per status; drag a card to move its file. Selecting a task lights
+its reviews. A click opens the repo's diff, and its commit pane offers the file's message.
+
+`.moontasks/hooks/reviews/<status>.md` starts an agent when a review arrives in that status - the
+`+` at the right of the status's heading. Its prompt can say `{title}`, `{repo}`, `{branch}`,
+`{pr}`, `{subject}`, `{file}`, `{from}`, `{folder}` and `{id}`.
 
 ## A card from the command line
 
@@ -303,7 +329,7 @@ claude mcp add moon -- moon mcp --repo ~/prog/project  # a board named outright
 | tool | does |
 | --- | --- |
 | `tasks_list` | the columns and their cards, by handle - `column`, `tag` and `matching` narrow it; the finished column is only counted unless asked for |
-| `task_read` | one task whole: column, tags, folder, running agents, files, review request, notes |
+| `task_read` | one task whole: column, tags, folder, running agents, files, reviews, notes |
 | `task_create` | a card, with `column`, `tags`, `notes` and `appears_on` if wanted |
 | `task_update` | rename, move, `tags` / `add_tags` / `remove_tags`, `notes` / `append_notes`, `tracker_url` - any of them in one call |
 | `wire_read`, `wire_post` | the last lines of the wire, and a line posted to it - or to `@handle` |
@@ -347,8 +373,8 @@ If you get there first it types nothing at all. A title arriving in the middle o
 someone is writing is worse than no title, so the first keystroke of yours in that shell is
 the end of it.
 
-The brief also says where to write the deploy list - `request_for_review.txt`, above - in one
-line, pointing at `.moontasks/llms/request_review.md`, which holds the format. That folder is
+The brief also points at `.moontasks/llms/request_review.md`, which says how to ask for a
+review. That folder is
 the board's one copy of moon's docs for the agents, written over each time an agent is started
 so it cannot drift from the moon that started it. When the task has a tracker link, the brief names its issue, and it points at
 `tracker_link.md` there for how to set one: `remote_task_tracker_url` in `metadata.json`, which an

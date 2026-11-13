@@ -11,6 +11,7 @@ pub mod column_sort;
 pub mod hooks;
 pub mod remote_tracker;
 pub mod review_request;
+pub mod reviews;
 pub mod sub_tasks;
 // The board's folder is read and written by the server - see `store`.
 #[cfg(not(target_arch = "wasm32"))]
@@ -29,7 +30,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{api::AgentKind, commit_suggestion::CommitSuggestion};
 #[cfg(not(target_arch = "wasm32"))]
-pub use review_request::REVIEW_REQUEST_BRIEF_FILE_NAME;
+pub use reviews::REVIEWS_BRIEF_FILE_NAME;
 pub use store::{BoardColumn, ColumnEnd, ColumnId, ColumnSort, TaskResourceKind};
 #[cfg(not(target_arch = "wasm32"))]
 pub use task_processes::*;
@@ -183,68 +184,57 @@ pub struct TaskResourceView {
     /// schedule - see [`hooks`]. `None` for a run a person started.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_by_hook: Option<String>,
+    /// The review file a review hook started the run for - drawn on that review's card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub for_review: Option<String>,
 }
 
-/// One repo a task's `request_for_review.txt` asks to have looked at, as the board draws it.
-///
-/// These are read off the file rather than out of `metadata.json`: the list is the agent's, and
-/// what it says is what the row says. They arrive in deploy order - task by task, and within a
-/// task in the order the lines are written.
+/// One review file of the board, as the board draws it - see [`reviews`]. They arrive in the
+/// lane's order: status by status, and within a status in deploy order.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ReviewRequestView {
+    /// The card the review was asked for on, or empty for one that names none.
     pub task_id: String,
-    /// Where the line sits in its task's file, counting entries from the top. What a dismiss
-    /// names, so it takes out the line it was asked about and no other like it.
+    /// Its place in the list, which tells two rows apart.
     pub index: usize,
-    /// The repo as the line named it - `repos/turbocharger`. Empty for the board's own repo.
+    /// The repo as the file named it - `repos/turbocharger`. Empty for the board's own repo.
     pub path_under_repo: String,
-    /// That path against the board's repo, which is the review the row opens. The same string
-    /// the submodule hub carries for the same repo, so the two lists agree about it.
+    /// The working copy the review opens: the repo, or the worktree its branch is checked out
+    /// in. The same string the submodule hub carries for the same repo.
     pub repo_path: String,
     /// The repo's directory name, which is what the row says.
     pub name: String,
-    /// The branch the line asked the commit to be made on, if it named one.
+    /// The branch the commit belongs on, if the file named one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    /// The commit the agent wrote for that repo, which its commit pane offers instead of
+    /// The commit message the file holds, which the repo's commit pane offers instead of
     /// starting an agent to write one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<CommitSuggestion>,
-    /// How many files are changed where this is reviewed, which is what says whether it is still
-    /// pending. Counted here rather than taken off the submodule hub: the hub knows repos, and
-    /// this may be a worktree beside one - and a row that could not be told about would read as
-    /// pending for ever, however long ago it was committed.
+    /// How many files are changed where this is reviewed.
     pub changed_files: usize,
-    /// Whether the line has been crossed off by hand. The board can tell that a repo has nothing
-    /// left to commit; it cannot tell that work already committed and pushed is finished with, so
-    /// that is said from the row's menu and written on the line.
-    pub done: bool,
-    /// Whether a commit with the line's subject is one of the last on the branch it is reviewed
-    /// on. The line asked for that commit and it has been made: work done in the repo since is
-    /// another commit, which its line - or `[Use AI]` - writes the message of.
+    /// Whether a commit with the file's subject is one of the last on the branch it is reviewed
+    /// on: work done in the repo since is another commit.
     #[serde(default)]
     pub committed: bool,
-    /// Whether the task this line is on has been moved to the column that finishes a task - see
-    /// [`crate::moontasks::store::CLOSES_REVIEWS_IN`]. Finishing the card finishes its reviews
-    /// without crossing a single line off, so this is read off where the card sits rather than
-    /// off the file, and a card dragged back out asks again.
-    pub task_finished: bool,
-    /// When the task's file was last written, in seconds since the epoch. Several tasks can
-    /// name the same repo, and the one that wrote its file last is the one whose work is in
-    /// the repo now - the older lines are for work already committed, whose messages must not
-    /// land in a box that is for something else.
+    /// When the file was last written, in seconds since the epoch. Several reviews can name the
+    /// same repo, and the one written last is the one whose work is in the repo now.
     #[serde(default)]
     pub written_at_unix: u64,
+    /// Which file, and where its review stands.
+    pub file: reviews::ReviewFileView,
 }
 
 impl ReviewRequestView {
-    /// Whether the repo still wants looking at. Four ways to be finished with: the repo has
-    /// nothing left to commit, which the board can see for itself; the commit the line wrote has
-    /// been made, which it can too; someone crossed the line off - work that is committed and
-    /// pushed and wants no more looking at, which it cannot; or the card was moved to the column
-    /// that finishes a task, which finishes everything it was still asking for at once.
+    /// Whether the review still wants looking at: its file is not in the done folder yet.
     pub fn pending(&self) -> bool {
-        !self.done && !self.committed && !self.task_finished && self.changed_files > 0
+        self.file.status != reviews::DONE_REVIEW_STATUS
+    }
+
+    /// Whether there is still work to commit for it: it is pending, its commit has not been
+    /// made, and its working copy has changes - which is what a diff of it has to show.
+    pub fn has_work_to_commit(&self) -> bool {
+        self.pending() && !self.committed && self.changed_files > 0
     }
 }
 
