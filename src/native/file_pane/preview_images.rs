@@ -16,7 +16,6 @@ use std::{
 
 use egui::load::{BytesLoadResult, BytesLoader, BytesPoll, LoadError};
 
-use super::picture;
 use crate::{
     api::FileContentPayload,
     native::{model::hash_of, review::image_diff, widgets},
@@ -54,7 +53,7 @@ enum Picture {
     Here {
         bytes: Arc<[u8]>,
         /// How wide and how tall it is in pixels, as its own header has it - see
-        /// [`picture::size_of`].
+        /// [`image_diff::read_pixel_size`].
         size: Option<(u32, u32)>,
     },
     /// Why there is no picture to show, which egui writes where it would have been.
@@ -110,7 +109,7 @@ impl PreviewImages {
                 .and_then(image_diff::decode_image_data_uri)
             {
                 Some((_extension, bytes)) => Picture::Here {
-                    size: picture::size_of(&bytes),
+                    size: image_diff::read_pixel_size(&bytes),
                     bytes,
                 },
                 // The file is there and is text, or a format the repo's side sends as text.
@@ -166,7 +165,9 @@ impl BytesLoader for PreviewImages {
                 Picture::Failed(why) => Err(LoadError::Loading(why.clone())),
                 Picture::Here { bytes, size } => {
                     let longest_side = ctx.input(|input| input.max_texture_side);
-                    match size.and_then(|size| picture::longer_than(size, longest_side)) {
+                    match size
+                        .and_then(|size| image_diff::describe_too_long_to_draw(size, longest_side))
+                    {
                         Some(too_long) => Err(LoadError::Loading(too_long)),
                         None => Ok(BytesPoll::Ready {
                             size: None,

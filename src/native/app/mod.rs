@@ -201,7 +201,8 @@ pub(crate) struct App {
     pub(crate) hunks_drawn_differently: u64,
     /// Image diffs, decoded from the `data:` URIs they arrive as and keyed by a hash of the
     /// URI. `None` marks one that could not be read, so it is not retried every frame.
-    pub(crate) decoded_images: HashMap<u64, Option<(&'static str, Arc<[u8]>)>>,
+    pub(crate) decoded_images:
+        HashMap<u64, Option<crate::native::review::image_diff::DecodedImage>>,
     /// Set whenever the palette has to be pushed into the context it is drawing into, which
     /// is the first frame and every theme switch.
     needs_style: bool,

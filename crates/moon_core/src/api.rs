@@ -143,6 +143,12 @@ pub struct HunkView {
 pub struct ImageDiffView {
     pub before_src: Option<String>,
     pub after_src: Option<String>,
+    /// The size in bytes of a side left out for being too large to send - its `*_src` is
+    /// then `None` though the side exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_left_out_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_left_out_bytes: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

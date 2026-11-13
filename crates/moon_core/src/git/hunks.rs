@@ -17,6 +17,10 @@ use crate::{
 
 /// How much of a file, from its start, is read to tell text from binary.
 pub(super) const BINARY_DETECTION_READ_LIMIT: u64 = 8192;
+/// The largest image whose bytes a hunk carries. Each side travels whole as a base64 `data:`
+/// URI and is decoded again on the other end, so a few huge pictures in a diff would hold
+/// gigabytes before the review is drawn; past this the hunk only says how big the side is.
+pub const LARGEST_PREVIEWED_IMAGE_BYTES: u64 = 25 * 1024 * 1024;
 
 pub fn collect_hunks(repo_path: &Path, diff_target: &DiffTarget) -> Result<Vec<DiffHunk>> {
     if let Some([before, after]) = &diff_target.comparison {
@@ -81,12 +85,26 @@ pub fn collect_hunks(repo_path: &Path, diff_target: &DiffTarget) -> Result<Vec<D
         };
         if is_binary {
             if let Some(mime_type) = mime_type_of_path(&path) {
-                let Ok(data) = fs::read(&full_path) else {
+                let Ok(size) = fs::metadata(&full_path).map(|metadata| metadata.len()) else {
                     continue;
                 };
-                let image_diff = ImageDiffView {
-                    before_src: None,
-                    after_src: Some(data_uri(mime_type, &data)),
+                let image_diff = if size > LARGEST_PREVIEWED_IMAGE_BYTES {
+                    ImageDiffView {
+                        before_src: None,
+                        after_src: None,
+                        before_left_out_bytes: None,
+                        after_left_out_bytes: Some(size),
+                    }
+                } else {
+                    let Ok(data) = fs::read(&full_path) else {
+                        continue;
+                    };
+                    ImageDiffView {
+                        before_src: None,
+                        after_src: Some(data_uri(mime_type, &data)),
+                        before_left_out_bytes: None,
+                        after_left_out_bytes: None,
+                    }
                 };
                 let patch = format!(
                     "diff --git a/{path} b/{path}\nnew file mode 100644\nBinary image added\n"
@@ -302,13 +320,22 @@ fn image_diff_from_section(
         return Ok(None);
     };
 
-    let before_src = image_blob_data_uri(repo_path, old_blob.as_deref(), mime_type, None)?;
-    let after_src =
-        image_blob_data_uri(repo_path, new_blob.as_deref(), mime_type, Some(file_path))?;
+    let before = read_image_blob_side(repo_path, old_blob, mime_type, None)?;
+    let after = read_image_blob_side(repo_path, new_blob, mime_type, Some(file_path))?;
     Ok(Some(ImageDiffView {
-        before_src,
-        after_src,
+        before_src: before.data_uri,
+        after_src: after.data_uri,
+        before_left_out_bytes: before.left_out_bytes,
+        after_left_out_bytes: after.left_out_bytes,
     }))
+}
+
+/// One side of a changed image: its bytes as a `data:` URI, or how big it is when it is too
+/// large to carry. Both `None` for a side that does not exist.
+#[derive(Default)]
+struct ImageSide {
+    data_uri: Option<String>,
+    left_out_bytes: Option<u64>,
 }
 
 fn parse_index_blobs(section: &[String]) -> Option<(Option<&str>, Option<&str>)> {
@@ -328,15 +355,34 @@ fn non_zero_blob(blob: &str) -> Option<&str> {
     }
 }
 
-fn image_blob_data_uri(
+/// The side of an image a blob holds. A blob not in the object database - the working tree's
+/// side of an unstaged change - is read from `fallback_path` instead.
+fn read_image_blob_side(
     repo_path: &Path,
     blob: Option<&str>,
     mime_type: &str,
     fallback_path: Option<&str>,
-) -> Result<Option<String>> {
+) -> Result<ImageSide> {
     let Some(blob) = blob else {
-        return Ok(None);
+        return Ok(ImageSide::default());
     };
+    let size = match read_blob_size(repo_path, blob) {
+        Ok(size) => size,
+        Err(error) => {
+            let Some(fallback_path) = fallback_path else {
+                return Err(error);
+            };
+            fs::metadata(repo_path.join(fallback_path))
+                .with_context(|| format!("failed to read {}", fallback_path))?
+                .len()
+        }
+    };
+    if size > LARGEST_PREVIEWED_IMAGE_BYTES {
+        return Ok(ImageSide {
+            data_uri: None,
+            left_out_bytes: Some(size),
+        });
+    }
     let bytes = match run_git_bytes(repo_path, &["show", blob]) {
         Ok(bytes) => bytes,
         Err(error) => {
@@ -347,7 +393,18 @@ fn image_blob_data_uri(
                 .with_context(|| format!("failed to read {}", fallback_path))?
         }
     };
-    Ok(Some(data_uri(mime_type, &bytes)))
+    Ok(ImageSide {
+        data_uri: Some(data_uri(mime_type, &bytes)),
+        left_out_bytes: None,
+    })
+}
+
+/// How many bytes a blob holds, asked of git without reading them.
+fn read_blob_size(repo_path: &Path, blob: &str) -> Result<u64> {
+    let size = run_git(repo_path, &["cat-file", "-s", blob])?;
+    size.trim()
+        .parse()
+        .with_context(|| format!("git gave no size for blob {blob}"))
 }
 
 pub(super) fn data_uri(mime_type: &str, data: &[u8]) -> String {

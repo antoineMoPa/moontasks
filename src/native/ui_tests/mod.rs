@@ -51,6 +51,7 @@ mod palette_search_switch;
 mod project;
 mod settings_pane;
 mod review_header;
+mod review_large_images;
 mod review_minimap;
 mod review_phone;
 mod shell_input;

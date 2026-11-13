@@ -1,8 +1,8 @@
 //! Hunk collection against throwaway repositories built on disk.
 
 use super::hunks::{
-    BINARY_DETECTION_READ_LIMIT, collect_commit_hunks, collect_hunks, collect_session_hunks,
-    is_likely_binary_file, local_change_summary_from_status,
+    BINARY_DETECTION_READ_LIMIT, LARGEST_PREVIEWED_IMAGE_BYTES, collect_commit_hunks,
+    collect_hunks, collect_session_hunks, is_likely_binary_file, local_change_summary_from_status,
 };
 use super::{
     branch_commits_since_default, canonicalize_repo, commit_history_page, list_submodule_repos,
@@ -730,6 +730,54 @@ fn collect_hunks_includes_image_diff_for_unstaged_binary_image() {
             .is_some_and(|src| src.starts_with("data:image/png;base64,"))
     );
     assert_eq!(hunk.header, "Binary image changed");
+}
+
+/// A PNG-named file just past what a hunk carries of an image.
+fn write_too_large_image(path: &std::path::Path, fill: u8) -> u64 {
+    let mut bytes = b"\x89PNG\r\n\x1a\n\0".to_vec();
+    bytes.resize(LARGEST_PREVIEWED_IMAGE_BYTES as usize + 1, fill);
+    fs::write(path, &bytes).expect("failed to write the large image");
+    bytes.len() as u64
+}
+
+#[test]
+fn a_changed_image_too_large_to_carry_only_says_how_big_each_side_is() {
+    let temp = TestDir::new();
+    let repo_root = temp.path.join("repo");
+    init_test_repo(&repo_root);
+    let before_size = write_too_large_image(&repo_root.join("huge.png"), 1);
+    run_git_no_output(&repo_root, &["add", "huge.png"]).expect("failed to add image");
+    run_git_no_output(&repo_root, &["commit", "-m", "huge image"]).expect("failed to commit image");
+    let after_size = write_too_large_image(&repo_root.join("huge.png"), 2);
+
+    let hunks = collect_hunks(&repo_root, &DiffTarget::default()).expect("failed to collect hunks");
+    let image_diff = hunks
+        .iter()
+        .find(|hunk| hunk.file_path == "huge.png")
+        .and_then(|hunk| hunk.image_diff.as_ref())
+        .expect("expected an image hunk");
+
+    assert!(image_diff.before_src.is_none() && image_diff.after_src.is_none());
+    assert_eq!(image_diff.before_left_out_bytes, Some(before_size));
+    assert_eq!(image_diff.after_left_out_bytes, Some(after_size));
+}
+
+#[test]
+fn an_untracked_image_too_large_to_carry_only_says_how_big_it_is() {
+    let temp = TestDir::new();
+    let repo_root = temp.path.join("repo");
+    init_test_repo(&repo_root);
+    let size = write_too_large_image(&repo_root.join("huge.png"), 0);
+
+    let hunks = collect_hunks(&repo_root, &DiffTarget::default()).expect("failed to collect hunks");
+    let image_diff = hunks
+        .iter()
+        .find(|hunk| hunk.file_path == "huge.png")
+        .and_then(|hunk| hunk.image_diff.as_ref())
+        .expect("expected an image hunk");
+
+    assert!(image_diff.after_src.is_none());
+    assert_eq!(image_diff.after_left_out_bytes, Some(size));
 }
 
 #[test]

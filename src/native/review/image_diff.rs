@@ -50,9 +50,19 @@ pub(crate) fn draw_image_diff(
             let tallest = ui.ctx().viewport_rect().height() * TALLEST_IMAGE_FRACTION;
 
             ui.horizontal_top(|ui| {
-                for (label, source, missing) in [
-                    ("before", &image.before_src, "(added)"),
-                    ("after", &image.after_src, "(deleted)"),
+                for (label, source, left_out_bytes, missing) in [
+                    (
+                        "before",
+                        &image.before_src,
+                        image.before_left_out_bytes,
+                        "(added)",
+                    ),
+                    (
+                        "after",
+                        &image.after_src,
+                        image.after_left_out_bytes,
+                        "(deleted)",
+                    ),
                 ] {
                     ui.vertical(|ui| {
                         ui.set_width(half);
@@ -62,23 +72,32 @@ pub(crate) fn draw_image_diff(
                                 .color(palette.muted),
                         );
                         ui.add_space(LABEL_GAP);
-                        match source.as_deref().map(|source| image_source(app, source)) {
-                            Some(Some(source)) => {
+                        let longest_side = ui.ctx().input(|input| input.max_texture_side);
+                        match source
+                            .as_deref()
+                            .map(|source| decode_image_side(app, source, longest_side))
+                        {
+                            Some(Ok(source)) => {
                                 ui.add(
                                     egui::Image::new(source)
                                         .fit_to_exact_size(vec2(half, tallest))
                                         .maintain_aspect_ratio(true),
                                 );
                             }
-                            // The side is there but is not a data URI this build can read.
-                            Some(None) => {
-                                ui.label(
-                                    RichText::new("(cannot read this image)").color(palette.warn),
-                                );
+                            Some(Err(why)) => {
+                                ui.label(RichText::new(why).color(palette.warn));
                             }
-                            None => {
-                                ui.label(RichText::new(missing).color(palette.muted));
-                            }
+                            None => match left_out_bytes {
+                                Some(bytes) => {
+                                    ui.label(
+                                        RichText::new(describe_left_out_image(bytes))
+                                            .color(palette.muted),
+                                    );
+                                }
+                                None => {
+                                    ui.label(RichText::new(missing).color(palette.muted));
+                                }
+                            },
                         }
                     });
                     ui.add_space(IMAGE_GAP);
@@ -122,16 +141,49 @@ fn draw_file_link(app: &mut App, ui: &mut Ui, file_path: &str, palette: &Palette
     });
 }
 
-/// The image behind a `data:` URI, decoded on first sight and kept until the window closes.
-fn image_source(app: &mut App, data_uri: &str) -> Option<egui::ImageSource<'static>> {
-    let key = hash_of(data_uri);
-    let decoded = app
-        .decoded_images
-        .entry(key)
-        .or_insert_with(|| decode_image_data_uri(data_uri));
-    let (extension, bytes) = decoded.as_ref()?;
+/// What is said in place of a side too large for the repo's side to send.
+fn describe_left_out_image(bytes: u64) -> String {
+    format!(
+        "({:.1} MB: too large to preview)",
+        bytes as f64 / (1024.0 * 1024.0)
+    )
+}
 
-    Some(bytes_source(key, extension, bytes))
+/// An image the review has decoded, kept until the window closes.
+pub(crate) struct DecodedImage {
+    extension: &'static str,
+    bytes: Arc<[u8]>,
+    /// Width and height from the image's own header; `None` when no decoder of this build
+    /// reads it, which egui then says for itself.
+    size: Option<(u32, u32)>,
+}
+
+/// The image behind a `data:` URI, decoded on first sight - or why it is not drawn: it cannot
+/// be read, or it is longer on a side than one texture of the graphics card, which egui would
+/// take the window down over.
+fn decode_image_side(
+    app: &mut App,
+    data_uri: &str,
+    longest_side: usize,
+) -> Result<egui::ImageSource<'static>, String> {
+    let key = hash_of(data_uri);
+    let decoded = app.decoded_images.entry(key).or_insert_with(|| {
+        decode_image_data_uri(data_uri).map(|(extension, bytes)| DecodedImage {
+            extension,
+            size: read_pixel_size(&bytes),
+            bytes,
+        })
+    });
+    let decoded = decoded
+        .as_ref()
+        .ok_or_else(|| "(cannot read this image)".to_string())?;
+    if let Some(too_long) = decoded
+        .size
+        .and_then(|size| describe_too_long_to_draw(size, longest_side))
+    {
+        return Err(too_long);
+    }
+    Ok(bytes_source(key, decoded.extension, &decoded.bytes))
 }
 
 /// What egui draws a decoded image from. `key` is the hash of the `data:` URI it arrived as.
@@ -157,6 +209,28 @@ pub(crate) fn decode_image_data_uri(data_uri: &str) -> Option<(&'static str, Arc
     let extension = extension_of_mime_type(mime_type)?;
     let bytes = BASE64.decode(payload).ok()?;
     Some((extension, Arc::from(bytes)))
+}
+
+/// How wide and how tall a picture is in pixels, as its own header has it. `None` for bytes
+/// no decoder of this build reads.
+pub(crate) fn read_pixel_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()
+        .and_then(|reader| reader.into_dimensions().ok())
+}
+
+/// What is said in place of a picture with a side longer than the graphics card draws, and
+/// `None` for one that fits.
+pub(crate) fn describe_too_long_to_draw(
+    (width, height): (u32, u32),
+    longest_side: usize,
+) -> Option<String> {
+    (width.max(height) as usize > longest_side).then(|| {
+        format!(
+            "{width} × {height} pixels is more than this window can draw: {longest_side} a side at most"
+        )
+    })
 }
 
 #[cfg(test)]
