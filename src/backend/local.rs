@@ -281,6 +281,26 @@ impl Backend for LocalBackend {
         moontasks::service::board_task(&self.state, session_id)
     }
 
+    fn list_hooks(&self, session_id: &str) -> Result<moontasks::hooks::BoardHooks> {
+        moontasks::hooks::list_hooks(&self.state, session_id)
+    }
+
+    fn save_hook(
+        &self,
+        session_id: &str,
+        request: &moontasks::hooks::SaveHookRequest,
+    ) -> Result<()> {
+        moontasks::hooks::save_hook(&self.state, session_id, request.clone())
+    }
+
+    fn remove_hook(
+        &self,
+        session_id: &str,
+        request: &moontasks::hooks::RemoveHookRequest,
+    ) -> Result<()> {
+        moontasks::hooks::remove_hook(&self.state, session_id, request.clone())
+    }
+
     fn create_task(&self, session_id: &str, request: &CreateTaskRequest) -> Result<TaskView> {
         moontasks::service::create_task(&self.state, session_id, request)
     }

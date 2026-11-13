@@ -24,6 +24,7 @@ pub use resources::{
     attach_resource, delete_resource, record_run_name, resume_resource, start_resource,
     stop_resource,
 };
+pub(crate) use resources::{HookStart, start_hook_run};
 
 use std::path::{Path, PathBuf};
 
@@ -52,7 +53,7 @@ pub(super) fn folder_of(state: &AppState, session_id: &str) -> Result<PathBuf> {
 
 /// The repo a session's board belongs to: the folder the session is open on, or the checkout
 /// that folder is a work tree of where people share a board - see [`store::board_checkout`].
-pub(super) fn repo_of(state: &AppState, session_id: &str) -> Result<PathBuf> {
+pub(crate) fn repo_of(state: &AppState, session_id: &str) -> Result<PathBuf> {
     store::board_checkout(&folder_of(state, session_id)?)
 }
 
@@ -169,14 +170,24 @@ pub fn place_tasks(
     parent: Option<&str>,
 ) -> Result<()> {
     let repo_path = repo_of(state, session_id)?;
-    place_tasks_in_repo(
+    place_tasks_moved_by(
         &state.terminals,
         &repo_path,
         task_ids,
         status,
         position,
         parent,
+        MovedBy::Person,
     )
+}
+
+/// Who moved a card, which is what says whether the hooks' count of runs in a row on it starts
+/// again - see [`store::TaskMetadata::hook_runs_in_a_row`]. A window is a person; a command
+/// line may be an agent, and is taken for one.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MovedBy {
+    Person,
+    CommandLine,
 }
 
 /// [`place_tasks`] for a caller with the board's repo in hand and no session on it, which is
@@ -192,6 +203,26 @@ pub fn place_tasks_in_repo(
     status: ColumnId,
     position: usize,
     parent: Option<&str>,
+) -> Result<()> {
+    place_tasks_moved_by(
+        terminals,
+        repo_path,
+        task_ids,
+        status,
+        position,
+        parent,
+        MovedBy::CommandLine,
+    )
+}
+
+fn place_tasks_moved_by(
+    terminals: &TerminalRegistry,
+    repo_path: &Path,
+    task_ids: &[String],
+    status: ColumnId,
+    position: usize,
+    parent: Option<&str>,
+    moved_by: MovedBy,
 ) -> Result<()> {
     let board = store::read_board(repo_path);
     if !board.has(&status) {
@@ -265,6 +296,9 @@ pub fn place_tasks_in_repo(
             &mut metadata,
             &status,
         );
+        if moved_by == MovedBy::Person {
+            metadata.hook_runs_in_a_row = 0;
+        }
         if *metadata.column() != status {
             arriving = true;
             metadata.status = Some(status.clone());
@@ -462,6 +496,7 @@ fn resources_of(
                     started_at_unix: resource.started_at_unix,
                     started_by: None,
                     work_tree: None,
+                    started_by_hook: None,
                 }
             }
             TaskResourceKind::Shell | TaskResourceKind::Agent => {
@@ -511,6 +546,7 @@ fn resources_of(
                         .as_ref()
                         .map(|by| by.github_login.clone()),
                     work_tree: resource.work_tree.clone(),
+                    started_by_hook: resource.started_by_hook.clone(),
                 }
             }
         })
@@ -536,6 +572,7 @@ fn resources_of(
                 started_at_unix: shell.started_at_unix,
                 started_by: None,
                 work_tree: None,
+                started_by_hook: None,
             }),
     );
     resources.sort_by_key(|resource| resource.started_at_unix);
@@ -571,6 +608,7 @@ fn view_of(
         attachments,
         folder_files,
         resources: resources_of(state, repo_path, works_in, task_id, metadata, open),
+        hooks_stopped: metadata.hook_runs_in_a_row >= crate::moontasks::hooks::HOOK_RUNS_IN_A_ROW_CAP,
     }
 }
 
@@ -659,6 +697,7 @@ pub fn link_file(state: &AppState, session_id: &str, task_id: &str, file_path: &
         started_at_unix: store::now_unix(),
         started_by: None,
         work_tree: None,
+        started_by_hook: None,
     });
     store::write_task(&repo_path, task_id, &metadata)
 }

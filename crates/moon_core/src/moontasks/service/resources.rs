@@ -26,6 +26,46 @@ pub fn start_resource(
     task_id: &str,
     request: StartResourceRequest,
 ) -> Result<String> {
+    start_run(state, session_id, task_id, request, None)
+}
+
+/// What a hook hands [`start_run`]: its name, written on the run, and the commands typed into
+/// a shell it starts.
+pub(crate) struct HookStart {
+    pub(crate) label: String,
+    pub(crate) shell_commands: Option<String>,
+}
+
+/// Start the run a hook fires: an agent, or a shell with the hook's commands typed into it,
+/// marked with the hook's name - see [`crate::moontasks::hooks`]. Unlike a run somebody
+/// starts, it leaves the card in the column it is in: the column is what fired it.
+pub(crate) fn start_hook_run(
+    state: &AppState,
+    session_id: &str,
+    task_id: &str,
+    agent: AgentKind,
+    hook: HookStart,
+) -> Result<String> {
+    let kind = match agent {
+        AgentKind::None => TaskResourceKind::Shell,
+        _ => TaskResourceKind::Agent,
+    };
+    let request = StartResourceRequest {
+        kind,
+        agent,
+        opens_in: StartFolder::Repo,
+        unattended: true,
+    };
+    start_run(state, session_id, task_id, request, Some(hook))
+}
+
+fn start_run(
+    state: &AppState,
+    session_id: &str,
+    task_id: &str,
+    request: StartResourceRequest,
+    hook: Option<HookStart>,
+) -> Result<String> {
     let works_in = folder_of(state, session_id)?;
     let repo_path = store::board_checkout(&works_in)?;
     let mut metadata = store::read_task(&repo_path, task_id)?;
@@ -76,7 +116,11 @@ pub fn start_resource(
         env,
         owner: Some(store::run_owner(&repo_path, task_id)),
         name: Some(name.clone()),
-        type_ahead: None,
+        // A shell's commands are typed in and sent, a line at a time.
+        type_ahead: hook
+            .as_ref()
+            .and_then(|hook| hook.shell_commands.as_ref())
+            .map(|commands| format!("{}\r", commands.trim_end().replace('\n', "\r"))),
         runs_as: person.clone(),
     })?;
     // Before the shell's id is written down or answered with, so nothing is told to it first.
@@ -100,9 +144,12 @@ pub fn start_resource(
             started_at_unix: store::now_unix(),
             started_by: person.as_ref().map(started_by),
             work_tree: store::work_tree_apart_from(&repo_path, &works_in),
+            started_by_hook: hook.as_ref().map(|hook| hook.label.clone()),
         });
         store::write_task(&repo_path, task_id, &metadata)?;
-        move_to_in_progress(state, &repo_path, task_id, &metadata)?;
+        if hook.is_none() {
+            move_to_in_progress(state, &repo_path, task_id, &metadata)?;
+        }
     }
 
     Ok(terminal_id)
@@ -277,6 +324,7 @@ pub fn attach_resource(
         started_at_unix: store::now_unix(),
         started_by: person.as_ref().map(started_by),
         work_tree: store::work_tree_apart_from(&repo_path, &works_in),
+        started_by_hook: None,
     });
     store::write_task(&repo_path, task_id, &metadata)?;
 

@@ -214,6 +214,38 @@ folder — so it ignores itself from the moment it is created, and opening moon 
 leaves `git status` exactly as it was. To share the board with the rest of the team instead,
 delete `.moontasks/.gitignore` and commit the folder; it will not come back.
 
+## Hooks
+
+A column can start an agent when a card arrives in it, and the board can start agents on a
+schedule. Each one is a file, written from the board or by hand:
+
+- `.moontasks/hooks/columns/<column id>.md` - one per column. Its pill sits at the right of the
+  column's heading; hover a heading for `+` to add one.
+- `.moontasks/hooks/board/<name>.md` - a schedule, made from the board's `[start]` →
+  `schedule…`. Every minute, every hour at `:MM`, every day or on weekdays at `HH:MM`.
+
+```text
+---
+every: weekdays
+at: 08:30
+start: claude        # codex, opencode, pi, minerve, or shell
+---
+Read the board and say what moved since yesterday.
+```
+
+A column hook's prompt can say `{title}`, `{notes}`, `{from}`, `{folder}` and `{id}`; a
+schedule's, `{date}`. Every firing starts a new run - on the card that arrived, or on the board
+for a schedule - marked with the hook that started it, and opened like any other run.
+
+- A card arrives whoever moves it: you, an agent's `moon tasks move`, a text editor.
+- Hooks fire in the moon window last focused on the board, so their runs are where you can open
+  them. With that window closed, any moon with the board open fires them, once.
+- After 5 hook runs in a row on a card, hooks stop on it and the card says so; moving it
+  yourself starts them again.
+- A schedule missed while moon was closed runs when moon opens later in its day (or hour); days
+  gone by are not made up for.
+- What each hook did, or why it could not, is a line in `.moontasks/hooks/hooks.log`.
+
 ## A card from the command line
 
 ```bash

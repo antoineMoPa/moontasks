@@ -175,6 +175,8 @@ pub(super) fn draw_heading(
         .unwrap_or(0);
 
     ui.horizontal(|ui| {
+        // Over the heading, which is when a column with no hook offers to make one.
+        let heading_hovered = ui.rect_contains_pointer(ui.max_rect());
         if editing {
             draw_heading_editor(app, ui, column, actions);
         } else {
@@ -210,6 +212,8 @@ pub(super) fn draw_heading(
                 if mark.clicked() && cards == 0 {
                     app.model.board.pending_column_delete = Some(column.id.clone());
                 }
+                // Between the count and the mark, at the right of the heading.
+                super::hooks::draw_column_hook_pill(app, ui, column, heading_hovered, palette);
 
                 // How many of them arrived today is one hover away: in DONE that is what today
                 // has finished, and in a queue what today has added to it.

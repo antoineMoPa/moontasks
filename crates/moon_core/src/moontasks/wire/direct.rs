@@ -64,6 +64,7 @@ mod tests {
             started_by: None,
             work_tree: None,
             started_at_unix: 0,
+            started_by_hook: None,
         }
     }
 
@@ -103,6 +104,7 @@ mod tests {
             ],
             made_by: None,
             appears_on: None,
+            hook_runs_in_a_row: 0,
         };
 
         assert_eq!(

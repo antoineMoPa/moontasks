@@ -202,6 +202,7 @@ mod tests {
                 attachments: Vec::new(),
                 folder_files: Vec::new(),
                     resources: Vec::new(),
+                    hooks_stopped: false,
                 })
                 .collect(),
             ..Default::default()

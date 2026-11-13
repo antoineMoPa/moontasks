@@ -43,6 +43,41 @@ pub(super) async fn board_task(
     Ok(Json(task))
 }
 
+pub(super) async fn list_hooks(
+    AxumPath(session_id): AxumPath<String>,
+    State(state): State<AppState>,
+) -> Result<Json<moontasks::hooks::BoardHooks>, AppError> {
+    mark_activity(&state);
+    let hooks = core_session_work(state, session_id, moontasks::hooks::list_hooks).await?;
+    Ok(Json(hooks))
+}
+
+pub(super) async fn save_hook(
+    AxumPath(session_id): AxumPath<String>,
+    State(state): State<AppState>,
+    Json(request): Json<moontasks::hooks::SaveHookRequest>,
+) -> Result<&'static str, AppError> {
+    mark_activity(&state);
+    core_session_work(state, session_id, move |state, session_id| {
+        moontasks::hooks::save_hook(state, session_id, request)
+    })
+    .await?;
+    Ok("ok")
+}
+
+pub(super) async fn remove_hook(
+    AxumPath(session_id): AxumPath<String>,
+    State(state): State<AppState>,
+    Json(request): Json<moontasks::hooks::RemoveHookRequest>,
+) -> Result<&'static str, AppError> {
+    mark_activity(&state);
+    core_session_work(state, session_id, move |state, session_id| {
+        moontasks::hooks::remove_hook(state, session_id, request)
+    })
+    .await?;
+    Ok("ok")
+}
+
 pub(super) async fn create_task(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,

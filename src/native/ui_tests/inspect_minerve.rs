@@ -98,6 +98,7 @@ fn running_minerve() -> crate::moontasks::TaskResourceView {
         started_at_unix: 1700000001,
         started_by: None,
         work_tree: None,
+        started_by_hook: None,
     }
 }
 

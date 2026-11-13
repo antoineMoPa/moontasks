@@ -226,6 +226,21 @@ pub(crate) trait Backend: Send + Sync + 'static {
     /// board itself are runs of - and what it has running. Made if the board has none yet.
     /// Its id is a task's id to every call here that starts, resumes, stops or removes a run.
     fn board_task(&self, session_id: &str) -> Result<BoardTaskView>;
+    /// The board's hooks: what each column starts as a card arrives in it, and the board's
+    /// schedules - see [`crate::moontasks::hooks`].
+    fn list_hooks(&self, session_id: &str) -> Result<crate::moontasks::hooks::BoardHooks>;
+    /// Write a hook, in place of the one it replaces.
+    fn save_hook(
+        &self,
+        session_id: &str,
+        request: &crate::moontasks::hooks::SaveHookRequest,
+    ) -> Result<()>;
+    /// Take a hook off the board.
+    fn remove_hook(
+        &self,
+        session_id: &str,
+        request: &crate::moontasks::hooks::RemoveHookRequest,
+    ) -> Result<()>;
     fn create_task(&self, session_id: &str, request: &CreateTaskRequest) -> Result<TaskView>;
     /// Put tasks in a column, at a place among the cards already there, which is what a
     /// drag on the board does, and the only way a card moves. More than one is a card

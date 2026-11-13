@@ -69,6 +69,21 @@ fn offers(app: &App, task: RunsOf<'_>) -> Vec<Vec<StartOffer>> {
         },
     ]];
 
+    // The board's own runs can also be started at a time of day - see `super::hooks`.
+    if app
+        .model
+        .board
+        .board_task
+        .as_ref()
+        .is_some_and(|board_task| board_task.id == task.id)
+    {
+        groups.push(vec![StartOffer {
+            label: "schedule…".to_string(),
+            hover: Some("Start one of the board's agents at a time of day, every day or weekday"),
+            action: BoardAction::OpenScheduleEditor,
+        }]);
+    }
+
     if agents.is_empty() {
         return groups;
     }

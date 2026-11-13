@@ -546,9 +546,11 @@ fn a_finished_agent_is_cleared_without_moving_its_task() {
             started_at_unix: 0,
             started_by: None,
             work_tree: None,
+            started_by_hook: None,
         }],
         made_by: None,
         appears_on: None,
+        hook_runs_in_a_row: 0,
     };
     let state = crate::api::AppState::for_a_test(std::sync::Arc::new(std::sync::Mutex::new(
         std::time::Instant::now(),
@@ -586,9 +588,11 @@ fn a_finished_agent_leaves_a_task_where_the_user_put_it() {
             started_at_unix: 0,
             started_by: None,
             work_tree: None,
+            started_by_hook: None,
         }],
         made_by: None,
         appears_on: None,
+        hook_runs_in_a_row: 0,
     };
     let state = crate::api::AppState::for_a_test(std::sync::Arc::new(std::sync::Mutex::new(
         std::time::Instant::now(),
@@ -627,9 +631,11 @@ fn a_run_held_by_another_running_moon_is_left_alone_until_that_moon_exits() {
             started_at_unix: 0,
             started_by: None,
             work_tree: None,
+            started_by_hook: None,
         }],
         made_by: None,
         appears_on: None,
+        hook_runs_in_a_row: 0,
     };
     let state = crate::api::AppState::for_a_test(std::sync::Arc::new(std::sync::Mutex::new(
         std::time::Instant::now(),
@@ -679,6 +685,7 @@ fn a_task_finished_from_another_moon_keeps_the_run_that_moon_holds() {
         started_at_unix: 0,
         started_by: None,
         work_tree: None,
+        started_by_hook: None,
     };
     // The process that started this test is running, and is not this one.
     let another_moon = std::os::unix::process::parent_id();
@@ -738,9 +745,11 @@ fn run_of_session(session_id: &str) -> TaskMetadata {
             started_at_unix: 0,
             started_by: None,
             work_tree: None,
+            started_by_hook: None,
         }],
         made_by: None,
         appears_on: None,
+        hook_runs_in_a_row: 0,
     }
 }
 

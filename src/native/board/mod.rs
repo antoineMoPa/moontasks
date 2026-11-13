@@ -17,6 +17,8 @@ pub(crate) mod filter;
 pub(crate) mod gesture;
 pub(crate) mod header;
 mod board_task;
+pub(crate) mod hook_editor;
+pub(crate) mod hooks;
 pub(crate) mod marks;
 pub(crate) mod motion;
 pub(crate) mod placing;
@@ -73,6 +75,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
     // Over the whole board rather than inside the card it belongs to: the cards are laid out
     // and moved every frame, and the menu stands where the click was made.
     card_menu::draw(app, ui.ctx(), &mut actions);
+    hook_editor::draw(app, ui.ctx(), &palette, &mut actions);
     settle_gesture(app, ui, &mut actions);
 
     for action in actions {

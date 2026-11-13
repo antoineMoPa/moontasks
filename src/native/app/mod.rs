@@ -666,6 +666,9 @@ impl eframe::App for App {
             return;
         }
         self.draw(ui);
+        // The hooks of this window's boards start their runs here while it is the one in use.
+        #[cfg(not(target_arch = "wasm32"))]
+        crate::moontasks::hooks::note_window_focus(ui.ctx().input(|input| input.focused));
         #[cfg(target_arch = "wasm32")]
         self.draw_web_account(ui.ctx());
         // After the draw, which the pane arrangement is lent out to.

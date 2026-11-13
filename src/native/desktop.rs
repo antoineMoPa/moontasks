@@ -23,6 +23,9 @@ use crate::{
 pub(crate) fn launch_local(open: OpenSessionRequest, frame: crate::cli::Frame) -> Result<Launch> {
     let last_activity = Arc::new(Mutex::new(Instant::now()));
     let state = server::build_state(last_activity);
+    // The board's hooks fire in the process that holds its sessions - see
+    // `crate::moontasks::hooks`.
+    crate::moontasks::hooks::start_hook_runner(state.core.clone());
 
     let served_state = state.clone();
     // No idle timeout: the window decides how long this process lives, not the clock.
@@ -79,9 +82,11 @@ pub(crate) fn launch_remote(
 /// started from the OS needs, since it starts outside every repo.
 pub(crate) fn launch_prompt(frame: crate::cli::Frame) -> Result<Launch> {
     let last_activity = Arc::new(Mutex::new(Instant::now()));
+    let state = server::build_state(last_activity);
+    crate::moontasks::hooks::start_hook_runner(state.core.clone());
 
     Ok(Launch {
-        backend: Arc::new(LocalBackend::new(server::build_state(last_activity))),
+        backend: Arc::new(LocalBackend::new(state)),
         open: None,
         frame,
     })

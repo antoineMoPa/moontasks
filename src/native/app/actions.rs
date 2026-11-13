@@ -215,13 +215,17 @@ impl App {
                 let columns = backend.list_columns(&session_id)?;
                 let tasks = backend.list_tasks(&session_id)?;
                 let board_task = backend.board_task(&session_id)?;
-                Ok((columns, tasks, board_task))
+                // A moon that answers with no hooks - one from before them - is a board with
+                // none, rather than a board that cannot be read.
+                let hooks = backend.list_hooks(&session_id).unwrap_or_default();
+                Ok((columns, tasks, board_task, hooks))
             },
             |model, result| {
                 model.board.loaded = true;
                 match result {
-                    Ok((columns, tasks, board_task)) => {
+                    Ok((columns, tasks, board_task, hooks)) => {
                         model.board.error = None;
+                        model.board.hooks = hooks;
                         board::columns::accept_columns(model, columns);
                         board::placing::accept_board(model, tasks);
                         model.board.board_task = Some(board_task);

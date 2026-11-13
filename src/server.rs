@@ -12,7 +12,7 @@ mod web_page;
 use board_routes::{
     amend_review_request, change_settings, list_review_requests, opencode_models,
     palette_history, record_in_palette_history, settings,
-    add_column, attach_task_resource, board_task, create_task, delete_column, delete_task,
+    add_column, attach_task_resource, board_task, create_task, list_hooks, remove_hook, save_hook, delete_column, delete_task,
     delete_task_resource, link_task_file, list_agent_sessions, list_columns,
     list_tasks, open_task_notes, open_wire, open_work_log, place_column, place_tasks,
     project_commands, remove_task_attachment,
@@ -277,6 +277,11 @@ fn protected_routes() -> Router<Served> {
             get(list_columns).post(add_column),
         )
         .route("/api/session/{session_id}/board-task", get(board_task))
+        .route(
+            "/api/session/{session_id}/hooks",
+            get(list_hooks).post(save_hook),
+        )
+        .route("/api/session/{session_id}/hooks/removal", post(remove_hook))
         .route("/api/settings", get(settings).post(change_settings))
         .route(
             "/api/session/{session_id}/palette-history",
@@ -516,6 +521,9 @@ pub(crate) async fn run_server() -> Result<()> {
         &project_folder,
     )?;
     let state = build_state(Arc::clone(&last_activity));
+    // The boards' hooks fire here, for the sessions this server holds - see
+    // `crate::moontasks::hooks`.
+    crate::moontasks::hooks::start_hook_runner(state.core.clone());
     let users = Users::for_this_machine()?;
     let listener = bind().await?;
     // Where a `moon launch`, a `moon agent tell` or a tagged `moon wire post` typed in one of

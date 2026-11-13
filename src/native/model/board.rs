@@ -17,6 +17,15 @@ pub(crate) struct BoardState {
     /// The board task: the task on no column, whose runs are listed over the columns - see
     /// [`crate::native::board::board_task`]. It arrives with the tasks, so `None` until they have.
     pub(crate) board_task: Option<crate::moontasks::BoardTaskView>,
+    /// The board's hooks - its columns' and its schedules - as the last read had them. See
+    /// [`crate::native::board::hooks`].
+    pub(crate) hooks: crate::moontasks::hooks::BoardHooks,
+    /// The hook whose editor is open over the board, if one is - see
+    /// [`crate::native::board::hook_editor`].
+    pub(crate) hook_editor: Option<crate::native::board::hook_editor::HookEditor>,
+    /// Where the board's own `[start]` was drawn last frame: a new schedule, which its menu
+    /// offers, has its editor open under it.
+    pub(crate) board_start_at: Option<egui::Rect>,
     /// The board's columns, left to right, as the last read had them. Empty until the first
     /// answer arrives, which is what `loaded` says.
     pub(crate) columns: Vec<crate::moontasks::BoardColumn>,

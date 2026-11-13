@@ -16,6 +16,12 @@ use crate::{
 /// What a click on the board asked for. Collected while drawing and acted on afterwards, so
 /// nothing changes the pane tree or the task list while either is being read.
 pub(crate) enum BoardAction {
+    /// Write a hook from its editor - see [`super::hook_editor`].
+    SaveHook(crate::moontasks::hooks::SaveHookRequest),
+    /// Take a hook off the board.
+    RemoveHook(crate::moontasks::hooks::RemoveHookRequest),
+    /// Open the editor of a new schedule, under the board's `[start]` it was offered by.
+    OpenScheduleEditor,
     /// Open a pane to write a new task on, joining this column at the end whose `+` was
     /// pressed. Nothing is created until that pane has a title - see [`BoardAction::Create`].
     OpenNewTask(ColumnId, ColumnEnd),
@@ -550,6 +556,39 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
         BoardAction::SetColumnArrivals(column_id, arrivals) => {
             act(app, "could not change the column", move |backend| {
                 backend.set_column_arrivals(&session_id, &column_id, arrivals)
+            });
+        }
+        BoardAction::SaveHook(request) => {
+            app.tasks.spawn(
+                move |backend| backend.save_hook(&session_id, &request),
+                |model, result| {
+                    model.board.refresh_requested = true;
+                    match result {
+                        // Saved: the editor has done its work.
+                        Ok(()) => model.board.hook_editor = None,
+                        // Refused: said in the editor, which keeps what was typed.
+                        Err(error) => match model.board.hook_editor.as_mut() {
+                            Some(editor) => editor.error = Some(format!("{error:#}")),
+                            None => model.report(Err(error), "could not save the hook"),
+                        },
+                    }
+                },
+            );
+        }
+        BoardAction::OpenScheduleEditor => {
+            let under = app.model.board.board_start_at.unwrap_or(egui::Rect::from_min_size(
+                egui::pos2(24.0, 80.0),
+                egui::vec2(40.0, 16.0),
+            ));
+            super::hook_editor::open_hook_editor(
+                app,
+                super::hook_editor::HookEditorTarget::Schedule(None),
+                under,
+            );
+        }
+        BoardAction::RemoveHook(request) => {
+            act(app, "could not remove the hook", move |backend| {
+                backend.remove_hook(&session_id, &request)
             });
         }
         BoardAction::SetColumnSort(column_id, sort) => {

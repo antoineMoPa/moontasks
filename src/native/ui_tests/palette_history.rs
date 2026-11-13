@@ -52,7 +52,9 @@ fn quick_task_card() -> TaskView {
             started_at_unix: 0,
             started_by: None,
             work_tree: None,
+            started_by_hook: None,
         }],
+        hooks_stopped: false,
     }
 }
 

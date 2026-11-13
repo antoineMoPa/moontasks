@@ -74,6 +74,7 @@ mod tests {
             resources: Vec::new(),
             made_by: None,
             appears_on: None,
+            hook_runs_in_a_row: 0,
         };
         (title.to_string(), metadata)
     }

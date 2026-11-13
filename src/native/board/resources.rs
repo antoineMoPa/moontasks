@@ -508,6 +508,7 @@ fn draw_resource(
             }
             // Last, in whatever room the name and the marks have left between them - and
             // never while the row holds the question of closing it, which returned above.
+            super::hooks::draw_hook_mark_on_run(ui, resource, palette);
             draw_started_by(ui, resource, palette);
         });
     });
@@ -718,6 +719,7 @@ mod tests {
             started_at_unix: 0,
             started_by: None,
             work_tree: None,
+            started_by_hook: None,
         }
     }
 

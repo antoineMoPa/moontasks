@@ -148,6 +148,11 @@ pub struct TaskResource {
     /// checkout, which is every run of a board nobody shares.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work_tree: Option<String>,
+    /// What started the run when a hook did rather than a person: the heading of the column a
+    /// card arrived in, or the name of a board schedule - see [`crate::moontasks::hooks`]. The
+    /// card says so beside the run. `None` for a run somebody started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_by_hook: Option<String>,
 }
 
 /// The person a run belongs to: the card shows their GitHub login, and the run is resumed as
@@ -209,6 +214,17 @@ pub struct TaskMetadata {
         with = "crate::moontasks::appears_on::in_metadata"
     )]
     pub appears_on: Option<time::Date>,
+    /// How many runs hooks have started on this card since a person last moved it. A hook's
+    /// agent may move the card on into a column with a hook of its own, and the hooks stop
+    /// once this reaches [`crate::moontasks::hooks::HOOK_RUNS_IN_A_ROW_CAP`] - which the card
+    /// says - so two columns cannot hand a card back and forth for ever. A person moving the
+    /// card sets it back to nothing.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub hook_runs_in_a_row: u32,
+}
+
+fn is_zero(count: &u32) -> bool {
+    *count == 0
 }
 
 impl TaskMetadata {
@@ -532,6 +548,7 @@ pub fn create_task_appearing_on(
         resources: Vec::new(),
         made_by: crate::unix_users::person_this_is_done_for(),
         appears_on,
+        hook_runs_in_a_row: 0,
     };
     write_task(repo_path, &task_id, &metadata)?;
     ensure_notes_file(repo_path, &task_id)?;
@@ -564,6 +581,7 @@ pub fn create_board_task(repo_path: &Path) -> Result<()> {
         resources: Vec::new(),
         made_by: None,
         appears_on: None,
+        hook_runs_in_a_row: 0,
     };
     write_task(repo_path, BOARD_TASK_ID, &metadata)?;
     ensure_notes_file(repo_path, BOARD_TASK_ID)

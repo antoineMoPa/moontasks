@@ -26,8 +26,8 @@ const ROW_WIDTH: f32 = 230.0;
 
 /// The strip: what it is, its runs side by side onto as many lines as they need, and its
 /// `[start]` after the last of them. Nothing, until the board has been read and its board task with it.
-pub(super) fn draw(app: &App, ui: &mut Ui, palette: &Palette, actions: &mut Vec<BoardAction>) {
-    let Some(board_task) = &app.model.board.board_task else {
+pub(super) fn draw(app: &mut App, ui: &mut Ui, palette: &Palette, actions: &mut Vec<BoardAction>) {
+    let Some(board_task) = app.model.board.board_task.clone() else {
         return;
     };
     // Nothing here is a card, so there is no card for a press to be told apart from.
@@ -42,6 +42,8 @@ pub(super) fn draw(app: &App, ui: &mut Ui, palette: &Palette, actions: &mut Vec<
             "The board's own agents and shells: started from here rather than from a card, \
              to work on the board itself or on something no card is about",
         );
+        // The board's schedules, which start its runs at a time of day.
+        super::hooks::draw_schedule_pills(app, ui, palette);
         resources::draw_list(
             app,
             ui,
@@ -52,7 +54,13 @@ pub(super) fn draw(app: &App, ui: &mut Ui, palette: &Palette, actions: &mut Vec<
             resources::Rows::Across { width: ROW_WIDTH },
         );
         // After the last of them, so what is running is read before what else could be.
+        // Where `[start]` is, which a new schedule's editor - one of its offers - stands under.
+        let start_at = ui.next_widget_position();
         start::draw_button(app, ui, board_task.runs(), &mut controls, actions);
+        app.model.board.board_start_at = Some(egui::Rect::from_min_max(
+            start_at - egui::vec2(0.0, 8.0),
+            start_at + egui::vec2(40.0, 8.0),
+        ));
     });
     ui.add_space(4.0);
 }

@@ -12,6 +12,7 @@ mod board_columns;
 mod board_day_lines;
 mod board_days_work;
 mod board_drag;
+mod board_hooks;
 mod board_task;
 mod board_new_task_pane;
 mod board_pending_card;

@@ -7,6 +7,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub mod appears_on;
 pub mod column_sort;
+// What the board starts by itself: column hooks and schedules.
+pub mod hooks;
 pub mod remote_tracker;
 pub mod review_request;
 pub mod sub_tasks;
@@ -75,6 +77,11 @@ pub struct TaskView {
     #[serde(default)]
     pub folder_files: Vec<String>,
     pub resources: Vec<TaskResourceView>,
+    /// Whether the hooks have stopped starting runs on this card: they have started
+    /// [`hooks::HOOK_RUNS_IN_A_ROW_CAP`] in a row with no person moving it - see
+    /// [`store::TaskMetadata::hook_runs_in_a_row`]. The card says so.
+    #[serde(default)]
+    pub hooks_stopped: bool,
 }
 
 /// The board task, as the board draws it above its columns: the one task that is on no
@@ -172,6 +179,10 @@ pub struct TaskResourceView {
     /// for a shell or a file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work_tree: Option<String>,
+    /// The hook that started the run, by the heading of its column or the name of its
+    /// schedule - see [`hooks`]. `None` for a run a person started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_by_hook: Option<String>,
 }
 
 /// One repo a task's `request_for_review.txt` asks to have looked at, as the board draws it.

@@ -368,6 +368,26 @@ impl Backend for RemoteBackend {
         self.get(&format!("/api/session/{session_id}/board-task"))
     }
 
+    fn list_hooks(&self, session_id: &str) -> Result<crate::moontasks::hooks::BoardHooks> {
+        self.get(&format!("/api/session/{session_id}/hooks"))
+    }
+
+    fn save_hook(
+        &self,
+        session_id: &str,
+        request: &crate::moontasks::hooks::SaveHookRequest,
+    ) -> Result<()> {
+        self.post(&format!("/api/session/{session_id}/hooks"), request)
+    }
+
+    fn remove_hook(
+        &self,
+        session_id: &str,
+        request: &crate::moontasks::hooks::RemoveHookRequest,
+    ) -> Result<()> {
+        self.post(&format!("/api/session/{session_id}/hooks/removal"), request)
+    }
+
     fn create_task(&self, session_id: &str, request: &CreateTaskRequest) -> Result<TaskView> {
         self.post_json(&format!("/api/session/{session_id}/tasks"), request)
     }

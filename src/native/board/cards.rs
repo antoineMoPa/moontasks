@@ -431,6 +431,7 @@ fn draw_card_body(
             if !task.resources.is_empty() {
                 ui.add_space(3.0);
             }
+            super::hooks::draw_hooks_stopped_note(ui, task, palette);
             // The documents the task lists, under what runs in it.
             super::attachments::draw_list(app, ui, task, &mut card, palette, actions);
             if !task.attachments.is_empty() {
