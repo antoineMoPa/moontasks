@@ -946,3 +946,37 @@ fn list_submodule_repos_counts_the_commits_a_submodule_has_not_pushed() {
         "a repo with no remote has nothing waiting on a push"
     );
 }
+
+/// A moved file is a delete and an add, staged or committed - never a rename with no hunk,
+/// which is a file the review's list would not have.
+#[test]
+fn a_moved_file_is_listed_staged_and_in_its_commit() {
+    let temp = TestDir::new();
+    let repo_root = temp.path.join("repo");
+    init_test_repo(&repo_root);
+    fs::create_dir_all(repo_root.join("old")).expect("failed to make the folder");
+    fs::write(repo_root.join("old/parser.rs"), "pub fn parse() {}\n").expect("failed to write");
+    run_git_no_output(&repo_root, &["add", "-A"]).expect("failed to add");
+    run_git_no_output(&repo_root, &["commit", "-m", "initial"]).expect("failed to commit");
+
+    run_git_no_output(&repo_root, &["mv", "old", "new"]).expect("failed to move");
+    let paths_and_kinds = |hunks: Vec<crate::api::DiffHunk>| {
+        let mut seen: Vec<(String, crate::api::FileChangeKind)> = hunks
+            .into_iter()
+            .map(|hunk| (hunk.file_path, hunk.change_kind))
+            .collect();
+        seen.sort_by(|left, right| left.0.cmp(&right.0));
+        seen
+    };
+    let expected = vec![
+        ("new/parser.rs".to_string(), crate::api::FileChangeKind::Added),
+        ("old/parser.rs".to_string(), crate::api::FileChangeKind::Deleted),
+    ];
+
+    let staged = collect_hunks(&repo_root, &DiffTarget::default()).expect("failed to collect");
+    assert_eq!(paths_and_kinds(staged), expected, "a staged move");
+
+    run_git_no_output(&repo_root, &["commit", "-m", "move"]).expect("failed to commit");
+    let committed = collect_commit_hunks(&repo_root, "HEAD").expect("failed to collect");
+    assert_eq!(paths_and_kinds(committed), expected, "a committed move");
+}

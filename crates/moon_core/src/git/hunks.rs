@@ -58,6 +58,9 @@ pub fn collect_hunks(repo_path: &Path, diff_target: &DiffTarget) -> Result<Vec<D
     let mut unstaged_args = vec![
         "diff",
         "--diff-algorithm=histogram",
+        // A move git calls a rename has no `@@` when nothing in it changed, so it would have
+        // no hunk and no row; as a delete and an add the review pairs it back into a move.
+        "--no-renames",
         "--no-color",
         "--unified=3",
     ];
@@ -68,6 +71,9 @@ pub fn collect_hunks(repo_path: &Path, diff_target: &DiffTarget) -> Result<Vec<D
         "diff",
         "--cached",
         "--diff-algorithm=histogram",
+        // A move git calls a rename has no `@@` when nothing in it changed, so it would have
+        // no hunk and no row; as a delete and an add the review pairs it back into a move.
+        "--no-renames",
         "--no-color",
         "--unified=3",
     ];
@@ -194,6 +200,7 @@ pub fn collect_commit_hunks(repo_path: &Path, commit: &str) -> Result<Vec<DiffHu
             "show",
             "--format=",
             "--diff-algorithm=histogram",
+            "--no-renames",
             "--no-color",
             "--unified=3",
             commit,
@@ -206,6 +213,9 @@ fn run_target_diff(repo_path: &Path, base: &str, pathspec: Option<&str>) -> Resu
     let mut args = vec![
         "diff",
         "--diff-algorithm=histogram",
+        // A move git calls a rename has no `@@` when nothing in it changed, so it would have
+        // no hunk and no row; as a delete and an add the review pairs it back into a move.
+        "--no-renames",
         "--no-color",
         "--unified=3",
     ];
