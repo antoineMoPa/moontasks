@@ -81,8 +81,100 @@ pub(crate) fn draw_list(
         rows.place(ui, |ui| {
             draw_reviews_summary(ui, task, &requests, card, palette, actions)
         });
+        for request in &requests {
+            rows.place(ui, |ui| draw_review_row(ui, request, card, palette, actions));
+        }
     }
 }
+
+/// Where a review's row on a card takes you: moon's review while the work is still to look at
+/// or only committed, its pull request once it is pushed - which is where it is looked at then.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ReviewLink {
+    MoonReview,
+    PullRequest(String),
+}
+
+/// Choose where one review's row opens, from its status and whether it has a pull request page.
+pub(crate) fn choose_review_link(request: &ReviewRequestView) -> ReviewLink {
+    let past_the_commit = [
+        crate::moontasks::reviews::PUSHED_REVIEW_STATUS,
+        crate::moontasks::reviews::DEPLOYED_REVIEW_STATUS,
+    ]
+    .contains(&request.file.status.as_str());
+    match (&request.file.pr_url, past_the_commit) {
+        (Some(url), true) => ReviewLink::PullRequest(url.clone()),
+        _ => ReviewLink::MoonReview,
+    }
+}
+
+/// One review of the task, under the reviews row: what it is and where it stands, and a click
+/// straight to where it is reviewed - see [`choose_review_link`].
+fn draw_review_row(
+    ui: &mut Ui,
+    request: &ReviewRequestView,
+    card: &mut Controls,
+    palette: &Palette,
+    actions: &mut Vec<BoardAction>,
+) {
+    let link = choose_review_link(request);
+    let hover = match &link {
+        ReviewLink::PullRequest(url) => format!("Open {url}"),
+        ReviewLink::MoonReview if request.file.commit.is_some() => {
+            "Open this commit in moon's review".to_string()
+        }
+        ReviewLink::MoonReview => "Open these changes in moon's review".to_string(),
+    };
+    let what = request
+        .suggestion
+        .as_ref()
+        .map(|suggestion| suggestion.subject.clone())
+        .unwrap_or_else(|| {
+            crate::moontasks::reviews::describe_pull_request(
+                request.file.pr.as_deref(),
+                request.branch.as_deref(),
+            )
+        });
+    let label = match request.path_under_repo.is_empty() {
+        true => what,
+        false => format!("{} · {what}", request.name),
+    };
+    let row = draw_row(ui, palette, true, &hover);
+    let pressed = card.pressed(&row);
+    draw_in_row(ui, row.rect, |ui| {
+        ui.add_space(REVIEW_ROW_INDENT);
+        match request.pending() {
+            true => activity_dot(ui, Activity::Quiet, palette),
+            false => reviews_done_mark(ui, palette),
+        }
+        ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
+            ui.add(
+                egui::Label::new(
+                    RichText::new(&request.file.status)
+                        .size(SMALL_SIZE - 1.0)
+                        .color(palette.muted),
+                )
+                .selectable(false),
+            );
+            ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
+                ui.add(
+                    egui::Label::new(RichText::new(&label).size(SMALL_SIZE).color(palette.ink))
+                        .selectable(false)
+                        .truncate(),
+                );
+            });
+        });
+    });
+    if pressed {
+        match link {
+            ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
+            ReviewLink::MoonReview => actions.push(BoardAction::OpenReviewOf((*request).clone())),
+        }
+    }
+}
+
+/// How far a review's row sits in from the reviews row it is listed under.
+const REVIEW_ROW_INDENT: f32 = 10.0;
 
 /// The runs a review status's hook started for one review, drawn the way a card draws its
 /// runs - so they stop, resume and come off the task the same way. They are the task's runs,
@@ -625,5 +717,54 @@ mod tests {
 
         assert_eq!(activity_of(&elsewhere), Activity::Running);
         assert_eq!(activity_of(&run(false, None)), Activity::Ended);
+    }
+}
+
+#[cfg(test)]
+mod review_link_tests {
+    use super::{ReviewLink, choose_review_link};
+    use crate::moontasks::{ReviewRequestView, reviews::ReviewFileView};
+
+    fn review_in(status: &str, pr_url: Option<&str>) -> ReviewRequestView {
+        ReviewRequestView {
+            task_id: "t".to_string(),
+            index: 0,
+            path_under_repo: String::new(),
+            repo_path: String::new(),
+            name: "repo".to_string(),
+            branch: None,
+            suggestion: None,
+            changed_files: 0,
+            committed: false,
+            written_at_unix: 0,
+            file: ReviewFileView {
+                id: "r".to_string(),
+                status: status.to_string(),
+                pr: pr_url.map(|_| "412".to_string()),
+                pr_url: pr_url.map(str::to_string),
+                deploy: None,
+                commit: None,
+                order: None,
+                repo_path_of_file: String::new(),
+            },
+        }
+    }
+
+    /// Before the push, the work is looked at in moon; after it, on its pull request - and in
+    /// moon still when there is no pull request page to go to.
+    #[test]
+    fn a_review_opens_in_moon_until_pushed_then_on_its_pull_request() {
+        let url = "https://github.com/o/r/pull/412";
+        assert_eq!(choose_review_link(&review_in("requested", Some(url))), ReviewLink::MoonReview);
+        assert_eq!(choose_review_link(&review_in("committed", Some(url))), ReviewLink::MoonReview);
+        assert_eq!(
+            choose_review_link(&review_in("pushed", Some(url))),
+            ReviewLink::PullRequest(url.to_string())
+        );
+        assert_eq!(
+            choose_review_link(&review_in("deployed", Some(url))),
+            ReviewLink::PullRequest(url.to_string())
+        );
+        assert_eq!(choose_review_link(&review_in("pushed", None)), ReviewLink::MoonReview);
     }
 }

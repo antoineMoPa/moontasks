@@ -104,6 +104,85 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
     );
 }
 
+/// Under the reviews row, a card lists each review by its subject, and a click on one goes
+/// straight to moon's review of it - no stop in the reviews tab on the way.
+#[test]
+fn each_review_is_listed_on_its_card_and_opens_its_review() {
+    use egui_kittest::kittest::Queryable as _;
+
+    let fixture = seeded_fixture("board-review-rows");
+    fixture.write(
+        ".moontasks/deploy-the-thing-1111/metadata.json",
+        "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
+         \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
+    );
+    fixture.write_review_file(
+        "requested",
+        "root-take-the-module-forward",
+        "task: deploy-the-thing-1111\nrepo: .\norder: 1\n",
+        "chore: take the module forward\n",
+    );
+    fixture.write_review_file(
+        "deployed",
+        "root-ship-it",
+        "task: deploy-the-thing-1111\nrepo: .\npr: 412\n",
+        "feat: ship it\n",
+    );
+
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    app.set_theme(ThemeMode::Dark);
+    let opened = Arc::new(AtomicBool::new(false));
+    let opened_in_ui = Arc::clone(&opened);
+    let reviews = Arc::new(Mutex::new(Vec::<String>::new()));
+    let reviews_in_ui = Arc::clone(&reviews);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 800.0))
+        .build_ui(move |ui| {
+            if !opened_in_ui.load(Ordering::Relaxed)
+                && matches!(app.model.stage, crate::native::model::Stage::Ready)
+            {
+                app.open_pane(crate::native::panes::OpenPaneRequest::Tasks);
+                opened_in_ui.store(true, Ordering::Relaxed);
+            }
+            app.draw(ui);
+            *reviews_in_ui.lock().expect("poisoned") = app
+                .model
+                .layout
+                .panes()
+                .filter(|(_, pane)| pane.kind() == crate::native::panes::PaneKind::Review)
+                .map(|(_, pane)| pane.tab_title())
+                .collect();
+        });
+
+    let requested = "chore: take the module forward";
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline && harness.query_by_label(requested).is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        harness.query_by_label(requested).is_some(),
+        "the requested review should be listed on its card by its subject"
+    );
+    assert!(
+        harness.query_by_label("feat: ship it").is_some(),
+        "and so should the deployed one"
+    );
+    harness.run_steps(3);
+    if let Ok(dir) = std::env::var("MOON_BOARD_CARD_SHOTS") {
+        let image = harness.render().expect("the window could not be rendered");
+        image
+            .save(std::path::Path::new(&dir).join("card-review-rows.png"))
+            .expect("the screenshot could not be saved");
+    }
+
+    harness.get_by_label(requested).click();
+    assert!(
+        settle(&mut harness, || !reviews.lock().expect("poisoned").is_empty()),
+        "clicking a requested review should open moon's review of it"
+    );
+}
+
 /// A review moved to `committed/` reads as reviewed on its card, though its repo still has changes.
 ///
 /// Where the review file is is what says whether it is pending - not the card's column, and not
