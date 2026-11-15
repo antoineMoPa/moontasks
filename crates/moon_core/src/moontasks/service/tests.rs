@@ -109,7 +109,7 @@ fn an_agent_resumed_by_its_own_reckoning_needs_no_session_id() {
 
     assert_eq!(
         args,
-        ["-c", "developer_instructions=the brief", "resume", "--last"],
+        ["-c", "developer_instructions=the brief", "resume"],
         "the brief goes on a resumed run too - a session resumed comes back with what it \
          was opened on and never hears anything new"
     );

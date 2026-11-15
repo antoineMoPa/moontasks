@@ -16,7 +16,7 @@ use crate::{
         board::{
             BoardAction, close_button,
             gesture::Controls,
-            marks::{Activity, activity_dot, chart_mark, file_mark},
+            marks::{Activity, activity_dot, chart_mark, file_mark, reviews_done_mark},
         },
         theme::{Palette, SMALL_SIZE},
         widgets,
@@ -126,19 +126,15 @@ fn draw_reviews_summary(
         1 => "1 review".to_string(),
         count => format!("{count} reviews"),
     };
-    // How many are open is the dot's to say: yellow while any is, green once none is.
+    // How many are open is the mark's to say: a yellow dot while any is, a check once none is.
     let label = reviews;
     let row = draw_row(ui, palette, true, "Show this task's reviews in the reviews tab");
     draw_in_row(ui, row.rect, |ui| {
-        // Yellow while one still wants looking at, green once every one is done.
-        activity_dot(
-            ui,
-            match open {
-                0 => Activity::Running,
-                _ => Activity::Quiet,
-            },
-            palette,
-        );
+        // Yellow while one still wants looking at, a green check once every one is done.
+        match open {
+            0 => reviews_done_mark(ui, palette),
+            _ => activity_dot(ui, Activity::Quiet, palette),
+        }
         ui.add(
             egui::Label::new(RichText::new(&label).color(match open {
                 0 => palette.muted,

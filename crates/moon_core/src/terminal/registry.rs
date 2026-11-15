@@ -293,6 +293,27 @@ impl TerminalRegistry {
         Ok(views)
     }
 
+    /// The id of the thread a Codex in this terminal has in front - see
+    /// [`crate::visualizations::rollout::CodexRollouts::thread_id`]. `None` for a terminal that
+    /// is not Codex's, or whose Codex has not written its rollout's first line yet.
+    pub fn codex_thread_of(&self, terminal_id: &str) -> Option<String> {
+        let session = self.get(terminal_id)?;
+        let (Some(rollouts), Some(pid)) = (&session.visualizations, session.child_pid) else {
+            return None;
+        };
+        let home = AgentHome::of_whoever_runs(session.runs_as.as_ref());
+        home.reading(|| {
+            let mut rollouts = rollouts.lock().unwrap();
+            // A Codex that has ended holds nothing open, and its thread is the one read last.
+            if !session.child_ended.load(Ordering::Relaxed) {
+                rollouts.poll(pid);
+            }
+            rollouts.thread_id().map(str::to_string)
+        })
+        .ok()
+        .flatten()
+    }
+
     /// The plain shells one task has open right now, oldest first.
     ///
     /// This is the whole record of them: a shell has nothing to come back to once it ends, so

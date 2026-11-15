@@ -195,3 +195,28 @@ fn only_rollouts_in_the_codex_home_are_followed() {
     assert!(!rollouts.is_rollout(&home.codex_home.join("state_5.sqlite")));
     assert!(!rollouts.is_rollout(Path::new("/tmp/rollout-x.jsonl")));
 }
+
+#[test]
+fn the_thread_in_front_is_named_by_its_rollout() {
+    let home = home_with_rollout(serde_json::json!("cli"));
+    let mut rollouts = CodexRollouts::new(&home.codex_home, STARTED_AT_UNIX);
+    assert_eq!(rollouts.thread_id(), None);
+
+    rollouts.follow(vec![home.rollout.clone()]);
+
+    assert_eq!(
+        rollouts.thread_id(),
+        Some(THREAD_ID),
+        "a run is resumed on this id, not on whatever Codex thread in the folder was last"
+    );
+}
+
+#[test]
+fn a_subagent_s_thread_is_not_the_run_s() {
+    let home = home_with_rollout(serde_json::json!({ "subagent": { "parent": "someone" } }));
+    let mut rollouts = CodexRollouts::new(&home.codex_home, STARTED_AT_UNIX);
+
+    rollouts.follow(vec![home.rollout.clone()]);
+
+    assert_eq!(rollouts.thread_id(), None);
+}

@@ -27,6 +27,9 @@ pub struct CodexRollouts {
     followed: HashMap<PathBuf, FollowedRollout>,
     /// Each fragment announced, with how many times.
     announced: BTreeMap<PathBuf, u64>,
+    /// The thread a person talks to that was opened last: the one in front, which is what
+    /// resuming the run has to pick up - Codex has no flag to start on an id of moon's.
+    thread_id: Option<String>,
 }
 
 struct FollowedRollout {
@@ -56,7 +59,14 @@ impl CodexRollouts {
             started_at_unix,
             followed: HashMap::new(),
             announced: BTreeMap::new(),
+            thread_id: None,
         }
+    }
+
+    /// The id of the thread this terminal's Codex has in front, as far as the polls so far
+    /// have read - see [`Self::poll`]. `None` until its rollout's first line is read.
+    pub fn thread_id(&self) -> Option<&str> {
+        self.thread_id.as_deref()
     }
 
     /// Read what the Codex in this process tree has written since the last poll, and answer
@@ -119,6 +129,10 @@ impl CodexRollouts {
                 Some("session_meta"),
                 "a rollout starts with its session's meta"
             );
+            if let (Some(thread_id), true) = (payload["id"].as_str(), payload["source"].is_string())
+            {
+                self.thread_id = Some(thread_id.to_string());
+            }
             *thread = match (payload["id"].as_str(), payload["source"].is_string()) {
                 (Some(thread_id), true) => ThreadVisualizations::new(&self.codex_home, thread_id)
                     .map_or(RolloutThread::Ignored, RolloutThread::Conversation),

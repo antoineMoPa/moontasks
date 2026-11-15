@@ -50,6 +50,28 @@ pub(crate) fn activity_dot(ui: &mut Ui, activity: Activity, palette: &Palette) {
     };
 }
 
+/// Every review of a task is done: the green of a running dot, with a check cut out of it in
+/// the card's colour - so it is not read as one more thing running.
+///
+/// The check sits a touch left of and below the disc's centre, where it looks centred.
+pub(crate) fn reviews_done_mark(ui: &mut Ui, palette: &Palette) {
+    const DIAMETER: f32 = 7.0;
+    /// The check's three points in the 7×7 box, already nudged left and down.
+    const CHECK: [(f32, f32); 3] = [(1.75, 3.75), (2.95, 4.95), (5.05, 2.45)];
+
+    let (rect, _) = ui.allocate_exact_size(vec2(DIAMETER, DIAMETER), egui::Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let painter = ui.painter();
+    painter.circle_filled(rect.center(), DIAMETER / 2.0, palette.added);
+    let points: Vec<egui::Pos2> = CHECK
+        .iter()
+        .map(|(x, y)| rect.min + vec2(*x, *y))
+        .collect();
+    painter.add(egui::Shape::line(points, egui::Stroke::new(1.0, palette.panel)));
+}
+
 /// The dot of a document listed on the task: filled with the accent color, in the place a
 /// shell's or a run's dot goes.
 pub(super) fn attachment_dot(ui: &mut Ui, palette: &Palette) {

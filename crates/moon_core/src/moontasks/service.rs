@@ -368,6 +368,7 @@ fn reconcile(state: &AppState, metadata: &mut TaskMetadata) -> bool {
             continue;
         };
         if state.terminals.is_live(&terminal_id) {
+            changed |= note_codex_thread(state, resource, &terminal_id);
             continue;
         }
         if moon_holding(resource).is_some() {
@@ -378,6 +379,27 @@ fn reconcile(state: &AppState, metadata: &mut TaskMetadata) -> bool {
         changed = true;
     }
     changed
+}
+
+/// Write down the thread a live Codex run has in front as the run's session, answering whether
+/// that changed it.
+///
+/// Codex cannot be started on a session id of moon's, so its run is started with none and its
+/// id is read off the rollout it writes - and read again, for a thread switched inside Codex
+/// (`/new`, `/resume`). Without it, resuming the run would be `codex resume --last`: whichever
+/// Codex thread in the folder was last, which is some other task's as often as not.
+fn note_codex_thread(state: &AppState, resource: &mut TaskResource, terminal_id: &str) -> bool {
+    if resource.agent != AgentKind::Codex {
+        return false;
+    }
+    let Some(thread_id) = state.terminals.codex_thread_of(terminal_id) else {
+        return false;
+    };
+    if resource.agent_session_id.as_deref() == Some(thread_id.as_str()) {
+        return false;
+    }
+    resource.agent_session_id = Some(thread_id);
+    true
 }
 
 /// The other moon whose shell a run is going in, by its process: one that is still running,

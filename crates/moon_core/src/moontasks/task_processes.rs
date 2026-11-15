@@ -126,13 +126,15 @@ pub const AGENT_LAUNCHES: &[AgentLaunch] = &[
             "-c",
             "developer_instructions={brief}",
         ],
+        // Only for a run whose thread was never read off its rollout - see `note_codex_thread`
+        // in the service. Codex's picker, not `--last`: the last thread in the folder is as
+        // likely another task's as this one's, and picking it silently is worse than asking.
         resume: &[
             "-c",
             CODEX_MOON_MCP_SERVER,
             "-c",
             "developer_instructions={brief}",
             "resume",
-            "--last",
         ],
         attach: &[
             "-c",
@@ -199,8 +201,12 @@ pub fn brief_for(title: &str, task_dir: &str, tracker_url: &str, docs_dir: &str)
          \n\
          {task}\n\
          \n\
+         If you change files in any repo, your last step is a review request: a file in \
+         .moontasks/reviews/requested/, as {docs_dir}/{REVIEWS_BRIEF_FILE_NAME} says. Work \
+         without one is invisible to the person.\n\
+         \n\
          moon's docs for agents are in {docs_dir}/ - the same for every task of the board:\n\
-         - {REVIEWS_BRIEF_FILE_NAME}: to request code deploy/review\n\
+         - {REVIEWS_BRIEF_FILE_NAME}: how to request a review (and a deploy)\n\
          - {ATTACHMENTS_BRIEF_FILE_NAME}: to attach a document to this task (a PDF, a spreadsheet, etc.)\n\
          - {TRACKER_LINK_BRIEF_FILE_NAME}: to link this task to its issue in Linear, Jira, GitHub or GitLab\n\
          - {COORDINATION_BRIEF_FILE_NAME}: check it first if you will change code\n\
@@ -230,8 +236,12 @@ pub fn board_task_brief_for(board_dir: &str, home_dir: &str, docs_dir: &str) -> 
          \n\
          Your own folder, for whatever you want kept: {home_dir}\n\
          \n\
+         If you change files in any repo, your last step is a review request: a file in \
+         .moontasks/reviews/requested/, as {docs_dir}/{REVIEWS_BRIEF_FILE_NAME} says. Work \
+         without one is invisible to the person.\n\
+         \n\
          moon's docs for agents are in {docs_dir}/, where \"the task folder\" is your own folder:\n\
-         - {REVIEWS_BRIEF_FILE_NAME}: to request code deploy/review\n\
+         - {REVIEWS_BRIEF_FILE_NAME}: how to request a review (and a deploy)\n\
          - {COORDINATION_BRIEF_FILE_NAME}: check it first if you will change code",
         program = crate::PROGRAM
     )
