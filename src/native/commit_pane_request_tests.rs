@@ -282,7 +282,7 @@ fn a_commit_already_made_stays_out_of_the_box() {
 
 /// A review of a commit already made stays out of the way of the one waiting in the tree.
 ///
-/// A review naming `commit:` is about that commit - often an old one, in `done/`, written after
+/// A review naming `commit:` is about that commit - often an old one, in `committed/`, written after
 /// the review of the work in the tree. Taken as the newest review of the repo, it would leave the
 /// box empty for the work that is actually waiting.
 #[test]
@@ -296,7 +296,7 @@ fn a_review_of_a_past_commit_leaves_the_box_to_the_work_in_the_tree() {
     let past = crate::git::run_git(&fixture.root, &["rev-parse", "HEAD"])
         .expect("the fixture has a commit");
     fixture.write_review_file(
-        crate::moontasks::reviews::DONE_REVIEW_STATUS,
+        crate::moontasks::reviews::COMMITTED_REVIEW_STATUS,
         "an-older-change",
         &format!("task: deploy-the-thing-1111\nrepo: .\ncommit: {}\n", past.trim()),
         "fix: an older change\n",
@@ -356,9 +356,9 @@ fn the_commit_in_the_box_is_the_one_written_for_the_branch_that_is_out() {
     );
 }
 
-/// A review in `done/` is finished with, and its message is not offered again.
+/// A review in `committed/` is finished with, and its message is not offered again.
 ///
-/// Moving a review to `done/` is how work that is committed and pushed stops asking to be looked
+/// Moving a review to `committed/` is how work that is committed and pushed stops asking to be looked
 /// at. The repo going dirty again is the next piece of work, not that one coming back.
 #[test]
 fn a_review_that_is_done_keeps_its_message_out_of_the_box() {
@@ -367,7 +367,7 @@ fn a_review_that_is_done_keeps_its_message_out_of_the_box() {
     a_task_asking_for_review(
         &fixture,
         "deploy-the-thing-1111",
-        crate::moontasks::reviews::DONE_REVIEW_STATUS,
+        crate::moontasks::reviews::COMMITTED_REVIEW_STATUS,
         REQUESTED_BRANCH,
         REQUESTED_BODY,
     );

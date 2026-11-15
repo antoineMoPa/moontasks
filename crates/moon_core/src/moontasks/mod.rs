@@ -226,9 +226,15 @@ pub struct ReviewRequestView {
 }
 
 impl ReviewRequestView {
-    /// Whether the review still wants looking at: its file is not in the done folder yet.
+    /// Whether the review still wants looking at: its commit is not made yet - its file is not
+    /// in `committed/`, `pushed/` or `deployed/`.
     pub fn pending(&self) -> bool {
-        self.file.status != reviews::DONE_REVIEW_STATUS
+        ![
+            reviews::COMMITTED_REVIEW_STATUS,
+            reviews::PUSHED_REVIEW_STATUS,
+            reviews::DEPLOYED_REVIEW_STATUS,
+        ]
+        .contains(&self.file.status.as_str())
     }
 
     /// Whether there is still work to commit for it: it is pending, its commit has not been

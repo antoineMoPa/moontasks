@@ -528,17 +528,17 @@ fn review_files_are_read_and_moved_over_http() {
     assert!(requests[0].pending());
 
     backend
-        .move_review(&opened.session_id, "fix-the-thing", Some("done"))
-        .expect("expected the review to be moved to done");
+        .move_review(&opened.session_id, "fix-the-thing", Some("committed"))
+        .expect("expected the review to be moved to committed");
 
     let requests = backend
         .list_review_requests(&opened.session_id)
         .expect("expected the remote review requests");
-    assert!(!requests[0].pending(), "the review should read as done");
+    assert!(!requests[0].pending(), "the review should read as committed");
     assert!(
         served
             .root
-            .join(".moontasks/reviews/done/fix-the-thing.md")
+            .join(".moontasks/reviews/committed/fix-the-thing.md")
             .is_file(),
         "and its file should have moved on the server"
     );

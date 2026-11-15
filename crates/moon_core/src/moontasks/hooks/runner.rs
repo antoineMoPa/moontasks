@@ -40,6 +40,8 @@ use crate::{
 
 /// How often each open board is looked at.
 const LOOKS_EVERY: Duration = Duration::from_secs(2);
+/// How often each open board's reviews are moved along with git - a few git runs per review.
+const GIT_STAGES_SYNCED_EVERY: Duration = Duration::from_secs(10);
 /// How long a claim is kept. Long past the day a schedule's claim is for; an arrival's is
 /// never asked about again once the card has moved on.
 const CLAIMS_KEPT_FOR: Duration = Duration::from_secs(3 * 24 * 60 * 60);
@@ -87,6 +89,8 @@ struct Watch {
     /// there.
     reviews_seen: HashMap<PathBuf, HashMap<String, (String, i64)>>,
     claims_swept_at: HashMap<PathBuf, Instant>,
+    /// When each board's reviews were last moved along with git.
+    git_stages_synced_at: HashMap<PathBuf, Instant>,
 }
 
 fn look_at_open_boards(state: &AppState, watch: &mut Watch) {
@@ -134,6 +138,7 @@ fn look_at_board(
     repo_path: &Path,
     watch: &mut Watch,
 ) -> Result<()> {
+    sync_review_git_stages(repo_path, watch);
     let has_column_hooks = board_has_column_hooks(repo_path);
     let has_schedules = board_has_schedules(repo_path);
     let has_review_hooks = board_has_review_hooks(repo_path);
@@ -162,6 +167,25 @@ fn look_at_board(
     }
     sweep_old_claims(repo_path, watch);
     Ok(())
+}
+
+/// Move the board's reviews to `committed/` and `pushed/` as git says, every
+/// [`GIT_STAGES_SYNCED_EVERY`] - in one moon only, the one that would fire the hooks. Done before
+/// the hooks are looked at, so a review moved here fires its status's hook in the same look.
+fn sync_review_git_stages(repo_path: &Path, watch: &mut Watch) {
+    let synced_lately = watch
+        .git_stages_synced_at
+        .get(repo_path)
+        .is_some_and(|at| at.elapsed() < GIT_STAGES_SYNCED_EVERY);
+    if synced_lately || another_moon_watches(repo_path) {
+        return;
+    }
+    watch
+        .git_stages_synced_at
+        .insert(repo_path.to_path_buf(), Instant::now());
+    for said in crate::moontasks::reviews::move_reviews_to_their_git_stage(repo_path) {
+        write_log_line(repo_path, &said);
+    }
 }
 
 fn fire_on_arrivals(

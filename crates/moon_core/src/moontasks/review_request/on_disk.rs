@@ -13,7 +13,7 @@ use crate::moontasks::{
 /// How far back a branch's history is read for a commit made with a review's subject: a review
 /// is committed and then left while the work goes on, so its commit is one of the last few on
 /// the branch - not one from months ago.
-const COMMITTED_LOOKBACK: &str = "30";
+pub(crate) const COMMITTED_LOOKBACK: &str = "30";
 
 /// Every review file of the board, in the lane's order, each with where its work is and how
 /// much of it is uncommitted.
@@ -92,8 +92,7 @@ struct Reviewed {
 /// resolves to no repo is kept as it was written: the row is still worth drawing, and opening it
 /// is what says what is wrong with it.
 fn reviewed_by(repo_path: &Path, path_under_repo: &str, branch: Option<&str>) -> Reviewed {
-    let joined = repo_path.join(path_under_repo);
-    let repo = crate::git::canonicalize_repo(&joined).unwrap_or(joined);
+    let repo = resolve_reviewed_repo(repo_path, path_under_repo);
     // The row is named after the repo, not after wherever its branch is checked out: a worktree
     // is a directory named after a task, and `pending moontasks review` is what the person
     // is looking for on the card.
@@ -111,6 +110,21 @@ fn reviewed_by(repo_path: &Path, path_under_repo: &str, branch: Option<&str>) ->
         recent_subjects: recent_subjects_of(&path),
         path,
     }
+}
+
+/// The repo a review file names, resolved the way the submodule hub resolves a submodule's.
+fn resolve_reviewed_repo(repo_path: &Path, path_under_repo: &str) -> PathBuf {
+    let joined = repo_path.join(path_under_repo);
+    crate::git::canonicalize_repo(&joined).unwrap_or(joined)
+}
+
+/// Where a review file's work is: its repo, or the worktree its branch is checked out in.
+pub(crate) fn find_working_copy_of_review(
+    repo_path: &Path,
+    path_under_repo: &str,
+    branch: Option<&str>,
+) -> PathBuf {
+    working_copy_of(&resolve_reviewed_repo(repo_path, path_under_repo), branch)
 }
 
 /// The subjects of the last commits on the branch a working copy is on. None for a path that is

@@ -4,9 +4,14 @@
 //! ```text
 //! .moontasks/reviews/
 //!   requested/encabulator-races-tests.md
-//!   reviewing/encabulator-fix-the-races.md
-//!   done/encabulator-races-refactor.md
+//!   committed/encabulator-fix-the-races.md
+//!   pushed/encabulator-races-refactor.md
+//!   deployed/encabulator-races-docs.md
 //! ```
+//!
+//! `committed/` and `pushed/` follow git: a review whose commit is made moves to `committed/`
+//! on its own, and to `pushed/` once a remote branch has it - see [`git_stage`]. `deployed/` is
+//! moved to by hand, by a person or an agent.
 //!
 //! A task is often several pull requests, in one repo or several, each at its own stage. A file
 //! here has a status - its folder - and moving it to another folder is what changes it, whoever
@@ -23,16 +28,17 @@
 //! repo: repos/retro_encabulator
 //! branch: fix-the-races
 //! pr: 412
-//! deploy: pending
 //! ---
 //! fix(encabulator): put the bearing races back
 //!
 //! They were reversed, which is why the flux only ran one way.
 //! ```
 //!
-//! Where the review stands is the folder; where the code stands - `deploy:` - is a line in the
-//! file, written by whoever deploys it.
+//! Where the review and the code stand is the folder. Older files may still carry a `deploy:`
+//! line, which is read and shown but moves nothing.
 
+#[cfg(not(target_arch = "wasm32"))]
+mod git_stage;
 #[cfg(not(target_arch = "wasm32"))]
 mod on_disk;
 #[cfg(not(target_arch = "wasm32"))]
@@ -40,6 +46,8 @@ mod pull_request_link;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use git_stage::move_reviews_to_their_git_stage;
 #[cfg(not(target_arch = "wasm32"))]
 pub use on_disk::*;
 #[cfg(not(target_arch = "wasm32"))]
@@ -52,11 +60,25 @@ pub const REVIEWS_DIR_NAME: &str = "reviews";
 
 /// The statuses every board has, in the order the lane draws them. A folder made by hand beside
 /// them is a status too, drawn after these.
-pub const DEFAULT_REVIEW_STATUSES: &[&str] = &["requested", "reviewing", "done"];
+pub const DEFAULT_REVIEW_STATUSES: &[&str] = &[
+    FIRST_REVIEW_STATUS,
+    COMMITTED_REVIEW_STATUS,
+    PUSHED_REVIEW_STATUS,
+    DEPLOYED_REVIEW_STATUS,
+];
 /// Where a new review is written.
 pub const FIRST_REVIEW_STATUS: &str = "requested";
-/// The status a review is finished with in. A review here is no longer pending.
-pub const DONE_REVIEW_STATUS: &str = "done";
+/// Where a review goes once its commit is made - on its own, see [`git_stage`].
+pub const COMMITTED_REVIEW_STATUS: &str = "committed";
+/// Where a review goes once a remote branch has its commit - on its own too.
+pub const PUSHED_REVIEW_STATUS: &str = "pushed";
+/// Where a review goes once its code is live. Only a person or an agent moves it here.
+pub const DEPLOYED_REVIEW_STATUS: &str = "deployed";
+/// The folders older boards had, and the status each one's files now belong in.
+pub const OLD_REVIEW_STATUSES: &[(&str, &str)] = &[
+    ("reviewing", FIRST_REVIEW_STATUS),
+    ("done", COMMITTED_REVIEW_STATUS),
+];
 
 /// What the agent docs call the page that says how to ask for a review.
 pub const REVIEWS_BRIEF_FILE_NAME: &str = "request_review.md";
@@ -66,7 +88,8 @@ pub const REVIEWS_BRIEF: &str = "\
 # Requesting a review
 
 One file per PR (or branch to commit), several per repo if needed:
-`.moontasks/reviews/requested/<repo>-<branch>.md`
+`.moontasks/reviews/requested/<repo>-<branch>.md` - for the board's own repo use its folder
+name, and a review of one commit can be named after its subject: `moontasks-fix-huge-images.md`.
 
 ```
 ---
@@ -75,17 +98,19 @@ repo: repos/x        # from the board's repo; `.` for the board's own
 branch: my-branch    # optional
 pr: 412              # optional
 order: 1             # optional: deploy order within your task
-commit: <sha>        # optional: review a commit instead of the working tree
+commit: <sha>        # optional: review a commit instead of the working tree (short or full)
 ---
 feat(x): commit subject
 
 Optional paragraph.
 ```
 
-The body is the commit message the person will use. The folder is the status
-(`requested/`, `reviewing/`, `done/`); moving the file changes it and can start a hook - leave
-that to the person unless asked. Once merged or deployed, add `deploy: merged` or
-`deploy: deployed`. To update a request, edit its file.
+The body is the commit message the person will use; for a commit already made, copy its
+message. The folder is the status: `requested/`, `committed/`, `pushed/`, `deployed/`. moon
+moves a review to `committed/` once its commit is made (its `commit:`, or a recent commit with
+its subject) and to `pushed/` once a remote branch has it - don't move those yourself. Move the
+file to `deployed/` once the code is live, when you deployed it. Moving a file can start a
+hook. To update a request, edit its file.
 ";
 
 /// Which file a review is, and where it stands.

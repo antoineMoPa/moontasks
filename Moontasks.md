@@ -197,7 +197,7 @@ The board is a folder in the repo, which is the whole of its state:
     coordination.md          # what an agent that will change code is told about the wire
     tracker_link.md          # how an agent sets a task's tracker link, in metadata.json
   reviews/            # one .md per pull request; its folder is its status
-    requested/  reviewing/  done/
+    requested/  committed/  pushed/  deployed/
   board-task/         # the board's own task, on no column: what `board [start]` over the columns starts is a run of it
     metadata.json     # its agent runs
   fix-the-login-page-6f9c1e2a-…/
@@ -257,14 +257,20 @@ task: fix-the-races-3c62…   # the card it is for
 repo: repos/retro_encabulator
 branch: fix-the-races
 pr: 412
-deploy: pending             # pending, merged, deployed - written by whoever deploys
+commit: 4d02f62             # optional: review this commit instead of the working tree
 ---
 fix(encabulator): put the bearing races back
 
 They were reversed.
 ```
 
-Its folder is its status: `requested/`, `reviewing/`, `done/`, and any folder you add. The lane
+Its folder is its status: `requested/`, `committed/`, `pushed/`, `deployed/`, and any folder you
+add. `committed/` and `pushed/` follow git on their own: once the review's commit is made - the
+one its `commit:` names, or a recent commit on its branch with its subject, which is then
+written in as `commit:` - it moves to `committed/`, and once a remote branch has that commit,
+to `pushed/` (back to `committed/` if the remote loses it). moon checks every 10 seconds while
+the board is open. `deployed/` is yours and your agents' to move to. Boards from before have
+their `reviewing/` files moved to `requested/` and their `done/` files to `committed/`. The lane
 under the board has a column per status; drag a card to move its file. Selecting a task lights
 its reviews. A click opens the repo's diff, and its commit pane offers the file's message.
 

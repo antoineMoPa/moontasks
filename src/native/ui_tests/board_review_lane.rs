@@ -97,7 +97,7 @@ fn lane_board(root: &Path, render: bool) -> LaneBoard {
                 Some((request.file.id.clone(), rect))
             })
             .collect();
-        seen.pills = ["requested", "reviewing", "done"]
+        seen.pills = ["requested", "committed", "pushed", "deployed"]
             .into_iter()
             .filter_map(|status| {
                 let rect = ui.ctx().read_response(review_hook_pill_id(status))?.rect;
@@ -127,12 +127,12 @@ fn write_the_parsers_reviews(fixture: &super::Fixture) {
          test(parser): cover the trailing newline\n",
     );
     fixture.write(
-        ".moontasks/reviews/reviewing/parser.md",
+        ".moontasks/reviews/committed/parser.md",
         "---\ntask: write-the-parser-1111\nrepo: .\nbranch: parser\npr: 412\n---\n\
          feat(parser): read the files\n",
     );
     fixture.write(
-        ".moontasks/reviews/done/login.md",
+        ".moontasks/reviews/pushed/login.md",
         "---\ntask: fix-the-login-page-2222\nrepo: .\npr: 409\ndeploy: deployed\n---\n\
          fix(login): keep the session\n",
     );
@@ -146,7 +146,7 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
     write_the_parsers_reviews(&fixture);
     let fired = fixture.root.join("hook-fired.txt");
     fixture.write(
-        ".moontasks/hooks/reviews/reviewing.md",
+        ".moontasks/hooks/reviews/deployed.md",
         &format!(
             "---\nstart: shell\n---\necho \"{{pr}} from {{from}}\" > {}; sleep 20\n",
             fired.display()
@@ -158,7 +158,7 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
     assert!(
         settle(&mut harness, || {
             let seen = seen.lock().expect("poisoned");
-            seen.cards.len() == 3 && seen.pills.len() == 3
+            seen.cards.len() == 3 && seen.pills.len() == 4
         }),
         "the lane never drew the three review cards and the status pills"
     );
@@ -182,19 +182,19 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
         let target = seen
             .pills
             .iter()
-            .find(|(status, _)| status == "reviewing")
+            .find(|(status, _)| status == "deployed")
             .map(|(_, rect)| rect.left_bottom() + egui::vec2(-40.0, 30.0))
-            .expect("the reviewing heading is drawn");
+            .expect("the deployed heading is drawn");
         (card, target)
     };
     drag_like_a_hand(&mut harness, card, target, egui::Modifiers::NONE);
 
     let moved_to = fixture
         .root
-        .join(".moontasks/reviews/reviewing/parser-tests.md");
+        .join(".moontasks/reviews/deployed/parser-tests.md");
     assert!(
         settle(&mut harness, || moved_to.is_file()),
-        "the dragged review's file never arrived in reviewing/"
+        "the dragged review's file never arrived in deployed/"
     );
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline && !fired.exists() {
@@ -203,7 +203,7 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
     }
     let log = std::fs::read_to_string(fixture.root.join(".moontasks/hooks/hooks.log"))
         .unwrap_or_default();
-    assert!(fired.exists(), "the reviewing hook never ran; log: {log}");
+    assert!(fired.exists(), "the deployed hook never ran; log: {log}");
     let said = (0..100)
         .map(|_| {
             std::thread::sleep(Duration::from_millis(50));
@@ -215,7 +215,7 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
     let log = std::fs::read_to_string(fixture.root.join(".moontasks/hooks/hooks.log"))
         .unwrap_or_default();
     assert!(
-        log.contains("review reviewing: started on parser-tests"),
+        log.contains("review deployed: started on parser-tests"),
         "{log}"
     );
     harness.input_mut().events.push(egui::Event::PointerGone);

@@ -17,7 +17,7 @@ use super::{app_for, press_key, seeded_fixture, settle, type_letter};
 /// The deploy list a task wrote sits under everything else on its card: a row per review file,
 /// in the order their `order:` keys give, and a click on one opens that repo's review.
 ///
-/// A review is pending until its file is moved to `done/` - here both are in `requested/`.
+/// A review is pending until its file is moved to `committed/` - here both are in `requested/`.
 #[test]
 fn a_tasks_deploy_list_is_drawn_under_its_card() {
     use egui_kittest::kittest::Queryable as _;
@@ -104,7 +104,7 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
     );
 }
 
-/// A review moved to `done/` reads as reviewed on its card, though its repo still has changes.
+/// A review moved to `committed/` reads as reviewed on its card, though its repo still has changes.
 ///
 /// Where the review file is is what says whether it is pending - not the card's column, and not
 /// whether the repo is clean - so moving the file back to `requested/` asks for it again.
@@ -119,7 +119,7 @@ fn a_review_that_is_done_reads_as_reviewed_on_its_card() {
          \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
     );
     fixture.write_review_file(
-        crate::moontasks::reviews::DONE_REVIEW_STATUS,
+        crate::moontasks::reviews::COMMITTED_REVIEW_STATUS,
         "root-take-the-module-forward",
         "task: deploy-the-thing-1111\nrepo: .\n",
         "chore: take the module forward\n",
@@ -161,7 +161,7 @@ fn a_review_that_is_done_reads_as_reviewed_on_its_card() {
 
     assert!(
         harness.query_by_label(reviewed.as_str()).is_some(),
-        "a review in done/ should be counted on its card"
+        "a review in committed/ should be counted on its card"
     );
     assert_eq!(
         *pending_read.lock().expect("poisoned"),
