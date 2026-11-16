@@ -378,6 +378,7 @@ impl App {
                 agent_log: None,
                 connection,
                 commit_panes: HashMap::new(),
+                chosen_review_of_session: HashMap::new(),
                 file_editors: HashMap::new(),
                 file_tree: Default::default(),
                 work_log_entries_waiting: HashMap::new(),

@@ -1,5 +1,6 @@
 //! The review lane under the board: a column per review status, a card per review file, and a
-//! status's hook going off when a card is dragged into it.
+//! status's hook going off when a card is dragged into it, and its review opening when it is
+//! clicked.
 
 use std::{
     path::Path,
@@ -37,6 +38,8 @@ struct Seen {
     cards: Vec<(String, egui::Rect)>,
     /// Where the status headings' pills were drawn, by status.
     pills: Vec<(String, egui::Rect)>,
+    /// The reviews a review pane was opened from, which is what clicking a card does.
+    opened_reviews: Vec<String>,
 }
 
 fn lane_board(root: &Path, render: bool) -> LaneBoard {
@@ -104,6 +107,7 @@ fn lane_board(root: &Path, render: bool) -> LaneBoard {
                 Some((status.to_string(), rect))
             })
             .collect();
+        seen.opened_reviews = app.model.chosen_review_of_session.values().cloned().collect();
     });
     LaneBoard { harness, seen }
 }
@@ -226,4 +230,60 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
         std::thread::sleep(Duration::from_millis(50));
     }
     leave_a_screenshot(&mut harness, "review-lane-after-drag");
+}
+
+/// Press a card, nudge the pointer `by`, and let go there.
+fn press_and_let_go(harness: &mut Harness<'_>, at: egui::Pos2, by: egui::Vec2) {
+    harness.input_mut().events.push(egui::Event::PointerMoved(at));
+    harness.run_steps(2);
+    for (pos, pressed) in [(at, true), (at + by, false)] {
+        if !pressed {
+            harness.input_mut().events.push(egui::Event::PointerMoved(pos));
+            harness.step();
+        }
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run_steps(2);
+    }
+}
+
+/// A card let go of within 3px of where it was pressed opens its review; one let go of further
+/// away was the start of a drag, and opens nothing - though egui would still call it a click.
+#[test]
+fn clicking_a_review_card_opens_its_review_but_a_small_drag_does_not() {
+    let fixture = seeded_fixture("review-lane-click");
+    write_the_parsers_reviews(&fixture);
+    let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 3),
+        "the lane never drew the three review cards"
+    );
+    let card_at = |id: &str| {
+        seen.lock()
+            .expect("poisoned")
+            .cards
+            .iter()
+            .find(|(card, _)| card == id)
+            .map(|(_, rect)| rect.center())
+            .expect("the card is drawn")
+    };
+
+    press_and_let_go(&mut harness, card_at("parser"), egui::vec2(5.0, 0.0));
+    harness.run_steps(20);
+    assert!(
+        seen.lock().expect("poisoned").opened_reviews.is_empty(),
+        "a card let go of 5px away opened its review"
+    );
+
+    press_and_let_go(&mut harness, card_at("parser-tests"), egui::vec2(2.0, 1.0));
+    assert!(
+        settle(&mut harness, || {
+            seen.lock().expect("poisoned").opened_reviews == ["parser-tests"]
+        }),
+        "clicking the card never opened its review"
+    );
 }

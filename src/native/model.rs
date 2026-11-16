@@ -213,6 +213,9 @@ pub(crate) struct Model {
     /// What each review's commit pane is holding: the message being written, and the last
     /// run. Keyed by review rather than by pane, so closing the tab keeps the message.
     pub(crate) commit_panes: HashMap<String, crate::native::commit_pane::CommitPane>,
+    /// The review file each review session was last opened from, by session: the review whose
+    /// commit message its commit pane offers, among the several a repo can have.
+    pub(crate) chosen_review_of_session: HashMap<String, String>,
     /// The files open in tabs of their own, keyed by the pane showing each one.
     pub(crate) file_editors: HashMap<PaneId, crate::native::file_pane::FileEditor>,
     /// The tree of files beside every file tab, and back / forward through the files shown -

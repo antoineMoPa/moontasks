@@ -373,6 +373,9 @@ pub(crate) enum OpenPaneRequest {
         /// A commit of it to review instead of its working tree - what a review file's
         /// `commit:` names.
         commit: Option<String>,
+        /// The review file it was opened from, whose commit message the commit pane then
+        /// takes over any other review of the same repo.
+        review_id: Option<String>,
     },
     TaskReview {
         task_id: String,

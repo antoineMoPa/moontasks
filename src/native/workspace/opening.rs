@@ -41,6 +41,7 @@ impl App {
                 repo_path,
                 title,
                 commit,
+                review_id,
             } => {
                 // The session has to exist before a pane can point at it, and creating one runs
                 // git in the repo, so the pane appears once that comes back.
@@ -54,6 +55,11 @@ impl App {
                     },
                     move |model, result| match result {
                         Ok(opened) => {
+                            if let Some(review_id) = review_id {
+                                model
+                                    .chosen_review_of_session
+                                    .insert(opened.session_id.clone(), review_id);
+                            }
                             // A review of a repo already open is brought forward instead of
                             // opened a second time - the same answer opening it by session
                             // gives. The repo names the session: asking for one on a repo that

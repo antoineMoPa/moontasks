@@ -33,6 +33,8 @@ struct Watched {
     requests: Arc<Mutex<usize>>,
     /// What the pane found staged, once it has read the repo.
     staged: Arc<Mutex<Option<usize>>>,
+    /// The review a test says the pane was opened from, the way a click on its card says it.
+    chosen: Arc<Mutex<Option<String>>>,
 }
 
 impl Watched {
@@ -50,6 +52,10 @@ impl Watched {
 
     fn staged(&self) -> Option<usize> {
         *self.staged.lock().expect("expected the lock")
+    }
+
+    fn choose_review(&self, review_id: &str) {
+        *self.chosen.lock().expect("expected the lock") = Some(review_id.to_string());
     }
 }
 
@@ -91,11 +97,13 @@ fn commit_pane_over_the_board(fixture: &Fixture) -> (Harness<'static>, Watched) 
         message: Arc::new(Mutex::new(None)),
         requests: Arc::new(Mutex::new(0)),
         staged: Arc::new(Mutex::new(None)),
+        chosen: Arc::new(Mutex::new(None)),
     };
     let panes = Arc::clone(&watched.panes);
     let message = Arc::clone(&watched.message);
     let requests = Arc::clone(&watched.requests);
     let staged = Arc::clone(&watched.staged);
+    let chosen = Arc::clone(&watched.chosen);
 
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1500.0, 940.0))
@@ -103,6 +111,11 @@ fn commit_pane_over_the_board(fixture: &Fixture) -> (Harness<'static>, Watched) 
         .wgpu()
         .build_ui(move |ui| {
             let session_id = app.model.root_session_id.clone();
+            if let Some(review_id) = chosen.lock().expect("expected the lock").clone() {
+                app.model
+                    .chosen_review_of_session
+                    .insert(session_id.clone(), review_id);
+            }
             app.draw(ui);
             *requests.lock().expect("expected the lock") = app.model.review_requests.len();
             *staged.lock().expect("expected the lock") = app
@@ -462,5 +475,55 @@ fn the_next_commit_a_task_asked_for_fills_the_box_once_the_last_one_is_made() {
         watched.message().as_deref(),
         Some("feat: the next thing\n\nIts own review, on its own branch."),
         "the next commit a task asked for should be in the box"
+    );
+}
+
+/// The review a click opened the pane from is the one whose message is in the box.
+///
+/// Several tasks write reviews of the same repo on no branch, and the repo alone picks the
+/// newest of them - which is not the one clicked. Choosing another review afterwards swaps the
+/// message the pane put in for that one's, since nobody has written in the box since.
+#[test]
+fn the_review_clicked_open_is_the_one_whose_message_is_in_the_box() {
+    let fixture = seeded_fixture("commit-message-chosen-review");
+    a_task_asking_for_review(
+        &fixture,
+        "aaa-clicked-task-1111",
+        REQUESTED,
+        "",
+        REQUESTED_BODY,
+    );
+    a_task_asking_for_review(
+        &fixture,
+        "zzz-other-task-2222",
+        REQUESTED,
+        "",
+        "feat: another task's work\n\nWritten for the same repo.\n",
+    );
+
+    let (mut harness, watched) = commit_pane_over_the_board(&fixture);
+    watched.choose_review("aaa-clicked-task-1111");
+    let deadline = Instant::now() + GIT_DEADLINE;
+    while Instant::now() < deadline && watched.message().as_deref() != Some(REQUESTED_MESSAGE) {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        watched.message().as_deref(),
+        Some(REQUESTED_MESSAGE),
+        "the clicked review's message should be in the box"
+    );
+
+    watched.choose_review("zzz-other-task-2222");
+    let other = "feat: another task's work\n\nWritten for the same repo.";
+    let deadline = Instant::now() + GIT_DEADLINE;
+    while Instant::now() < deadline && watched.message().as_deref() != Some(other) {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        watched.message().as_deref(),
+        Some(other),
+        "choosing another review should swap in its message"
     );
 }

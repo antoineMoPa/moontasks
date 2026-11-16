@@ -578,6 +578,7 @@ pub(crate) fn commands_for(app: &App) -> Vec<Command> {
                 repo_path: submodule.repo_path.clone(),
                 title: submodule.name.clone(),
                 commit: None,
+                review_id: None,
             }),
             shortcut: None,
         });

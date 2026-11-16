@@ -728,6 +728,7 @@ fn a_review_of_a_repo_that_is_already_open_is_brought_forward() {
                     repo_path: repo_path.clone(),
                     title: "asked for again".to_string(),
                     commit: None,
+                    review_id: None,
                 });
                 step = 2;
             }

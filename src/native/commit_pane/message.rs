@@ -68,6 +68,9 @@ impl App {
             .payload
             .as_ref()?
             .repo_path;
+        if let Some(chosen) = self.chosen_review_of(session_id, repo_path) {
+            return Some(chosen);
+        }
         let for_this_repo: Vec<&ReviewRequestView> = self
             .model
             .review_requests
@@ -92,6 +95,19 @@ impl App {
             .or(Some(newest))
     }
 
+    /// The review this session was opened from, by a click on its card or its row, while it is
+    /// still a review of this repo's working tree. Whoever clicked it named the work they mean
+    /// to commit, which no guess from the repo or its branch can beat - several tasks write
+    /// reviews of the same repo.
+    fn chosen_review_of(&self, session_id: &str, repo_path: &str) -> Option<&ReviewRequestView> {
+        let chosen = self.model.chosen_review_of_session.get(session_id)?;
+        self.model.review_requests.iter().find(|request| {
+            &request.file.id == chosen
+                && request.repo_path == repo_path
+                && request.file.commit.is_none()
+        })
+    }
+
     /// The line whose commit this pane is about to make, which is the one whose message goes in
     /// the box.
     ///
@@ -110,6 +126,10 @@ impl App {
         let request = self.requested_review_of(session_id)?;
         if !request.pending() || request.committed {
             return None;
+        }
+        let repo_path = &self.model.review_ref(session_id)?.payload.as_ref()?.repo_path;
+        if self.chosen_review_of(session_id, repo_path).is_some() {
+            return Some(request);
         }
         match &request.branch {
             Some(branch) => {
@@ -156,8 +176,14 @@ impl App {
         let pane = self.commit_pane(session_id);
         // Only ever into an empty box, and each message only ever once - so a message someone
         // is writing is never argued with, and neither is a box they have emptied on purpose.
+        // A box still holding, untouched, the message of another review this pane put in is
+        // not someone's writing: that review was put in for, and another has been chosen since.
+        let holds_only_what_was_put_in = pane
+            .requested_commit_put_in
+            .as_ref()
+            .is_some_and(|put_in| put_in.as_message() == pane.message);
         if pane.requested_commit_put_in.as_ref() == Some(&written)
-            || !pane.message.trim().is_empty()
+            || !(pane.message.trim().is_empty() || holds_only_what_was_put_in)
         {
             return;
         }

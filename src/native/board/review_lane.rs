@@ -22,6 +22,7 @@ use crate::{
             BoardAction, COLUMN_WIDTH,
             hook_editor::{HookEditorTarget, open_hook_editor},
             hooks::{PillKind, draw_hook_pill},
+            resources::{ReviewLink, choose_review_link},
             selection,
         },
         theme::{Palette, SMALL_SIZE},
@@ -288,7 +289,8 @@ fn draw_review_card(
                                 .color(palette.accent_2),
                         );
                     }
-                    // The card is not a button: what it opens is on these.
+                    // A click on the card opens what the row on its task's card opens; these
+                    // open each one whatever the review's status.
                     ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
                         if let Some(url) = &file.pr_url
                             && draw_card_button(ui, "[pr]")
@@ -364,7 +366,14 @@ fn draw_review_card(
     let card = drawn
         .response
         .on_hover_text(hover_of_review(request, file));
-    if card.drag_started() {
+    if was_card_clicked_in_place(ui, &card) {
+        // A press that came back where it started is a click, even after it began a drag.
+        egui::DragAndDrop::clear_payload(ui.ctx());
+        match choose_review_link(request) {
+            ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
+            ReviewLink::MoonReview => actions.push(BoardAction::OpenReviewOf(request.clone())),
+        }
+    } else if card.drag_started() {
         egui::DragAndDrop::set_payload(
             ui.ctx(),
             DraggedReview {
@@ -401,6 +410,31 @@ fn draw_review_card(
                 ui.close();
             }
         });
+}
+
+/// How far the pointer may go between pressing a card and letting go for that to be a click
+/// that opens its review rather than a drag.
+const CARD_CLICK_SLOP: f32 = 3.0;
+
+/// Whether the card was let go of no further than [`CARD_CLICK_SLOP`] from where it was
+/// pressed. egui forgets where a press began on the frame it ends, so the card keeps it.
+fn was_card_clicked_in_place(ui: &Ui, card: &egui::Response) -> bool {
+    let origin_id = card.id.with("press-origin");
+    if card.is_pointer_button_down_on() {
+        if let Some(origin) = ui.input(|input| input.pointer.press_origin()) {
+            ui.data_mut(|data| data.insert_temp(origin_id, origin));
+        }
+        return false;
+    }
+    if !(card.clicked() || card.drag_stopped()) {
+        return false;
+    }
+    let origin = ui.data_mut(|data| data.remove_temp::<egui::Pos2>(origin_id));
+    let released = ui.input(|input| input.pointer.interact_pos());
+    match (origin, released) {
+        (Some(origin), Some(released)) => origin.distance(released) <= CARD_CLICK_SLOP,
+        _ => false,
+    }
 }
 
 /// The runs a review status's hook started for this review, inside its card - the same rows a

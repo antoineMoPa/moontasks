@@ -706,6 +706,7 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 repo_path: request.repo_path.clone(),
                 title,
                 commit,
+                review_id: Some(request.file.id.clone()),
             }));
         }
         BoardAction::OpenReview(repo_path, title) => {
@@ -713,6 +714,7 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 repo_path,
                 title,
                 commit: None,
+                review_id: None,
             }));
         }
     }
