@@ -495,6 +495,13 @@ impl Backend for RemoteBackend {
         )
     }
 
+    fn move_reviews_to_their_git_stage(&self, session_id: &str) -> Result<Vec<String>> {
+        self.post_json(
+            &format!("/api/session/{session_id}/reviews/follow-git"),
+            &serde_json::json!({}),
+        )
+    }
+
     fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>> {
         self.get(&format!("/api/session/{session_id}/review-statuses"))
     }

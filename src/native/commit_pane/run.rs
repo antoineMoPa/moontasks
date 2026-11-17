@@ -120,6 +120,8 @@ impl App {
                 }
                 let pull_request_is_open = run.worked() && run.kind == RunKind::OpenPr;
                 if run.worked() {
+                    // What this run made or pushed moves its review in the lane at once.
+                    model.reviews_follow_git_now = true;
                     pane.reached = match run.kind {
                         RunKind::Commit => Reached::Committed,
                         RunKind::Push => Reached::Pushed,

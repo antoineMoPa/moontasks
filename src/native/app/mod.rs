@@ -355,6 +355,7 @@ impl App {
                 placing_reopened: None,
                 command_launcher: None,
                 review_request_amendments: 0,
+                reviews_follow_git_now: false,
                 review_sessions_of_repos: HashMap::new(),
                 task_review_minimaps: HashMap::new(),
                 opening_review_sessions: Default::default(),

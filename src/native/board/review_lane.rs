@@ -212,9 +212,10 @@ pub(crate) fn review_hook_pill_id(status: &str) -> egui::Id {
     egui::Id::new(("moontask-review-hook-pill", status))
 }
 
-/// What a review's card answers to - which is how a test finds it.
-pub(crate) fn review_card_id(review_id: &str) -> egui::Id {
-    egui::Id::new(("moontask-review-card", review_id))
+/// What a review's card answers to - which is how a test finds it. Two files can share a name
+/// in two status folders, so the status is part of it: one id per card, never two cards on one.
+pub(crate) fn review_card_id(status: &str, review_id: &str) -> egui::Id {
+    egui::Id::new(("moontask-review-card", status, review_id))
 }
 
 /// One pull request: its repo and number, where its code stands, and the task it is for.
@@ -247,7 +248,7 @@ fn draw_review_card(
         None => describe_pull_request(file.pr.as_deref(), request.branch.as_deref()),
     };
 
-    let card_id = review_card_id(&file.id);
+    let card_id = review_card_id(&file.status, &file.id);
     // The card is the press, sensed under what is drawn in it, so a run's row inside it is
     // still a button of its own.
     let drawn = ui.scope_builder(

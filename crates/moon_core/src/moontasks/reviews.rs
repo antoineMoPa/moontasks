@@ -110,7 +110,8 @@ message. The folder is the status: `requested/`, `committed/`, `pushed/`, `deplo
 moves a review to `committed/` once its commit is made (its `commit:`, or a recent commit with
 its subject) and to `pushed/` once a remote branch has it - don't move those yourself. Move the
 file to `deployed/` once the code is live, when you deployed it. Moving a file can start a
-hook. To update a request, edit its file.
+hook. To update a request, edit its file - a file already committed or pushed is done: new work
+gets a new request, under a name no status folder has yet.
 ";
 
 /// Which file a review is, and where it stands.

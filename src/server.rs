@@ -13,11 +13,12 @@ use board_routes::{
     add_column, attach_task_resource, board_task, change_settings, create_task, delete_column,
     delete_task, delete_task_resource, link_task_file, list_agent_sessions, list_columns,
     list_hooks, list_review_requests, list_review_statuses, list_tasks, move_review,
-    open_task_notes, open_wire, open_work_log, opencode_models, palette_history, place_column,
-    place_tasks, project_commands, record_in_palette_history, remove_hook, remove_task_attachment,
-    rename_column, rename_task, resume_task_resource, run_project_command, save_hook,
-    set_column_arrivals, set_column_marks_a_days_work, set_column_sort, set_project_config,
-    set_task_remote_tracker_url, set_task_tags, settings, start_task_resource, stop_task_resource,
+    move_reviews_to_their_git_stage, open_task_notes, open_wire, open_work_log, opencode_models,
+    palette_history, place_column, place_tasks, project_commands, record_in_palette_history,
+    remove_hook, remove_task_attachment, rename_column, rename_task, resume_task_resource,
+    run_project_command, save_hook, set_column_arrivals, set_column_marks_a_days_work,
+    set_column_sort, set_project_config, set_task_remote_tracker_url, set_task_tags, settings,
+    start_task_resource, stop_task_resource,
 };
 use review_routes::{
     agent_dispatch_log_request, blame_session_file, cancel_comment_dispatch_request,
@@ -291,6 +292,10 @@ fn protected_routes() -> Router<Served> {
         .route(
             "/api/session/{session_id}/reviews/{review_id}/move",
             post(move_review),
+        )
+        .route(
+            "/api/session/{session_id}/reviews/follow-git",
+            post(move_reviews_to_their_git_stage),
         )
         .route(
             "/api/session/{session_id}/review-statuses",

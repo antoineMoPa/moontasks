@@ -764,16 +764,11 @@ fn a_markdown_attachment_opens_in_a_tab() {
     );
 }
 
-/// A document's name is cut to its row: a card is as wide as its column, and a name longer
-/// than that used to be drawn whole, pushing the card out over the column beside it.
-#[test]
-fn a_long_attachment_name_stays_inside_its_card() {
-    use egui_kittest::kittest::Queryable as _;
-
+/// A board whose one card lists `document` in its `file_attachments.txt`, drawn until the board
+/// has read it.
+fn draw_a_card_attaching(fixture_name: &str, document: &str) -> Harness<'static> {
     const TASK: &str = "write-the-parser-1111";
-    const DOCUMENT: &str =
-        "the-quarterly-figures-as-they-stood-before-the-second-round-of-corrections-final-v3.pdf";
-    let fixture = seeded_fixture("board-long-attachment-name");
+    let fixture = seeded_fixture(fixture_name);
     fixture.write(
         &format!(".moontasks/{TASK}/metadata.json"),
         "{\n  \"title\": \"Write the parser\",\n  \"status\": \"todo\",\n  \
@@ -781,7 +776,7 @@ fn a_long_attachment_name_stays_inside_its_card() {
     );
     fixture.write(
         &format!(".moontasks/{TASK}/file_attachments.txt"),
-        &format!("{DOCUMENT}\n"),
+        &format!("{document}\n"),
     );
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
@@ -796,6 +791,7 @@ fn a_long_attachment_name_stays_inside_its_card() {
         .with_theme(egui::Theme::Dark)
         .wgpu()
         .build_ui(move |ui| {
+            let _keep_the_folder = &fixture;
             if !opened_in_ui.load(Ordering::Relaxed)
                 && matches!(app.model.stage, crate::native::model::Stage::Ready)
             {
@@ -820,12 +816,49 @@ fn a_long_attachment_name_stays_inside_its_card() {
         "the board never read the task's attachment"
     );
     harness.run_steps(3);
+    harness
+}
+
+/// A document's name is cut to its row: a card is as wide as its column, and a name longer
+/// than that used to be drawn whole, pushing the card out over the column beside it.
+#[test]
+fn a_long_attachment_name_stays_inside_its_card() {
+    use egui_kittest::kittest::Queryable as _;
+
+    const DOCUMENT: &str =
+        "the-quarterly-figures-as-they-stood-before-the-second-round-of-corrections-final-v3.pdf";
+    let harness = draw_a_card_attaching("board-long-attachment-name", DOCUMENT);
 
     let name = harness.get_by_label(DOCUMENT).rect();
     assert!(
         name.width() < crate::native::board::COLUMN_WIDTH,
         "the name is {} wide, in a column of {}",
         name.width(),
+        crate::native::board::COLUMN_WIDTH
+    );
+}
+
+/// A document listed by a path too long for its card keeps its file name and loses the path's
+/// start, behind a `…`, rather than its end - the name is what the row is read for.
+#[test]
+fn a_long_attachment_path_keeps_its_file_name() {
+    use egui_kittest::kittest::Queryable as _;
+
+    const DOCUMENT: &str = "/Users/someone/Documents/a-folder-with-quite-a-long-name/another-folder-with-a-long-name/brief.pdf";
+    let harness = draw_a_card_attaching("board-long-attachment-path", DOCUMENT);
+
+    use egui_kittest::kittest::NodeT as _;
+
+    let row = harness.get_by_label_contains("brief.pdf");
+    let shown = row.accesskit_node().label().unwrap_or_default();
+    assert!(
+        shown.starts_with('…') && shown.ends_with("-long-name/brief.pdf"),
+        "the path should lose its start and keep what fits of its folders and name: {shown}"
+    );
+    assert!(
+        row.rect().width() < crate::native::board::COLUMN_WIDTH,
+        "the path is {} wide, in a column of {}",
+        row.rect().width(),
         crate::native::board::COLUMN_WIDTH
     );
 }

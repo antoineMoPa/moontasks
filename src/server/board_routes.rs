@@ -125,6 +125,20 @@ pub(super) async fn move_review(
     Ok("ok")
 }
 
+pub(super) async fn move_reviews_to_their_git_stage(
+    AxumPath(session_id): AxumPath<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<String>>, AppError> {
+    mark_activity(&state);
+    let moved = core_session_work(
+        state,
+        session_id,
+        moontasks::service::move_reviews_to_their_git_stage,
+    )
+    .await?;
+    Ok(Json(moved))
+}
+
 pub(super) async fn list_review_statuses(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,

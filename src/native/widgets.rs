@@ -119,6 +119,58 @@ pub(crate) fn quiet_button_cut_to_row(ui: &mut Ui, text: &str) -> Response {
     clickable(ui.add(egui::Button::new(text).frame(false).truncate()))
 }
 
+/// A [`quiet_button_cut_to_row`] for a path: the file name is what is read, so a path too long
+/// for the row loses its start - `…/docs/brief.pdf` - and keeps as much of its folders as fits.
+/// A file name too long for the row on its own is cut at its end, like any other name.
+pub(crate) fn quiet_path_button_cut_at_start(ui: &mut Ui, path: &str) -> Response {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let room = ui.available_width() - ui.spacing().button_padding.x * 2.0;
+    let painter = ui.painter().clone();
+    let shown = cut_path_at_start_to_fit(path, room, |text| {
+        painter
+            .layout_no_wrap(text.to_string(), font.clone(), Color32::WHITE)
+            .size()
+            .x
+    });
+    quiet_button_cut_to_row(ui, &shown)
+}
+
+/// `path` as wide as `room` allows by `width_of`: whole if it fits, else its end behind a `…`,
+/// cut no further than the start of the file name.
+pub(crate) fn cut_path_at_start_to_fit(
+    path: &str,
+    room: f32,
+    width_of: impl Fn(&str) -> f32,
+) -> String {
+    if !path.contains('/') || width_of(path) <= room {
+        return path.to_string();
+    }
+    let chars: Vec<char> = path.chars().collect();
+    let name_start = chars
+        .iter()
+        .rposition(|&c| c == '/')
+        .map_or(0, |slash| slash + 1);
+    let with_ellipsis = |dropped: usize| -> String {
+        std::iter::once('…')
+            .chain(chars[dropped..].iter().copied())
+            .collect()
+    };
+    // The fewest characters dropped from the front for the rest to fit, the name kept whole.
+    let (mut fits, mut too_wide) = (name_start, 0);
+    if width_of(&with_ellipsis(fits)) > room {
+        return with_ellipsis(name_start);
+    }
+    while fits - too_wide > 1 {
+        let middle = (fits + too_wide) / 2;
+        if width_of(&with_ellipsis(middle)) <= room {
+            fits = middle;
+        } else {
+            too_wide = middle;
+        }
+    }
+    with_ellipsis(fits)
+}
+
 /// A framed button in [`SMALL_SIZE`] text: the action rows of an extension pane and of the
 /// task pane are made of these, so an action reads the same on either.
 pub(crate) fn small_button(ui: &mut Ui, text: &str, enabled: bool) -> Response {
@@ -415,5 +467,32 @@ mod tests {
         assert_eq!(grouped(999), "999");
         assert_eq!(grouped(1_234), "1,234");
         assert_eq!(grouped(1_234_567), "1,234,567");
+    }
+
+    /// One unit a character, so a room of `n` holds `n` characters.
+    fn count_chars(text: &str) -> f32 {
+        text.chars().count() as f32
+    }
+
+    #[test]
+    fn a_path_that_fits_is_whole_and_a_long_one_loses_its_start() {
+        let path = "/Users/me/docs/brief.pdf";
+        assert_eq!(cut_path_at_start_to_fit(path, 40.0, count_chars), path);
+        assert_eq!(
+            cut_path_at_start_to_fit(path, 16.0, count_chars),
+            "…/docs/brief.pdf"
+        );
+    }
+
+    #[test]
+    fn the_file_name_is_never_cut_at_its_start() {
+        assert_eq!(
+            cut_path_at_start_to_fit("/a/b/a-very-long-name.pdf", 6.0, count_chars),
+            "…a-very-long-name.pdf"
+        );
+        assert_eq!(
+            cut_path_at_start_to_fit("a-very-long-name.pdf", 6.0, count_chars),
+            "a-very-long-name.pdf"
+        );
     }
 }

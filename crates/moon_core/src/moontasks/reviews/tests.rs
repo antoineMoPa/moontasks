@@ -149,3 +149,27 @@ fn an_old_boards_review_folders_move_to_the_new_statuses() {
     );
     assert!(!root.join("reviewing").exists() && !root.join("done").exists());
 }
+
+/// A follow-up request that reused a pushed review's name moves next to it, not over it.
+#[test]
+fn moving_a_review_onto_a_namesake_keeps_both() {
+    let board = crate::test_fixture::Fixture::new("review-files-namesake");
+    let root = reviews_root(&board.root);
+    for status in ["requested", "pushed"] {
+        std::fs::create_dir_all(root.join(status)).expect("expected the folder");
+        std::fs::write(
+            root.join(status).join("a.md"),
+            format!("---\nrepo: .\n---\nfeat: a {status}\n"),
+        )
+        .expect("expected the file");
+    }
+
+    let requested = locate_review_file_in_status(&board.root, "requested", "a").expect("found");
+    move_review_file_at(&board.root, &requested, "a", Some("pushed")).expect("expected the move");
+
+    assert!(root.join("pushed/a.md").is_file());
+    assert!(root.join("pushed/a-2.md").is_file());
+    assert!(!root.join("requested/a.md").exists());
+    let pushed = std::fs::read_to_string(root.join("pushed/a.md")).expect("read");
+    assert!(pushed.contains("feat: a pushed"), "the older review was written over");
+}

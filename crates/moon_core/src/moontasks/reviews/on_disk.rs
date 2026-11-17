@@ -211,19 +211,54 @@ pub fn find_review_file(repo_path: &Path, id: &str) -> Result<PathBuf> {
 /// Move a review to another status, or - with `None` - take its file away.
 pub fn move_review_file(repo_path: &Path, id: &str, to_status: Option<&str>) -> Result<()> {
     let from = find_review_file(repo_path, id)?;
+    move_review_file_at(repo_path, &from, id, to_status)
+}
+
+/// A review's file in the status folder it was read from - not its namesake in another one.
+pub fn locate_review_file_in_status(repo_path: &Path, status: &str, id: &str) -> Result<PathBuf> {
+    ensure_plain_name(status)?;
+    ensure_plain_name(id)?;
+    let path = reviews_root(repo_path).join(status).join(format!("{id}.md"));
+    match path.is_file() {
+        true => Ok(path),
+        false => Err(anyhow!("there is no review called {id} in {status}")),
+    }
+}
+
+/// Move the review file at `from` to another status, or - with `None` - take it away.
+pub fn move_review_file_at(
+    repo_path: &Path,
+    from: &Path,
+    id: &str,
+    to_status: Option<&str>,
+) -> Result<()> {
     let Some(status) = to_status else {
-        return std::fs::remove_file(&from)
+        return std::fs::remove_file(from)
             .with_context(|| format!("removing {}", from.display()));
     };
     ensure_plain_name(status)?;
     let dir = reviews_root(repo_path).join(status);
-    let to = dir.join(format!("{id}.md"));
-    if to == from {
+    if from.parent() == Some(dir.as_path()) {
         return Ok(());
     }
     std::fs::create_dir_all(&dir).with_context(|| format!("making {}", dir.display()))?;
-    std::fs::rename(&from, &to)
+    let to = choose_free_review_path(&dir, id);
+    std::fs::rename(from, &to)
         .with_context(|| format!("moving {} to {}", from.display(), to.display()))
+}
+
+/// Where a review lands in a status folder: its own name, or - when a review of that name is
+/// there already, as when a follow-up request reused a pushed review's name - the first free
+/// `<id>-2.md`, `<id>-3.md`, ... so a move never writes over another review.
+fn choose_free_review_path(dir: &Path, id: &str) -> PathBuf {
+    let own = dir.join(format!("{id}.md"));
+    if !own.exists() {
+        return own;
+    }
+    (2..)
+        .map(|n| dir.join(format!("{id}-{n}.md")))
+        .find(|path| !path.exists())
+        .expect("a free name")
 }
 
 /// A review's id and status are a file's and a folder's names, so neither can climb out of the

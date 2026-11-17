@@ -15,7 +15,8 @@ use anyhow::{Context, Result, bail};
 
 use super::{
     COMMITTED_REVIEW_STATUS, FIRST_REVIEW_STATUS, OLD_REVIEW_STATUSES, PUSHED_REVIEW_STATUS,
-    ReviewFile, find_review_file, move_review_file, read_review_files, reviews_root,
+    ReviewFile, locate_review_file_in_status, move_review_file_at, read_review_files,
+    reviews_root,
 };
 use crate::moontasks::review_request::{COMMITTED_LOOKBACK, find_working_copy_of_review};
 
@@ -54,8 +55,10 @@ fn move_review_to_its_git_stage(repo_path: &Path, review: &ReviewFile) -> Result
     let Some(commit) = found else {
         return Ok(None);
     };
+    // Its own folder's file: a review of the same name in another status is another review.
+    let file = locate_review_file_in_status(repo_path, &review.status, &review.id)?;
     if review.commit.is_none() {
-        write_commit_into_review_file(&find_review_file(repo_path, &review.id)?, &commit)?;
+        write_commit_into_review_file(&file, &commit)?;
     }
     let to = match remote_branch_has_commit(&copy, &commit) {
         true => PUSHED_REVIEW_STATUS,
@@ -64,7 +67,7 @@ fn move_review_to_its_git_stage(repo_path: &Path, review: &ReviewFile) -> Result
     if to == review.status {
         return Ok(None);
     }
-    move_review_file(repo_path, &review.id, Some(to))?;
+    move_review_file_at(repo_path, &file, &review.id, Some(to))?;
     Ok(Some(to.to_string()))
 }
 

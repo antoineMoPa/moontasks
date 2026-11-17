@@ -140,6 +140,9 @@ pub(crate) struct Model {
     /// would put the row back for a tick: the read carries the count it started under, and
     /// is dropped if the count has moved on - see `App::poll_review_requests`.
     pub(crate) review_request_amendments: u64,
+    /// Set when this window has just committed or pushed: the reviews are moved to where git
+    /// now says they are, and the lane read again, on the next frame rather than the next poll.
+    pub(crate) reviews_follow_git_now: bool,
     /// The review session of each repo a task's combined review shows, by repo path - see
     /// [`crate::native::review::task_review`]. A session lives as long as the server that made
     /// it, so that pane names its task rather than its sessions, and finds them here.

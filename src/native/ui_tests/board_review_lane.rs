@@ -95,7 +95,7 @@ fn lane_board(root: &Path, render: bool) -> LaneBoard {
             .filter_map(|request| {
                 let rect = ui
                     .ctx()
-                    .read_response(review_card_id(&request.file.id))?
+                    .read_response(review_card_id(&request.file.status, &request.file.id))?
                     .rect;
                 Some((request.file.id.clone(), rect))
             })
@@ -285,5 +285,36 @@ fn clicking_a_review_card_opens_its_review_but_a_small_drag_does_not() {
             seen.lock().expect("poisoned").opened_reviews == ["parser-tests"]
         }),
         "clicking the card never opened its review"
+    );
+}
+
+/// A follow-up request can reuse the name of a review already pushed: each of the two is a card
+/// of its own, each answering to its own id - not one id drawn twice, which egui marks in red.
+#[test]
+fn two_reviews_of_one_name_in_two_statuses_are_two_cards() {
+    let fixture = seeded_fixture("review-lane-namesakes");
+    write_the_parsers_reviews(&fixture);
+    fixture.write(
+        ".moontasks/reviews/requested/login.md",
+        "---\ntask: fix-the-login-page-2222\nrepo: .\n---\nfix(login): keep the session longer\n",
+    );
+    let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 4),
+        "the lane never drew the four review cards"
+    );
+    harness.run_steps(3);
+    let logins: Vec<egui::Rect> = seen
+        .lock()
+        .expect("poisoned")
+        .cards
+        .iter()
+        .filter(|(id, _)| id == "login")
+        .map(|(_, rect)| *rect)
+        .collect();
+    assert_eq!(logins.len(), 2);
+    assert!(
+        !logins[0].intersects(logins[1]),
+        "the two login reviews answer to one card: {logins:?}"
     );
 }

@@ -399,8 +399,9 @@ fn a_review_that_is_done_keeps_its_message_out_of_the_box() {
 /// fills the box in its turn.
 ///
 /// The pane is kept for as long as the window is open - the session it belongs to is the repo -
-/// so the first commit it ever filled in is not the last. Once that one is made, its review is
-/// still in `requested/` and still names a branch, and it does not come back into the emptied box.
+/// so the first commit it ever filled in is not the last. Once that one is made, its review -
+/// gone on to `committed/`, still naming the branch that is out - does not come back into the
+/// emptied box.
 /// The next piece of work in the repo, on its own branch with its own review, is a different
 /// commit, and its message goes in the box the way the first one's did.
 #[test]
@@ -525,5 +526,50 @@ fn the_review_clicked_open_is_the_one_whose_message_is_in_the_box() {
         watched.message().as_deref(),
         Some(other),
         "choosing another review should swap in its message"
+    );
+}
+
+/// A commit made from the pane moves its review to `committed/` at once - the window made it,
+/// so it does not wait for the hook runner's next look to notice.
+#[test]
+fn a_commit_made_from_the_pane_moves_its_review_to_committed_at_once() {
+    let fixture = seeded_fixture("commit-moves-its-review");
+    fixture.checkout_branch("ship-it");
+    run_git_no_output(&fixture.root, &["add", "-A"]).expect("failed to stage the fixture");
+    a_task_asking_for_review(
+        &fixture,
+        "deploy-the-thing-1111",
+        REQUESTED,
+        REQUESTED_BRANCH,
+        REQUESTED_BODY,
+    );
+
+    let (mut harness, watched) = commit_pane_over_the_board(&fixture);
+    let deadline = Instant::now() + GIT_DEADLINE;
+    while Instant::now() < deadline
+        && !(watched.message().as_deref() == Some(REQUESTED_MESSAGE)
+            && watched.staged().is_some_and(|count| count > 0))
+    {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    harness.get_by_label("commit").click();
+
+    let moved_to = fixture
+        .root
+        .join(".moontasks/reviews/committed/deploy-the-thing-1111.md");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline && !moved_to.is_file() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        moved_to.is_file(),
+        "the review should have followed its commit to committed/"
+    );
+    let file = std::fs::read_to_string(&moved_to).expect("the moved review is readable");
+    assert!(
+        file.contains("\ncommit: "),
+        "the commit made is written into it: {file}"
     );
 }

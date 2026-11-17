@@ -809,6 +809,15 @@ pub fn move_review(
     crate::moontasks::reviews::move_review_file(&repo_of(state, session_id)?, review_id, to_status)
 }
 
+/// Move the board's reviews to `committed/` and `pushed/` as git says now, rather than on the
+/// hook runner's next look - what a window asks for once it has committed or pushed itself.
+/// Returns a line for each review moved.
+pub fn move_reviews_to_their_git_stage(state: &AppState, session_id: &str) -> Result<Vec<String>> {
+    Ok(crate::moontasks::reviews::move_reviews_to_their_git_stage(
+        &repo_of(state, session_id)?,
+    ))
+}
+
 /// The review statuses of the board, in the lane's order.
 pub fn list_review_statuses(state: &AppState, session_id: &str) -> Result<Vec<String>> {
     Ok(crate::moontasks::reviews::list_review_statuses(

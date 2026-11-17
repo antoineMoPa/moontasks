@@ -392,6 +392,10 @@ impl Backend for LocalBackend {
         moontasks::service::move_review(&self.state, session_id, review_id, to_status)
     }
 
+    fn move_reviews_to_their_git_stage(&self, session_id: &str) -> Result<Vec<String>> {
+        moontasks::service::move_reviews_to_their_git_stage(&self.state, session_id)
+    }
+
     fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>> {
         moontasks::service::list_review_statuses(&self.state, session_id)
     }

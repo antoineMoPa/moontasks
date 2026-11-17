@@ -323,10 +323,17 @@ impl App {
     /// to commit, and that changes when someone commits, not when the file does. The same reason
     /// the submodule hub is on a clock rather than on a watch.
     pub(super) fn poll_review_requests(&mut self) {
+        // A commit or push made here is answered now, once the read already on its way - which
+        // may have started before it - is back.
+        let follow_git =
+            self.model.reviews_follow_git_now && !self.tasks.is_busy(REVIEW_REQUESTS_KEY);
         if self.model.root_session_id.is_empty()
-            || self.last_review_requests_poll.elapsed() < BOARD_POLL_INTERVAL
+            || (!follow_git && self.last_review_requests_poll.elapsed() < BOARD_POLL_INTERVAL)
         {
             return;
+        }
+        if follow_git {
+            self.model.reviews_follow_git_now = false;
         }
         let session_id = self.model.root_session_id.clone();
         self.last_review_requests_poll = Instant::now();
@@ -335,6 +342,10 @@ impl App {
         self.tasks.spawn_keyed(
             Some(REVIEW_REQUESTS_KEY.to_string()),
             move |backend| {
+                if follow_git {
+                    // A review that cannot be followed stays where it is until the next look.
+                    let _ = backend.move_reviews_to_their_git_stage(&session_id);
+                }
                 let requests = backend.list_review_requests(&session_id)?;
                 // Read with the rows, so a status folder made by hand shows with them.
                 let statuses = backend

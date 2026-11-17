@@ -122,8 +122,8 @@ pub(crate) fn draw_list(
                 }
                 ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
                     // Cut to the row: a card is as wide as its column, whatever the document
-                    // is called.
-                    let name = widgets::quiet_button_cut_to_row(ui, listed)
+                    // is called. The file name is kept, and the path's start goes first.
+                    let name = widgets::quiet_path_button_cut_at_start(ui, listed)
                         .on_hover_text(format!("Open {}", path.display()));
                     name_pressed = card.pressed(&name);
                 });
@@ -146,7 +146,7 @@ fn draw_folder_files(app: &mut App, ui: &mut Ui, task: &TaskView, palette: &Pale
         resources::draw_in_row(ui, row.rect, |ui| {
             // The place the dot of an attachment's row takes, so the names line up.
             ui.add_space(DOT_WIDTH + ui.spacing().item_spacing.x);
-            let button = widgets::quiet_button_cut_to_row(ui, name)
+            let button = widgets::quiet_path_button_cut_at_start(ui, name)
                 .on_hover_text(format!("Open {}", path.display()));
             name_pressed = button.clicked();
         });
