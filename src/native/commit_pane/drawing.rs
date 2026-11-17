@@ -167,19 +167,15 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str
 
                 // Beside it, and free: the messages tasks already wrote for work still waiting
                 // in this tree, subjects first and descriptions after - for when several of them
-                // go out as one commit. Over whatever is in the box, since pressing it is asking for that.
-                let concat = widgets::clickable(ui.add_enabled(
-                    !running && !pending_reviews.is_empty(),
-                    egui::Button::new(format!("concat reviews ({})", pending_reviews.len())),
-                ));
-                if concat.clicked() {
-                    message = super::message::join_review_messages_subjects_first(&pending_reviews);
-                }
-                if pending_reviews.is_empty() {
-                    concat.on_disabled_hover_text(
-                        "no review waiting on this tree from a card outside done",
-                    );
-                } else {
+                // go out as one commit. Hidden below two, since one message has nothing to join. Over whatever is in the box, since pressing it is asking for that.
+                if pending_reviews.len() > 1 {
+                    let concat = widgets::clickable(ui.add_enabled(
+                        !running,
+                        egui::Button::new(format!("concat reviews ({})", pending_reviews.len())),
+                    ));
+                    if concat.clicked() {
+                        message = super::message::join_review_messages_subjects_first(&pending_reviews);
+                    }
                     concat.on_hover_text(
                         "put every waiting review's subject in the box, then every description, oldest first",
                     );
