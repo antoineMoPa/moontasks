@@ -23,8 +23,13 @@ use crate::{
             hook_editor::{HookEditorTarget, open_hook_editor},
             hooks::{PillKind, draw_hook_pill},
             resources::{ReviewLink, choose_review_link},
+            review_marks::{
+                collect_carried_reviews, is_review_marked, let_go_of_all_reviews,
+                mark_reviews_on_click, move_review_marks_to_status,
+            },
             selection,
         },
+        model::MarkedReview,
         theme::{Palette, SMALL_SIZE},
         widgets,
     },
@@ -33,13 +38,17 @@ use crate::{
 /// How opaque the cards of other tasks are while a task is marked.
 const OTHER_TASKS_OPACITY: f32 = 0.35;
 
-/// A review card being carried to another status.
+/// The review cards being carried to another status: the one picked up, and the marked ones
+/// it brings with it.
 #[derive(Clone)]
 struct DraggedReview {
-    id: String,
-    status: String,
+    reviews: Vec<MarkedReview>,
     label: String,
 }
+
+/// How much of the accent color a marked review card's face is washed with - the board's cards'
+/// amount, so a group reads the same in both.
+const MARKED_REVIEW_WASH: f32 = 0.14;
 
 /// The rows of the board's review files.
 fn review_rows(app: &App) -> Vec<(ReviewRequestView, ReviewFileView)> {
@@ -70,45 +79,116 @@ fn lane_statuses(app: &App) -> Vec<String> {
     statuses
 }
 
+/// Every review card the lane draws, status by status, top to bottom - the order a group of
+/// marked cards is carried in.
+fn list_lane_cards(
+    statuses: &[String],
+    rows: &[(ReviewRequestView, ReviewFileView)],
+) -> Vec<MarkedReview> {
+    statuses
+        .iter()
+        .flat_map(|status| {
+            rows.iter()
+                .filter(move |(_, file)| &file.status == status)
+                .map(|(_, file)| MarkedReview {
+                    status: file.status.clone(),
+                    id: file.id.clone(),
+                })
+        })
+        .collect()
+}
+
 /// The lane, filling its frame: a column per status, side by side.
 pub(super) fn draw(app: &mut App, ui: &mut Ui, palette: &Palette, actions: &mut Vec<BoardAction>) {
     let_go_of_the_focus_on_escape(app, ui);
     let rows = review_rows(app);
+    let statuses = lane_statuses(app);
+    let lane = list_lane_cards(&statuses, &rows);
     let height = ui.available_height();
-    ScrollArea::horizontal()
+    let drawn = ScrollArea::horizontal()
         .id_salt("moontasks-review-lane")
         .show(ui, |ui| {
             ui.horizontal_top(|ui| {
-                for status in lane_statuses(app) {
-                    draw_status_column(app, ui, &status, &rows, height, palette, actions);
+                for status in &statuses {
+                    draw_status_column(app, ui, status, (&rows, &lane), height, palette, actions);
                     ui.add_space(6.0);
                 }
             });
         });
+    let_go_of_review_marks_on_a_click_beside_the_cards(app, ui, drawn.inner_rect, &lane);
     draw_carried_review(ui);
+}
+
+/// A click on the lane beside its cards lets the marked reviews go, as one beside the board's
+/// cards does theirs.
+fn let_go_of_review_marks_on_a_click_beside_the_cards(
+    app: &mut App,
+    ui: &Ui,
+    lane_rect: egui::Rect,
+    lane: &[MarkedReview],
+) {
+    if app.model.board.marked_reviews.is_empty() {
+        return;
+    }
+    let clicked_at = ui.input(|input| {
+        input
+            .pointer
+            .primary_clicked()
+            .then(|| input.pointer.interact_pos())
+            .flatten()
+    });
+    let Some(at) = clicked_at else {
+        return;
+    };
+    // A click in a menu or a popup over the lane is not a click on the lane.
+    if !lane_rect.contains(at) || ui.ctx().layer_id_at(at) != Some(ui.layer_id()) {
+        return;
+    }
+    let on_a_card = lane.iter().any(|card| {
+        ui.ctx()
+            .read_response(review_card_id(&card.status, &card.id))
+            .is_some_and(|response| response.rect.contains(at))
+    });
+    if !on_a_card {
+        let_go_of_all_reviews(&mut app.model.board);
+    }
 }
 
 /// Escape over the tab shows every task's reviews again, after a task's reviews row put it on
 /// that task's alone. Nothing is drawn for it: the task's row on the board is what got here.
 fn let_go_of_the_focus_on_escape(app: &mut App, ui: &mut Ui) {
-    if app.model.board.review_focus.is_none() || ui.ctx().text_edit_focused() {
+    let board = &app.model.board;
+    if (board.review_focus.is_none() && board.marked_reviews.is_empty())
+        || ui.ctx().text_edit_focused()
+    {
         return;
     }
     if ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-        app.model.board.review_focus = None;
+        // Marked reviews go first, then the focus on one task's reviews.
+        if app.model.board.marked_reviews.is_empty() {
+            app.model.board.review_focus = None;
+        } else {
+            let_go_of_all_reviews(&mut app.model.board);
+        }
     }
 }
 
 /// One status: its heading and hook, and its cards - a place a carried card can be dropped.
+/// `(rows, lane)` are every review the lane shows and its cards in the order drawn.
 fn draw_status_column(
     app: &mut App,
     ui: &mut Ui,
     status: &str,
-    rows: &[(ReviewRequestView, ReviewFileView)],
+    (rows, lane): (&[(ReviewRequestView, ReviewFileView)], &[MarkedReview]),
     height: f32,
     palette: &Palette,
     actions: &mut Vec<BoardAction>,
 ) {
+    let column_cards: Vec<MarkedReview> = lane
+        .iter()
+        .filter(|card| card.status == status)
+        .cloned()
+        .collect();
     let in_status: Vec<&(ReviewRequestView, ReviewFileView)> = rows
         .iter()
         .filter(|(_, file)| file.status == status)
@@ -144,7 +224,15 @@ fn draw_status_column(
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 5.0;
                     for (request, file) in &in_status {
-                        draw_review_card(app, ui, request, file, palette, actions);
+                        draw_review_card(
+                            app,
+                            ui,
+                            request,
+                            file,
+                            (&column_cards, lane),
+                            palette,
+                            actions,
+                        );
                     }
                 });
         },
@@ -163,14 +251,20 @@ fn draw_status_column(
         if ui.input(|input| input.pointer.any_released())
             && let Some(dropped) = egui::DragAndDrop::take_payload::<DraggedReview>(ui.ctx())
         {
-            if dropped.status != status {
-                actions.push(BoardAction::MoveReview {
-                    review_id: dropped.id.clone(),
-                    from_status: dropped.status.clone(),
-                    to_status: Some(status.to_string()),
-                });
-            }
+            push_moves_of_reviews(&dropped.reviews, status, actions);
+            move_review_marks_to_status(&mut app.model.board, &dropped.reviews, status);
         }
+    }
+}
+
+/// Move each of these reviews to `status` - those already there stay where they are.
+fn push_moves_of_reviews(reviews: &[MarkedReview], status: &str, actions: &mut Vec<BoardAction>) {
+    for review in reviews.iter().filter(|review| review.status != status) {
+        actions.push(BoardAction::MoveReview {
+            review_id: review.id.clone(),
+            from_status: review.status.clone(),
+            to_status: Some(status.to_string()),
+        });
     }
 }
 
@@ -218,14 +312,22 @@ pub(crate) fn review_card_id(status: &str, review_id: &str) -> egui::Id {
 }
 
 /// One pull request: its repo and number, where its code stands, and the task it is for.
+/// `(column, lane)` are the cards of its status and of the whole lane, in the order drawn: what
+/// a shift+click reads its run from, and what a drag of a marked card carries.
 fn draw_review_card(
-    app: &App,
+    app: &mut App,
     ui: &mut Ui,
     request: &ReviewRequestView,
     file: &ReviewFileView,
+    (column, lane): (&[MarkedReview], &[MarkedReview]),
     palette: &Palette,
     actions: &mut Vec<BoardAction>,
 ) {
+    let this_card = MarkedReview {
+        status: file.status.clone(),
+        id: file.id.clone(),
+    };
+    let review_marked = is_review_marked(&app.model.board, &this_card);
     let board = &app.model.board;
     let marked = !request.task_id.is_empty() && selection::is_marked(board, &request.task_id);
     // Only the other tasks' reviews say a task is marked, by stepping back.
@@ -263,9 +365,17 @@ fn draw_review_card(
         if another_is_marked {
             ui.multiply_opacity(OTHER_TASKS_OPACITY);
         }
+        // A marked card is outlined and washed in the accent color, as a marked board card is.
+        let (fill, edge) = match review_marked {
+            true => (
+                palette.panel.lerp_to_gamma(palette.accent, MARKED_REVIEW_WASH),
+                palette.accent,
+            ),
+            false => (palette.panel, palette.line),
+        };
         egui::Frame::new()
-            .fill(palette.panel)
-            .stroke(Stroke::new(1.0, palette.line))
+            .fill(fill)
+            .stroke(Stroke::new(1.0, edge))
             .corner_radius(CornerRadius::same(6))
             .inner_margin(egui::Margin {
                 left: 8,
@@ -276,49 +386,61 @@ fn draw_review_card(
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    // The board's own repo goes without saying; a submodule is named. A review
-                    // of the board's repo naming nothing else is named after it all the same.
-                    if !request.path_under_repo.is_empty() || pull_request.is_empty() {
-                        ui.label(
-                            RichText::new(&request.name)
-                                .size(SMALL_SIZE + 1.0)
-                                .color(palette.ink),
-                        );
-                    }
-                    if !pull_request.is_empty() {
-                        ui.label(
-                            RichText::new(&pull_request)
-                                .size(SMALL_SIZE)
-                                .color(palette.accent_2),
-                        );
-                    }
-                    // A click on the card opens what the row on its task's card opens; these
-                    // open each one whatever the review's status.
                     ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
                         let dismiss = draw_dismiss_mark(ui, file, palette);
                         on_a_button |= dismiss.contains_pointer();
                         if dismiss.clicked() {
                             actions.push(dismiss_review(file));
                         }
-                        if let Some(url) = &file.pr_url {
-                            let pr = draw_card_button(ui, "[pr]")
-                                .on_hover_text(format!("Open {url}"));
-                            on_a_button |= pr.contains_pointer();
-                            if pr.clicked() {
-                                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                        // A long branch is cut short of the ×, never drawn under it.
+                        ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
+                            // The board's own repo goes without saying; a submodule is named. A
+                            // review of the board's repo naming nothing else is named after it
+                            // all the same.
+                            if !request.path_under_repo.is_empty() || pull_request.is_empty() {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(&request.name)
+                                            .size(SMALL_SIZE + 1.0)
+                                            .color(palette.ink),
+                                    )
+                                    .truncate(),
+                                );
                             }
-                        }
-                        let review = draw_card_button(ui, "[moonreview]").on_hover_text(
-                            match &file.commit {
-                                Some(_) => "Open the diff of this commit",
-                                None => "Open the changes waiting where this is reviewed",
-                            },
-                        );
-                        on_a_button |= review.contains_pointer();
-                        if review.clicked() {
-                            actions.push(BoardAction::OpenReviewOf(request.clone()));
-                        }
+                            if !pull_request.is_empty() {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(&pull_request)
+                                            .size(SMALL_SIZE)
+                                            .color(palette.accent_2),
+                                    )
+                                    .truncate(),
+                                );
+                            }
+                        });
                     });
+                });
+                // Its links get a line of their own, so a long branch can't run under them. A
+                // click on the card opens what the row on its task's card opens; these open
+                // each one whatever the review's status.
+                ui.horizontal(|ui| {
+                    let review = draw_card_button(ui, "[moonreview]").on_hover_text(
+                        match &file.commit {
+                            Some(_) => "Open the diff of this commit",
+                            None => "Open the changes waiting where this is reviewed",
+                        },
+                    );
+                    on_a_button |= review.contains_pointer();
+                    if review.clicked() {
+                        actions.push(BoardAction::OpenReviewOf(request.clone()));
+                    }
+                    if let Some(url) = &file.pr_url {
+                        let pr = draw_card_button(ui, "[pr]").on_hover_text(format!("Open {url}"));
+                        on_a_button |= pr.contains_pointer();
+                        if pr.clicked() {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                        }
+                    }
                 });
                 ui.horizontal(|ui| {
                     ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
@@ -376,37 +498,55 @@ fn draw_review_card(
     let card = drawn
         .response
         .on_hover_text(hover_of_review(request, file));
+    let modifiers = ui.input(|input| input.modifiers);
     if was_card_clicked_in_place(ui, &card) && !on_a_button {
         // A press that came back where it started is a click, even after it began a drag.
         egui::DragAndDrop::clear_payload(ui.ctx());
-        match choose_review_link(request) {
-            ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
-            ReviewLink::MoonReview => actions.push(BoardAction::OpenReviewOf(request.clone())),
+        mark_reviews_on_click(&mut app.model.board, &this_card, column, modifiers);
+        // cmd and shift gather cards; only a plain click opens one.
+        if !(modifiers.command || modifiers.shift) {
+            match choose_review_link(request) {
+                ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
+                ReviewLink::MoonReview => {
+                    actions.push(BoardAction::OpenReviewOf(request.clone()))
+                }
+            }
         }
     } else if card.drag_started() {
-        egui::DragAndDrop::set_payload(
-            ui.ctx(),
-            DraggedReview {
-                id: file.id.clone(),
-                status: file.status.clone(),
-                label: format!("{} {pull_request}", request.name),
-            },
-        );
+        let reviews = collect_carried_reviews(&mut app.model.board, &this_card, lane, modifiers);
+        let label = match reviews.len() {
+            1 => format!("{} {pull_request}", request.name),
+            many => format!("{many} reviews"),
+        };
+        egui::DragAndDrop::set_payload(ui.ctx(), DraggedReview { reviews, label });
     }
+    // The menu of a marked card moves every marked card; another card's moves it alone.
+    let moved_by_menu: Vec<MarkedReview> = match review_marked {
+        true => lane
+            .iter()
+            .filter(|card| is_review_marked(&app.model.board, card))
+            .cloned()
+            .collect(),
+        false => vec![this_card.clone()],
+    };
 
+    let statuses = lane_statuses(app);
     egui::Popup::context_menu(&card)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .show(|ui| {
-            for status in lane_statuses(app) {
+            for status in statuses {
                 if status == file.status {
                     continue;
                 }
-                if widgets::clickable(ui.button(format!("move to {status}"))).clicked() {
-                    actions.push(BoardAction::MoveReview {
-                        review_id: file.id.clone(),
-                        from_status: file.status.clone(),
-                        to_status: Some(status),
-                    });
+                let label = match moved_by_menu.len() {
+                    1 => format!("move to {status}"),
+                    many => format!("move {many} to {status}"),
+                };
+                if widgets::clickable(ui.button(label)).clicked() {
+                    push_moves_of_reviews(&moved_by_menu, &status, actions);
+                    if review_marked {
+                        move_review_marks_to_status(&mut app.model.board, &moved_by_menu, &status);
+                    }
                     ui.close();
                 }
             }

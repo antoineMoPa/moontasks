@@ -26,6 +26,7 @@ pub(crate) mod placing;
 pub(crate) mod quick_task;
 pub(crate) mod resources;
 pub(crate) mod review_lane;
+pub(crate) mod review_marks;
 pub(crate) mod selection;
 pub(crate) mod start;
 pub(crate) mod tags;

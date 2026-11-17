@@ -93,6 +93,11 @@ pub(crate) struct BoardState {
     pub(crate) marked: HashSet<String>,
     /// The card a shift+click measures its run from: the last one clicked.
     pub(crate) mark_anchor: Option<String>,
+    /// The review cards the lane has marked - a group to drag to another status together. See
+    /// [`crate::native::board::review_marks`].
+    pub(crate) marked_reviews: HashSet<MarkedReview>,
+    /// The review card a shift+click in the lane measures its run from.
+    pub(crate) review_mark_anchor: Option<MarkedReview>,
     /// The tasks whose pages are to be put away, because a click on the board let their cards
     /// go. Drained once the window has drawn - a pane is never closed while the tree that
     /// holds it is being drawn.
@@ -183,6 +188,14 @@ pub(crate) struct AttachPicker {
     pub(crate) manual_id: String,
     /// The agent the typed id belongs to. `None` until the user picks one.
     pub(crate) manual_agent: Option<crate::api::AgentKind>,
+}
+
+/// A review card of the lane: its file's id, in the status folder it is in. Two files may share
+/// an id in two statuses, so the status is part of which card it is.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct MarkedReview {
+    pub(crate) status: String,
+    pub(crate) id: String,
 }
 
 /// The cards a drag is carrying: the one on the cursor, and the run it is bringing with it -

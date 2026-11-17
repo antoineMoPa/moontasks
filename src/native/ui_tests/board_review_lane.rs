@@ -24,7 +24,9 @@ use crate::{
     },
 };
 
-use super::{CARDS, drag_like_a_hand, seeded_fixture, settle};
+use super::{
+    CARDS, click_like_a_hand, drag_like_a_hand, press_modifiers, seeded_fixture, settle,
+};
 
 /// A window on a board of the three cards, its hooks started the way a real window's are.
 struct LaneBoard {
@@ -366,4 +368,109 @@ fn the_dismiss_mark_on_a_review_card_deletes_that_review_and_not_its_namesake() 
         "the dismissed review's card is still drawn: {:?}",
         seen.lock().expect("poisoned").cards
     );
+}
+
+/// A branch too long for its card is cut short of the ×, and [moonreview] sits on a line of its
+/// own under it - never drawn over the branch.
+#[test]
+fn a_long_branch_never_runs_under_the_review_cards_moonreview_link() {
+    let fixture = seeded_fixture("review-lane-long-branch");
+    let branch = "a-branch-name-long-enough-to-fill-the-whole-review-card-and-more";
+    fixture.write(
+        ".moontasks/reviews/requested/long.md",
+        &format!(
+            "---\ntask: write-the-parser-1111\nrepo: .\nbranch: {branch}\n---\n\
+             feat(parser): a long branch\n"
+        ),
+    );
+    let render = std::env::var("MOON_REVIEW_LANE_SHOTS").is_ok();
+    let LaneBoard { mut harness, seen } = lane_board(&fixture.root, render);
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 1),
+        "the lane never drew the review card"
+    );
+    harness.run_steps(3);
+    leave_a_screenshot(&mut harness, "review-lane-long-branch");
+    let card = seen.lock().expect("poisoned").cards[0].1;
+
+    let link = harness.get_by_label("[moonreview]").rect();
+    let mark = harness.get_by_label(DISMISS_MARK_LABEL).rect();
+    let branch_label = harness
+        .query_all_by_label_contains(branch)
+        .map(|node| node.rect())
+        .find(|rect| card.contains(rect.center()))
+        .expect("the branch is drawn on the card");
+
+    assert!(
+        link.top() >= branch_label.bottom(),
+        "[moonreview] {link:?} is not on a line under the branch {branch_label:?}"
+    );
+    assert!(
+        branch_label.right() <= mark.left(),
+        "the branch {branch_label:?} runs under the × {mark:?}"
+    );
+    assert!(card.contains_rect(link), "[moonreview] {link:?} is outside its card {card:?}");
+}
+
+/// cmd+click gathers review cards without opening them, and dragging one of the group carries
+/// the whole group to the status it is dropped on - as a group of board cards is carried.
+#[test]
+fn cmd_clicked_review_cards_are_dragged_to_a_status_together() {
+    let fixture = seeded_fixture("review-lane-group-drag");
+    write_the_parsers_reviews(&fixture);
+    let render = std::env::var("MOON_REVIEW_LANE_SHOTS").is_ok();
+    let LaneBoard { mut harness, seen } = lane_board(&fixture.root, render);
+    assert!(
+        settle(&mut harness, || {
+            let seen = seen.lock().expect("poisoned");
+            seen.cards.len() == 3 && seen.pills.len() == 4
+        }),
+        "the lane never drew the three review cards and the status pills"
+    );
+    harness.run_steps(3);
+    let card_at = |id: &str| {
+        seen.lock()
+            .expect("poisoned")
+            .cards
+            .iter()
+            .find(|(card, _)| card == id)
+            .map(|(_, rect)| rect.center())
+            .expect("the card is drawn")
+    };
+
+    press_modifiers(&mut harness, egui::Modifiers::COMMAND);
+    for id in ["parser-tests", "parser"] {
+        click_like_a_hand(&mut harness, card_at(id), egui::Modifiers::COMMAND);
+    }
+    press_modifiers(&mut harness, egui::Modifiers::NONE);
+    harness.run_steps(3);
+    assert!(
+        seen.lock().expect("poisoned").opened_reviews.is_empty(),
+        "a cmd+click opened its review rather than marking the card"
+    );
+    leave_a_screenshot(&mut harness, "review-lane-two-marked");
+
+    let target = seen
+        .lock()
+        .expect("poisoned")
+        .pills
+        .iter()
+        .find(|(status, _)| status == "deployed")
+        .map(|(_, rect)| rect.left_bottom() + egui::vec2(-40.0, 30.0))
+        .expect("the deployed heading is drawn");
+    drag_like_a_hand(&mut harness, card_at("parser"), target, egui::Modifiers::NONE);
+
+    let deployed = fixture.root.join(".moontasks/reviews/deployed");
+    assert!(
+        settle(&mut harness, || {
+            deployed.join("parser-tests.md").is_file() && deployed.join("parser.md").is_file()
+        }),
+        "the two marked reviews never both arrived in deployed/"
+    );
+    assert!(
+        fixture.root.join(".moontasks/reviews/pushed/login.md").is_file(),
+        "the unmarked review was carried along"
+    );
+    harness.run_steps(5);
+    leave_a_screenshot(&mut harness, "review-lane-group-dropped");
 }
