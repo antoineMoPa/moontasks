@@ -122,10 +122,11 @@ pub(crate) enum BoardAction {
         task_id: String,
         title: String,
     },
-    /// Move a review file to another status, or take it away with `None` - see
-    /// [`super::review_lane`].
+    /// Move a review file from the status it is in to another, or dismiss it - take its file
+    /// away - with `None`. See [`super::review_lane`].
     MoveReview {
         review_id: String,
+        from_status: String,
         to_status: Option<String>,
     },
     /// Write what has been typed into a task's notes on its own pane.
@@ -670,6 +671,7 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
         }
         BoardAction::MoveReview {
             review_id,
+            from_status,
             to_status,
         } => {
             let session_id = app.model.root_session_id.clone();
@@ -677,12 +679,20 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
             // `App::poll_review_requests`.
             move_review_in_rows(
                 &mut app.model.review_requests,
+                &from_status,
                 &review_id,
                 to_status.as_deref(),
             );
             app.model.review_request_amendments += 1;
             app.tasks.spawn(
-                move |backend| backend.move_review(&session_id, &review_id, to_status.as_deref()),
+                move |backend| {
+                    backend.move_review(
+                        &session_id,
+                        Some(&from_status),
+                        &review_id,
+                        to_status.as_deref(),
+                    )
+                },
                 |model, result| model.report(result, "could not move the review"),
             );
         }
@@ -720,13 +730,17 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
     }
 }
 
-/// The rows as the move will leave them: the review in its new status, or gone.
+/// The rows as the move will leave them: the review in its new status, or gone - only the one
+/// in `from_status`, not a namesake in another folder.
 fn move_review_in_rows(
     requests: &mut Vec<crate::moontasks::ReviewRequestView>,
+    from_status: &str,
     review_id: &str,
     to_status: Option<&str>,
 ) {
-    let is_it = |request: &crate::moontasks::ReviewRequestView| request.file.id == review_id;
+    let is_it = |request: &crate::moontasks::ReviewRequestView| {
+        request.file.id == review_id && request.file.status == from_status
+    };
     match to_status {
         None => requests.retain(|request| !is_it(request)),
         Some(status) => {

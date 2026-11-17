@@ -798,15 +798,28 @@ pub fn list_review_requests(state: &AppState, session_id: &str) -> Result<Vec<Re
     Ok(review_request::list_for_repo(&repo_of(state, session_id)?))
 }
 
-/// Move a review file to another status - or, with `None`, take it away - see
-/// [`crate::moontasks::reviews`].
+/// Move a review file to another status - or, with `None`, dismiss it: take its file away - see
+/// [`crate::moontasks::reviews`]. `from_status` is the folder it is in, when the caller knows,
+/// so a review of the same name in another folder is left alone.
 pub fn move_review(
     state: &AppState,
     session_id: &str,
+    from_status: Option<&str>,
     review_id: &str,
     to_status: Option<&str>,
 ) -> Result<()> {
-    crate::moontasks::reviews::move_review_file(&repo_of(state, session_id)?, review_id, to_status)
+    let repo = repo_of(state, session_id)?;
+    match from_status {
+        Some(from_status) => {
+            let from = crate::moontasks::reviews::locate_review_file_in_status(
+                &repo,
+                from_status,
+                review_id,
+            )?;
+            crate::moontasks::reviews::move_review_file_at(&repo, &from, review_id, to_status)
+        }
+        None => crate::moontasks::reviews::move_review_file(&repo, review_id, to_status),
+    }
 }
 
 /// Move the board's reviews to `committed/` and `pushed/` as git says now, rather than on the

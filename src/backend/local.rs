@@ -386,10 +386,11 @@ impl Backend for LocalBackend {
     fn move_review(
         &self,
         session_id: &str,
+        from_status: Option<&str>,
         review_id: &str,
         to_status: Option<&str>,
     ) -> Result<()> {
-        moontasks::service::move_review(&self.state, session_id, review_id, to_status)
+        moontasks::service::move_review(&self.state, session_id, from_status, review_id, to_status)
     }
 
     fn move_reviews_to_their_git_stage(&self, session_id: &str) -> Result<Vec<String>> {

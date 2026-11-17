@@ -55,6 +55,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str
     // Set when `[use]` was pressed, and answered once the pane is drawn.
     let mut used_suggestion = false;
     let writing_message = app.tasks.is_busy(&App::suggestion_key(session_id));
+    let pending_reviews = app.collect_pending_review_messages(session_id);
     // The repo this is committing, read off the review it belongs to: the pane may be one of
     // several open on several repos - a changed submodule has its own review and its own
     // commit pane - and the branch alone does not say which of them this one is.
@@ -161,6 +162,26 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str
                     use_ai.on_disabled_hover_text(
                         "needs a staged change, and an installed agent picked in Settings, to \
                          write a message",
+                    );
+                }
+
+                // Beside it, and free: the messages tasks already wrote for work still waiting
+                // in this tree, subjects first and descriptions after - for when several of them
+                // go out as one commit. Over whatever is in the box, since pressing it is asking for that.
+                let concat = widgets::clickable(ui.add_enabled(
+                    !running && !pending_reviews.is_empty(),
+                    egui::Button::new(format!("concat reviews ({})", pending_reviews.len())),
+                ));
+                if concat.clicked() {
+                    message = super::message::join_review_messages_subjects_first(&pending_reviews);
+                }
+                if pending_reviews.is_empty() {
+                    concat.on_disabled_hover_text(
+                        "no review waiting on this tree from a card outside done",
+                    );
+                } else {
+                    concat.on_hover_text(
+                        "put every waiting review's subject in the box, then every description, oldest first",
                     );
                 }
 

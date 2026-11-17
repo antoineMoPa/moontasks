@@ -37,6 +37,7 @@ const OTHER_TASKS_OPACITY: f32 = 0.35;
 #[derive(Clone)]
 struct DraggedReview {
     id: String,
+    status: String,
     label: String,
 }
 
@@ -162,12 +163,10 @@ fn draw_status_column(
         if ui.input(|input| input.pointer.any_released())
             && let Some(dropped) = egui::DragAndDrop::take_payload::<DraggedReview>(ui.ctx())
         {
-            let moved = rows
-                .iter()
-                .any(|(_, file)| file.id == dropped.id && file.status != status);
-            if moved {
+            if dropped.status != status {
                 actions.push(BoardAction::MoveReview {
                     review_id: dropped.id.clone(),
+                    from_status: dropped.status.clone(),
                     to_status: Some(status.to_string()),
                 });
             }
@@ -249,6 +248,9 @@ fn draw_review_card(
     };
 
     let card_id = review_card_id(&file.status, &file.id);
+    // egui gives the drag half of a press on a button to the card under it, so the card would
+    // read a click on [pr] or × as its own click too: a button under the pointer keeps it.
+    let mut on_a_button = false;
     // The card is the press, sensed under what is drawn in it, so a run's row inside it is
     // still a button of its own.
     let drawn = ui.scope_builder(
@@ -293,12 +295,18 @@ fn draw_review_card(
                     // A click on the card opens what the row on its task's card opens; these
                     // open each one whatever the review's status.
                     ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
-                        if let Some(url) = &file.pr_url
-                            && draw_card_button(ui, "[pr]")
-                                .on_hover_text(format!("Open {url}"))
-                                .clicked()
-                        {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                        let dismiss = draw_dismiss_mark(ui, file, palette);
+                        on_a_button |= dismiss.contains_pointer();
+                        if dismiss.clicked() {
+                            actions.push(dismiss_review(file));
+                        }
+                        if let Some(url) = &file.pr_url {
+                            let pr = draw_card_button(ui, "[pr]")
+                                .on_hover_text(format!("Open {url}"));
+                            on_a_button |= pr.contains_pointer();
+                            if pr.clicked() {
+                                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                            }
                         }
                         let review = draw_card_button(ui, "[moonreview]").on_hover_text(
                             match &file.commit {
@@ -306,6 +314,7 @@ fn draw_review_card(
                                 None => "Open the changes waiting where this is reviewed",
                             },
                         );
+                        on_a_button |= review.contains_pointer();
                         if review.clicked() {
                             actions.push(BoardAction::OpenReviewOf(request.clone()));
                         }
@@ -367,7 +376,7 @@ fn draw_review_card(
     let card = drawn
         .response
         .on_hover_text(hover_of_review(request, file));
-    if was_card_clicked_in_place(ui, &card) {
+    if was_card_clicked_in_place(ui, &card) && !on_a_button {
         // A press that came back where it started is a click, even after it began a drag.
         egui::DragAndDrop::clear_payload(ui.ctx());
         match choose_review_link(request) {
@@ -379,6 +388,7 @@ fn draw_review_card(
             ui.ctx(),
             DraggedReview {
                 id: file.id.clone(),
+                status: file.status.clone(),
                 label: format!("{} {pull_request}", request.name),
             },
         );
@@ -394,20 +404,18 @@ fn draw_review_card(
                 if widgets::clickable(ui.button(format!("move to {status}"))).clicked() {
                     actions.push(BoardAction::MoveReview {
                         review_id: file.id.clone(),
+                        from_status: file.status.clone(),
                         to_status: Some(status),
                     });
                     ui.close();
                 }
             }
             ui.separator();
-            if widgets::clickable(ui.button("remove"))
-                .on_hover_text(format!("Delete {}", file.repo_path_of_file))
+            if widgets::clickable(ui.button("dismiss"))
+                .on_hover_text(dismiss_hover_of(file))
                 .clicked()
             {
-                actions.push(BoardAction::MoveReview {
-                    review_id: file.id.clone(),
-                    to_status: None,
-                });
+                actions.push(dismiss_review(file));
                 ui.close();
             }
         });
@@ -478,6 +486,36 @@ fn draw_hook_runs_of_review(
 }
 
 /// One of a review card's bracketed buttons, in the card's small type.
+/// Dismiss a review: take its file away, from the folder it is in - not a namesake's.
+pub(crate) fn dismiss_review(file: &ReviewFileView) -> BoardAction {
+    BoardAction::MoveReview {
+        review_id: file.id.clone(),
+        from_status: file.status.clone(),
+        to_status: None,
+    }
+}
+
+/// The × that dismisses a review, on its card in the lane and its row on its task's card.
+pub(crate) fn draw_dismiss_mark(
+    ui: &mut Ui,
+    file: &ReviewFileView,
+    palette: &Palette,
+) -> egui::Response {
+    let mark = widgets::close_button(ui, palette);
+    mark.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, DISMISS_MARK_LABEL)
+    });
+    mark.on_hover_text(dismiss_hover_of(file))
+}
+
+/// What the dismiss mark is called to a screen reader - and to a test looking for it.
+pub(crate) const DISMISS_MARK_LABEL: &str = "dismiss review";
+
+/// What the pointer on a dismiss mark is told: that the review goes, and which file with it.
+fn dismiss_hover_of(file: &ReviewFileView) -> String {
+    format!("Dismiss this review - deletes {}", file.repo_path_of_file)
+}
+
 fn draw_card_button(ui: &mut Ui, text: &str) -> egui::Response {
     widgets::clickable(ui.add(egui::Button::new(RichText::new(text).size(SMALL_SIZE)).frame(false)))
 }

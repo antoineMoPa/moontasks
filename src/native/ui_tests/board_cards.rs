@@ -183,6 +183,93 @@ fn each_review_is_listed_on_its_card_and_opens_its_review() {
     );
 }
 
+/// The × at the end of a review's row on its card dismisses that review - deletes its file -
+/// and opens nothing, though the row under it is a click that opens the review.
+#[test]
+fn a_reviews_dismiss_mark_on_its_card_deletes_it_and_opens_nothing() {
+    use egui_kittest::kittest::Queryable as _;
+
+    let fixture = seeded_fixture("board-review-dismiss");
+    fixture.write(
+        ".moontasks/deploy-the-thing-1111/metadata.json",
+        "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
+         \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
+    );
+    fixture.write_review_file(
+        "requested",
+        "root-take-the-module-forward",
+        "task: deploy-the-thing-1111\nrepo: .\n",
+        "chore: take the module forward\n",
+    );
+    fixture.write_review_file(
+        "requested",
+        "root-ship-it",
+        "task: deploy-the-thing-1111\nrepo: .\n",
+        "feat: ship it\n",
+    );
+
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    let opened = Arc::new(AtomicBool::new(false));
+    let opened_in_ui = Arc::clone(&opened);
+    let reviews = Arc::new(Mutex::new(0usize));
+    let reviews_in_ui = Arc::clone(&reviews);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 800.0))
+        .build_ui(move |ui| {
+            if !opened_in_ui.load(Ordering::Relaxed)
+                && matches!(app.model.stage, crate::native::model::Stage::Ready)
+            {
+                app.open_pane(crate::native::panes::OpenPaneRequest::Tasks);
+                opened_in_ui.store(true, Ordering::Relaxed);
+            }
+            app.draw(ui);
+            *reviews_in_ui.lock().expect("poisoned") = app
+                .model
+                .layout
+                .panes()
+                .filter(|(_, pane)| pane.kind() == crate::native::panes::PaneKind::Review)
+                .count();
+        });
+
+    let dismissed = "chore: take the module forward";
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline && harness.query_by_label(dismissed).is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    harness.run_steps(3);
+    // The window opens on a review of its own: what counts is that no other one opens.
+    let reviews_before = *reviews.lock().expect("poisoned");
+    let row = harness.get_by_label(dismissed).rect();
+    harness
+        .query_all_by_label(crate::native::board::review_lane::DISMISS_MARK_LABEL)
+        .find(|mark| (mark.rect().center().y - row.center().y).abs() < row.height())
+        .expect("the review's row has a dismiss mark")
+        .click();
+
+    let file = fixture
+        .root
+        .join(".moontasks/reviews/requested/root-take-the-module-forward.md");
+    assert!(
+        settle(&mut harness, || !file.exists()),
+        "the dismissed review's file should be deleted"
+    );
+    harness.run_steps(10);
+    assert!(
+        harness.query_by_label(dismissed).is_none(),
+        "the dismissed review should be off its card"
+    );
+    assert!(
+        harness.query_by_label("feat: ship it").is_some(),
+        "the other review should stay"
+    );
+    assert_eq!(
+        *reviews.lock().expect("poisoned"),
+        reviews_before,
+        "dismissing opened a review"
+    );
+}
+
 /// A review moved to `committed/` reads as reviewed on its card, though its repo still has changes.
 ///
 /// Where the review file is is what says whether it is pending - not the card's column, and not

@@ -119,7 +119,13 @@ pub(super) async fn move_review(
 ) -> Result<&'static str, AppError> {
     mark_activity(&state);
     session_work(state, session_id, move |state, session_id| {
-        moontasks::service::move_review(state, session_id, &review_id, request.to_status.as_deref())
+        moontasks::service::move_review(
+            state,
+            session_id,
+            request.from_status.as_deref(),
+            &review_id,
+            request.to_status.as_deref(),
+        )
     })
     .await?;
     Ok("ok")

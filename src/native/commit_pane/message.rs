@@ -1,7 +1,27 @@
 //! The message a commit goes out with: the one a review request wrote for this branch, or one
 //! asked of the agent by `[Use AI]`.
 
-use crate::{moontasks::ReviewRequestView, native::app::App};
+use crate::{commit_suggestion::CommitSuggestion, moontasks::ReviewRequestView, native::app::App};
+
+/// Several reviews' messages as one commit message: every subject first, one per line, so the
+/// first line is still a subject and `git log --oneline` reads as the first review's - then
+/// every paragraph, a blank line between each.
+pub(super) fn join_review_messages_subjects_first(messages: &[CommitSuggestion]) -> String {
+    let subjects: Vec<&str> = messages
+        .iter()
+        .map(|message| message.subject.trim())
+        .filter(|subject| !subject.is_empty())
+        .collect();
+    let paragraphs: Vec<&str> = messages
+        .iter()
+        .map(|message| message.paragraph.trim())
+        .filter(|paragraph| !paragraph.is_empty())
+        .collect();
+    match paragraphs.is_empty() {
+        true => subjects.join("\n"),
+        false => format!("{}\n\n{}", subjects.join("\n"), paragraphs.join("\n\n")),
+    }
+}
 
 impl App {
     /// The key one review's message-writing run goes under, which is also how the pane knows
@@ -127,7 +147,12 @@ impl App {
         if !request.pending() || request.committed {
             return None;
         }
-        let repo_path = &self.model.review_ref(session_id)?.payload.as_ref()?.repo_path;
+        let repo_path = &self
+            .model
+            .review_ref(session_id)?
+            .payload
+            .as_ref()?
+            .repo_path;
         if self.chosen_review_of(session_id, repo_path).is_some() {
             return Some(request);
         }
@@ -137,6 +162,49 @@ impl App {
             }
             None => Some(request),
         }
+    }
+
+    /// Every commit message still waiting on this repo's working tree, oldest first: the reviews
+    /// of it that are in no done column yet - not committed, not about a past commit, not
+    /// about another branch - and whose card is not in the board's done column either.
+    ///
+    /// What `[concat reviews]` puts in the box, for when several tasks' work is sitting in the
+    /// same tree and goes out as one commit.
+    pub(super) fn collect_pending_review_messages(
+        &self,
+        session_id: &str,
+    ) -> Vec<CommitSuggestion> {
+        let Some(repo_path) = self
+            .model
+            .review_ref(session_id)
+            .and_then(|review| review.payload.as_ref())
+            .map(|payload| &payload.repo_path)
+        else {
+            return Vec::new();
+        };
+        let branch = self.branch_of_commit_pane(session_id);
+        let mut pending: Vec<&ReviewRequestView> = self
+            .model
+            .review_requests
+            .iter()
+            .filter(|request| {
+                &request.repo_path == repo_path
+                    && request.pending()
+                    && !request.committed
+                    && request.file.commit.is_none()
+                    && request.suggestion.is_some()
+                    && request
+                        .branch
+                        .as_deref()
+                        .is_none_or(|asked| Some(asked) == branch)
+                    && !request.card_is_done()
+            })
+            .collect();
+        pending.sort_by_key(|request| request.written_at_unix);
+        pending
+            .iter()
+            .filter_map(|request| request.suggestion.clone())
+            .collect()
     }
 
     /// The branch the repo a pane is committing is on, once git has been asked. `None` until

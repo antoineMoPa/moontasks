@@ -54,6 +54,12 @@ pub fn list_for_repo(repo_path: &Path) -> Vec<ReviewRequestView> {
                 changed_files,
                 committed,
                 written_at_unix: file.written_at_unix,
+                task_column: file
+                    .task
+                    .as_deref()
+                    .and_then(|task| crate::moontasks::store::read_task(repo_path, task).ok())
+                    .and_then(|metadata| metadata.status)
+                    .map(|column| column.to_string()),
                 file: ReviewFileView {
                     repo_path_of_file: format!(
                         ".moontasks/{REVIEWS_DIR_NAME}/{}/{}.md",

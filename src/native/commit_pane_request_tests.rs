@@ -302,7 +302,13 @@ fn a_commit_already_made_stays_out_of_the_box() {
 fn a_review_of_a_past_commit_leaves_the_box_to_the_work_in_the_tree() {
     let fixture = seeded_fixture("commit-message-past-commit-review");
     // Neither review names a branch, so the newest of the repo's is the one the box goes by.
-    a_task_asking_for_review(&fixture, "deploy-the-thing-1111", REQUESTED, "", REQUESTED_BODY);
+    a_task_asking_for_review(
+        &fixture,
+        "deploy-the-thing-1111",
+        REQUESTED,
+        "",
+        REQUESTED_BODY,
+    );
     // Written a second later, so it is the newest review of the repo - files are told apart by
     // the second they were written in.
     std::thread::sleep(Duration::from_millis(1100));
@@ -311,7 +317,10 @@ fn a_review_of_a_past_commit_leaves_the_box_to_the_work_in_the_tree() {
     fixture.write_review_file(
         crate::moontasks::reviews::COMMITTED_REVIEW_STATUS,
         "an-older-change",
-        &format!("task: deploy-the-thing-1111\nrepo: .\ncommit: {}\n", past.trim()),
+        &format!(
+            "task: deploy-the-thing-1111\nrepo: .\ncommit: {}\n",
+            past.trim()
+        ),
         "fix: an older change\n",
     );
 
@@ -571,5 +580,70 @@ fn a_commit_made_from_the_pane_moves_its_review_to_committed_at_once() {
     assert!(
         file.contains("\ncommit: "),
         "the commit made is written into it: {file}"
+    );
+}
+
+/// `[concat reviews]` puts every message still waiting on the tree in the box, every subject
+/// first and every description after - and leaves out the one whose card is already in done.
+///
+/// Several tasks can leave their work in the same tree and go out as one commit; their review
+/// files each hold a message, and this is the button that gathers them.
+#[test]
+fn concat_reviews_puts_every_waiting_message_in_the_box_but_the_done_cards() {
+    let fixture = seeded_fixture("commit-message-concat");
+    a_task_asking_for_review(
+        &fixture,
+        "first-task-1111",
+        REQUESTED,
+        "",
+        "feat: first thing\n\nThe first task's work.\n",
+    );
+    a_task_asking_for_review(
+        &fixture,
+        "second-task-2222",
+        REQUESTED,
+        "",
+        "fix: second thing\n\nThe second task's work.\n",
+    );
+    a_task_asking_for_review(
+        &fixture,
+        "finished-task-3333",
+        REQUESTED,
+        "",
+        "chore: finished thing\n\nA card already in done.\n",
+    );
+    fixture.write(
+        ".moontasks/finished-task-3333/metadata.json",
+        "{\n  \"title\": \"Finished\",\n  \"status\": \"done\",\n  \
+         \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
+    );
+
+    let (mut harness, watched) = commit_pane_over_the_board(&fixture);
+    wait_for_the_repo_to_be_read(&mut harness, &watched);
+
+    // The board's cards land on their own poll; until then the done card is in no known column.
+    let deadline = Instant::now() + GIT_DEADLINE;
+    while Instant::now() < deadline && harness.query_by_label("concat reviews (2)").is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    harness.get_by_label("concat reviews (2)").click();
+    harness.step();
+    harness.step();
+
+    let message = watched.message().expect("expected the commit pane");
+    // Subjects first, then descriptions - the order between the two tasks is the order their
+    // files were written in, which a test writing both in the same second cannot pin.
+    let (subjects, descriptions) = message
+        .split_once("\n\n")
+        .expect("subjects, a blank line, then descriptions");
+    let mut subject_lines: Vec<&str> = subjects.lines().collect();
+    subject_lines.sort_unstable();
+    assert_eq!(subject_lines, ["feat: first thing", "fix: second thing"]);
+    assert!(descriptions.contains("The first task's work."));
+    assert!(descriptions.contains("The second task's work."));
+    assert!(
+        !message.contains("finished thing"),
+        "a card in done should keep its message out: {message}"
     );
 }

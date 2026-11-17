@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use egui_kittest::Harness;
+use egui_kittest::{Harness, kittest::Queryable};
 
 use crate::{
     api::OpenSessionRequest,
@@ -19,7 +19,7 @@ use crate::{
     native::{
         Launch,
         app::App,
-        board::review_lane::{review_card_id, review_hook_pill_id},
+        board::review_lane::{DISMISS_MARK_LABEL, review_card_id, review_hook_pill_id},
         theme::ThemeMode,
     },
 };
@@ -316,5 +316,54 @@ fn two_reviews_of_one_name_in_two_statuses_are_two_cards() {
     assert!(
         !logins[0].intersects(logins[1]),
         "the two login reviews answer to one card: {logins:?}"
+    );
+}
+
+/// The × on a review card dismisses that review: its file is deleted - the one in the card's
+/// own folder, not a follow-up request reusing its name in another.
+#[test]
+fn the_dismiss_mark_on_a_review_card_deletes_that_review_and_not_its_namesake() {
+    let fixture = seeded_fixture("review-lane-dismiss");
+    write_the_parsers_reviews(&fixture);
+    fixture.write(
+        ".moontasks/reviews/requested/login.md",
+        "---\ntask: fix-the-login-page-2222\nrepo: .\n---\nfix(login): keep the session longer\n",
+    );
+    let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 4),
+        "the lane never drew the four review cards"
+    );
+    harness.run_steps(3);
+    // The pushed login card is the rightmost of the two.
+    let pushed_login = seen
+        .lock()
+        .expect("poisoned")
+        .cards
+        .iter()
+        .filter(|(id, _)| id == "login")
+        .map(|(_, rect)| *rect)
+        .max_by(|a, b| a.left().total_cmp(&b.left()))
+        .expect("the pushed login card is drawn");
+
+    harness
+        .query_all_by_label(DISMISS_MARK_LABEL)
+        .find(|mark| pushed_login.contains(mark.rect().center()))
+        .expect("the pushed login card has a dismiss mark")
+        .click();
+
+    let pushed = fixture.root.join(".moontasks/reviews/pushed/login.md");
+    assert!(
+        settle(&mut harness, || !pushed.exists()),
+        "the dismissed review's file is still there"
+    );
+    assert!(
+        fixture.root.join(".moontasks/reviews/requested/login.md").is_file(),
+        "dismissing the pushed login review deleted its requested namesake"
+    );
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 3),
+        "the dismissed review's card is still drawn: {:?}",
+        seen.lock().expect("poisoned").cards
     );
 }

@@ -528,7 +528,7 @@ fn review_files_are_read_and_moved_over_http() {
     assert!(requests[0].pending());
 
     backend
-        .move_review(&opened.session_id, "fix-the-thing", Some("committed"))
+        .move_review(&opened.session_id, None, "fix-the-thing", Some("committed"))
         .expect("expected the review to be moved to committed");
 
     let requests = backend
@@ -543,13 +543,27 @@ fn review_files_are_read_and_moved_over_http() {
         "and its file should have moved on the server"
     );
 
+    // A follow-up request under the same name: dismissing the committed one leaves it be.
+    fs::write(
+        requested.join("fix-the-thing.md"),
+        format!("---\ntask: {}\nrepo: .\n---\nfix: the thing, again\n", task.id),
+    )
+    .expect("expected the follow-up review file to be written");
     backend
-        .move_review(&opened.session_id, "fix-the-thing", None)
-        .expect("expected the review to be removed");
+        .move_review(&opened.session_id, Some("committed"), "fix-the-thing", None)
+        .expect("expected the review to be dismissed");
     let requests = backend
         .list_review_requests(&opened.session_id)
         .expect("expected the remote review requests");
-    assert!(requests.is_empty(), "a removed review should be gone");
+    assert_eq!(requests.len(), 1, "only the dismissed review should be gone");
+    assert_eq!(requests[0].file.status, "requested", "its namesake should stay");
+    assert!(
+        !served
+            .root
+            .join(".moontasks/reviews/committed/fix-the-thing.md")
+            .exists(),
+        "the dismissed review's file should be deleted"
+    );
 }
 
 /// The card's notes and the file pane read the same file: opening the notes makes it real,

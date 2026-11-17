@@ -484,12 +484,14 @@ impl Backend for RemoteBackend {
     fn move_review(
         &self,
         session_id: &str,
+        from_status: Option<&str>,
         review_id: &str,
         to_status: Option<&str>,
     ) -> Result<()> {
         self.post(
             &format!("/api/session/{session_id}/reviews/{review_id}/move"),
             &crate::moontasks::reviews::MoveReviewRequest {
+                from_status: from_status.map(str::to_string),
                 to_status: to_status.map(str::to_string),
             },
         )

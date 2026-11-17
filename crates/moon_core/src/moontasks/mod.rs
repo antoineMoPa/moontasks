@@ -221,6 +221,9 @@ pub struct ReviewRequestView {
     /// same repo, and the one written last is the one whose work is in the repo now.
     #[serde(default)]
     pub written_at_unix: u64,
+    /// The board column the review's card is in, when it names a card that has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_column: Option<String>,
     /// Which file, and where its review stands.
     pub file: reviews::ReviewFileView,
 }
@@ -235,6 +238,11 @@ impl ReviewRequestView {
             reviews::DEPLOYED_REVIEW_STATUS,
         ]
         .contains(&self.file.status.as_str())
+    }
+
+    /// Whether the review's card has been moved to the board's done column.
+    pub fn card_is_done(&self) -> bool {
+        self.task_column.as_deref() == Some(store::MENU_FINISHES_IN)
     }
 
     /// Whether there is still work to commit for it: it is pending, its commit has not been

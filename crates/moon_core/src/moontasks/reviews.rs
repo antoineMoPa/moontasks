@@ -141,9 +141,14 @@ pub struct ReviewFileView {
     pub repo_path_of_file: String,
 }
 
-/// Where a review is being moved to over the wire: a status, or `None` to take it away.
+/// Where a review is being moved to over the wire: a status, or `None` to dismiss it - take its
+/// file away.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MoveReviewRequest {
+    /// The folder the review is in, so a namesake in another folder is never the one moved. An
+    /// older window sends none, and the first folder holding that name is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_status: Option<String>,
     #[serde(default)]
     pub to_status: Option<String>,
 }

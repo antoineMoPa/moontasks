@@ -108,8 +108,9 @@ pub(crate) fn choose_review_link(request: &ReviewRequestView) -> ReviewLink {
     }
 }
 
-/// One review of the task, under the reviews row: what it is and where it stands, and a click
-/// straight to where it is reviewed - see [`choose_review_link`].
+/// One review of the task, under the reviews row: what it is and where it stands, a click
+/// straight to where it is reviewed - see [`choose_review_link`] - and the mark that dismisses
+/// it.
 fn draw_review_row(
     ui: &mut Ui,
     request: &ReviewRequestView,
@@ -148,6 +149,10 @@ fn draw_review_row(
             false => reviews_done_mark(ui, palette),
         }
         ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
+            let dismiss = super::review_lane::draw_dismiss_mark(ui, &request.file, palette);
+            if card.pressed(&dismiss) {
+                actions.push(super::review_lane::dismiss_review(&request.file));
+            }
             ui.add(
                 egui::Label::new(
                     RichText::new(&request.file.status)
@@ -737,6 +742,7 @@ mod review_link_tests {
             changed_files: 0,
             committed: false,
             written_at_unix: 0,
+            task_column: None,
             file: ReviewFileView {
                 id: "r".to_string(),
                 status: status.to_string(),
