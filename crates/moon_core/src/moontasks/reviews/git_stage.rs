@@ -64,11 +64,72 @@ fn move_review_to_its_git_stage(repo_path: &Path, review: &ReviewFile) -> Result
         true => PUSHED_REVIEW_STATUS,
         false => COMMITTED_REVIEW_STATUS,
     };
+    if to == PUSHED_REVIEW_STATUS && review.pr.is_none() {
+        fill_in_pull_request_number(&copy, review, &file);
+    }
     if to == review.status {
         return Ok(None);
     }
     move_review_file_at(repo_path, &file, &review.id, Some(to))?;
     Ok(Some(to.to_string()))
+}
+
+/// How long to wait before asking the forge again about a branch that had no pull request.
+const PULL_REQUEST_LOOKUP_RETRY_SECS: u64 = 300;
+
+/// Ask `gh` for the pull request of the review's branch and write it into the file as `pr:`, so
+/// no agent has to. Quiet when `gh` is missing, signed out, or the branch has no pull request
+/// yet - asked again after a few minutes.
+fn fill_in_pull_request_number(copy: &Path, review: &ReviewFile, file: &Path) {
+    use std::{collections::HashMap, sync::Mutex, time::Instant};
+    static LAST_ASKED: Mutex<Option<HashMap<String, Instant>>> = Mutex::new(None);
+    let Some(branch) = review.branch.as_deref() else {
+        return;
+    };
+    let key = format!("{}:{}", copy.display(), branch);
+    {
+        let mut guard = LAST_ASKED.lock().unwrap_or_else(|e| e.into_inner());
+        let asked = guard.get_or_insert_with(HashMap::new);
+        if asked
+            .get(&key)
+            .is_some_and(|at| at.elapsed().as_secs() < PULL_REQUEST_LOOKUP_RETRY_SECS)
+        {
+            return;
+        }
+        asked.insert(key, Instant::now());
+    }
+    let Ok(output) = std::process::Command::new("gh")
+        .args([
+            "pr", "list", "--head", branch, "--state", "all", "--limit", "1", "--json", "number",
+            "--jq", ".[0].number",
+        ])
+        .current_dir(copy)
+        .output()
+    else {
+        return;
+    };
+    let number = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !output.status.success() || number.is_empty() || !number.chars().all(|c| c.is_ascii_digit())
+    {
+        return;
+    }
+    let _ = write_pr_into_review_file(file, &number);
+}
+
+/// Add `pr: <number>` to a review file's keys.
+fn write_pr_into_review_file(path: &Path, pr: &str) -> Result<()> {
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let mut lines: Vec<&str> = text.split_inclusive('\n').collect();
+    if lines.first().map(|line| line.trim()) != Some("---") {
+        bail!("{} has no `---` fences", path.display());
+    }
+    let Some(closing) = lines.iter().skip(1).position(|line| line.trim() == "---") else {
+        bail!("{} has no closing `---`", path.display());
+    };
+    let line = format!("pr: {pr}\n");
+    lines.insert(closing + 1, &line);
+    std::fs::write(path, lines.concat()).with_context(|| format!("writing {}", path.display()))
 }
 
 /// The full hash of a commit a file names, if the repo has it.
