@@ -123,7 +123,10 @@ mod tests {
         InstalledApplication {
             name: name.to_owned(),
             command: name.to_lowercase(),
-            categories: categories.iter().map(|category| category.to_string()).collect(),
+            categories: categories
+                .iter()
+                .map(|category| category.to_string())
+                .collect(),
         }
     }
 
@@ -137,7 +140,8 @@ mod tests {
             installed("Zed", &[]),
         ];
 
-        let by_submenu: Vec<(&str, Vec<usize>)> = places_by_submenu(&installed).into_iter().collect();
+        let by_submenu: Vec<(&str, Vec<usize>)> =
+            places_by_submenu(&installed).into_iter().collect();
 
         assert_eq!(
             by_submenu,

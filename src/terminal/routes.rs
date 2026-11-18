@@ -306,7 +306,9 @@ pub async fn submit_to_agent(
     Json(request): Json<crate::agent_conversation::AgentPrompt>,
 ) -> Result<impl IntoResponse, AppError> {
     crate::api::with_session(&state, &session_id, |_| Ok(()))?;
-    state.terminals.submit_to_agent(&terminal_id, &request.text)?;
+    state
+        .terminals
+        .submit_to_agent(&terminal_id, &request.text)?;
     Ok("ok")
 }
 

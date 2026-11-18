@@ -349,7 +349,12 @@ impl App {
                 return None;
             }
         };
-        Some(login_link::address(public_url, &repo, self.frame(), &ticket))
+        Some(login_link::address(
+            public_url,
+            &repo,
+            self.frame(),
+            &ticket,
+        ))
     }
 }
 

@@ -152,7 +152,6 @@ fn a_window_with_no_repo_asks_which_one_to_review() {
         .wgpu()
         .build_ui(move |ui| app.draw(ui));
     harness.run_steps(3);
-
 }
 
 /// The three executables share the launch screen, so it has to say what the window it is in
@@ -729,7 +728,10 @@ fn switching_project_goes_back_to_the_launch_screen() {
         .expect("the window's state")
         .clone()
         .expect("the window was drawn");
-    assert!(on_launch_screen, "expected the launch screen after switching");
+    assert!(
+        on_launch_screen,
+        "expected the launch screen after switching"
+    );
     assert_eq!(project, None, "expected the project to have been put down");
     assert!(layout_empty, "expected the project's tabs to have gone");
     assert!(

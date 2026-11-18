@@ -13,15 +13,13 @@
 // this crate has always used for it - see `crates/moon_core`. `api`, `instances`, `terminal`
 // and `visualizations` keep a window or HTTP side of their own here, beside what they re-export.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) use moon_core::{
-    agent, git, gpg, moved_hunks, shell_locale, shell_path, unix_users,
-};
+pub(crate) use moon_core::MINERVE_SUBCOMMAND;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use moon_core::{agent, git, gpg, moved_hunks, shell_locale, shell_path, unix_users};
 pub(crate) use moon_core::{
     agent_conversation, agent_sessions, attention, comments, commit_suggestion, committing,
     moontasks, settings, shell_quoting,
 };
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) use moon_core::MINERVE_SUBCOMMAND;
 
 mod api;
 mod backend;
@@ -69,12 +67,11 @@ pub fn run() -> anyhow::Result<()> {
     // Minerve pane starts (see `native::minerve_pane`). Never a word moon's own command line knows.
     if std::env::args().nth(1).as_deref() == Some(MINERVE_SUBCOMMAND) {
         // Minerve reads its first argument as its own name.
-        minerve::main_with_args(std::iter::once("minerve".into()).chain(std::env::args_os().skip(2)));
+        minerve::main_with_args(
+            std::iter::once("minerve".into()).chain(std::env::args_os().skip(2)),
+        );
         return Ok(());
     }
     pass_keys::handoff::take_from_environment();
     cli::run()
 }
-
-
-

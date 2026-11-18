@@ -94,9 +94,10 @@ impl<'a> SpaceView<'a> {
     /// The directory name of the project, which is how a space is called.
     pub(crate) fn name(&self) -> String {
         match self.project_path {
-            Some(path) => std::path::Path::new(path)
-                .file_name()
-                .map_or_else(|| path.to_string(), |name| name.to_string_lossy().into_owned()),
+            Some(path) => std::path::Path::new(path).file_name().map_or_else(
+                || path.to_string(),
+                |name| name.to_string_lossy().into_owned(),
+            ),
             None => "empty".to_string(),
         }
     }
@@ -285,7 +286,8 @@ impl App {
         #[cfg(target_os = "macos")]
         self.webviews.hide_all();
         #[cfg(target_os = "linux")]
-        self.applications.take_windows_off_the_screen(&self.model.layout);
+        self.applications
+            .take_windows_off_the_screen(&self.model.layout);
     }
 
     /// The clients of the application panes of the spaces that are not in front. They are not

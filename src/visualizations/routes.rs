@@ -49,11 +49,7 @@ pub async fn page(
 ///
 /// The Codex is the asking person's own: what somebody else's shows is kept on a task, or is
 /// not theirs to see - see [`super::on_tasks::announced`].
-pub fn page_of(
-    state: &AppState,
-    session_id: &str,
-    fragment_path: &str,
-) -> anyhow::Result<String> {
+pub fn page_of(state: &AppState, session_id: &str, fragment_path: &str) -> anyhow::Result<String> {
     let repo_path =
         crate::api::with_session(state, session_id, |session| Ok(session.repo_path.clone()))?;
     let fragment_path = std::path::Path::new(fragment_path);

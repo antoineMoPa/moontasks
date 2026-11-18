@@ -79,5 +79,4 @@ fn toasts_stand_in_the_bottom_left_corner() {
         toasts.bottom() > WINDOW.y - 60.0,
         "the toasts should stand along the bottom, not at {toasts:?}"
     );
-
 }

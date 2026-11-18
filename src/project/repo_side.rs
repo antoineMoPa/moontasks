@@ -23,7 +23,11 @@ fn project_path(repo_path: &Path) -> PathBuf {
 fn readable_project_path(repo_path: &Path) -> PathBuf {
     let path = project_path(repo_path);
     let old = repo_path.join(OLD_PROJECT_FILE_NAME);
-    if !path.exists() && old.exists() { old } else { path }
+    if !path.exists() && old.exists() {
+        old
+    } else {
+        path
+    }
 }
 
 /// The repo's file as it may be found on disk: the targets it has now, or the one `build` and
@@ -264,7 +268,10 @@ mod tests {
         assert_eq!(read_project(&repo).indent(), Indent::Tab);
 
         write_project(&repo, &read_project(&repo)).expect("failed to write the project");
-        assert!(!old.exists(), "the old file goes once the new one is written");
+        assert!(
+            !old.exists(),
+            "the old file goes once the new one is written"
+        );
         assert_eq!(read_project(&repo).indent(), Indent::Tab);
     }
 

@@ -59,7 +59,10 @@ mod tests {
             log_in_command: logged_in.map(|_| "claude auth login".to_string()),
         };
 
-        assert_eq!(log_in_command_of(&claude(Some(false))), Some("claude auth login"));
+        assert_eq!(
+            log_in_command_of(&claude(Some(false))),
+            Some("claude auth login")
+        );
         assert_eq!(log_in_command_of(&claude(Some(true))), None);
         // A server that runs everyone as itself does not ask.
         assert_eq!(log_in_command_of(&claude(None)), None);

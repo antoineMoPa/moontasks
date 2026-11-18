@@ -348,6 +348,25 @@ impl Palette {
         palette
     }
 
+    /// The palette with its grounds thinned, for a window painted over a background scene: the
+    /// surfaces everything is drawn on let the scene through, so a pane, a card, the bar at the
+    /// foot of the window and a code editor all read as sheets laid over one picture. Inks,
+    /// borders and controls - which have to stay solid to be told from the picture - are the
+    /// palette's own.
+    pub(crate) fn seen_through(mut self) -> Self {
+        for surface in [
+            &mut self.bg,
+            &mut self.panel,
+            &mut self.header_bg,
+            &mut self.code_bg,
+            &mut self.composer_bg,
+            &mut self.batch_bg,
+        ] {
+            *surface = surface.gamma_multiply(SEEN_THROUGH_OPACITY);
+        }
+        self
+    }
+
     /// Foreground for a diff line, by its leading character.
     pub(crate) fn diff_line_ink(&self, prefix: char) -> Color32 {
         match prefix {
@@ -525,8 +544,21 @@ pub(crate) fn strong_style() -> TextStyle {
     TextStyle::Name("strong".into())
 }
 
-pub(crate) fn apply(ctx: &egui::Context, mode: ThemeMode, color: WorkspaceColor) {
+/// How much of a ground is left once a scene shows through it - see [`Palette::seen_through`].
+const SEEN_THROUGH_OPACITY: f32 = 0.4;
+
+pub(crate) fn apply(
+    ctx: &egui::Context,
+    mode: ThemeMode,
+    color: WorkspaceColor,
+    over_a_scene: bool,
+) {
     let palette = Palette::of_workspace(mode, color);
+    let palette = if over_a_scene {
+        palette.seen_through()
+    } else {
+        palette
+    };
     let mut style = egui::Style::default();
 
     style.text_styles = [

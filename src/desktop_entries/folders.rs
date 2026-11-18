@@ -36,9 +36,9 @@ pub(super) fn entries_folders(
 ) -> Vec<PathBuf> {
     let said = |variable: Option<OsString>| variable.filter(|value| !value.is_empty());
     // A user with no home directory has no folder of their own, only the system's.
-    let data_home = said(data_home).map(PathBuf::from).or_else(|| {
-        said(home).map(|home| PathBuf::from(home).join(DATA_HOME_UNDER_HOME))
-    });
+    let data_home = said(data_home)
+        .map(PathBuf::from)
+        .or_else(|| said(home).map(|home| PathBuf::from(home).join(DATA_HOME_UNDER_HOME)));
     let data_dirs = said(data_dirs).unwrap_or_else(|| DATA_DIRS.into());
     data_home
         .into_iter()
@@ -100,7 +100,10 @@ fn collect_entry_files(folder: &Path, id_of_folder: &str, files: &mut Vec<(Strin
         // through it like any other.
         if child.file_type().is_ok_and(|kind| kind.is_dir()) {
             collect_entry_files(&path, &format!("{id_of_folder}{name}-"), files);
-        } else if path.extension().is_some_and(|extension| extension == ENTRY_EXTENSION) {
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == ENTRY_EXTENSION)
+        {
             files.push((format!("{id_of_folder}{name}"), path));
         }
     }

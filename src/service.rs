@@ -15,8 +15,7 @@ mod tests;
 
 pub(crate) use comments::{
     cancel_dispatch, dispatch_log, resolve_comment, resolve_comment_by_key, send_comment_batch,
-    tell_comment, tell_held_comments,
-    update_comment,
+    tell_comment, tell_held_comments, update_comment,
 };
 pub(crate) use encrypted_files::{decrypted_session_file, write_encrypted_session_file};
 pub(crate) use files::{
@@ -32,18 +31,15 @@ pub(crate) use staging::{
 // Kept beside the wire types, since the window in a browser pages by it too.
 pub(crate) use crate::api::HISTORY_COMMIT_PAGE_SIZE;
 
-use std::{
-    collections::HashSet,
-    path::Path,
-};
+use std::{collections::HashSet, path::Path};
 
 use anyhow::{Context, Result, bail};
 
 use crate::{
     agent::agent_is_available,
     api::{
-        AgentKind, AppState, CommitHistoryPayload, CommitView, DiffTarget, HunkView, PatchPayload, RepoSession, RepoStatusView, ReviewTarget,
-        SessionPayload, SubmoduleHubPayload,
+        AgentKind, AppState, CommitHistoryPayload, CommitView, DiffTarget, HunkView, PatchPayload,
+        RepoSession, RepoStatusView, ReviewTarget, SessionPayload, SubmoduleHubPayload,
     },
     comments::{
         anchored_comments_only, build_export_text, build_review_comments, comment_dispatch_view,
@@ -51,7 +47,8 @@ use crate::{
     },
     git::{
         branch_commits_since_default, collect_review_hunks, commit_history_page, commit_view,
-        current_branch_name, list_submodule_repos, local_change_summary_from_status, preview_patch, run_git,
+        current_branch_name, list_submodule_repos, local_change_summary_from_status, preview_patch,
+        run_git,
     },
 };
 

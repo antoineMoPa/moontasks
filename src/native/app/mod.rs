@@ -191,7 +191,7 @@ pub(crate) struct App {
     hunks_left_unread: bool,
     /// What each hunk card measured the last time it was drawn, so the diff pane can skip the
     /// ones that are scrolled out of sight instead of laying them out again.
-    pub(crate) hunk_heights: HashMap<String, f32>,
+    pub(crate) hunk_heights: HashMap<String, crate::native::review::hunks::MeasuredCard>,
     /// Where each hunk card's rows and comments were inside it the last time it was drawn,
     /// which is what the minimap draws a card it cannot see from - see
     /// [`crate::native::review::minimap`].
@@ -206,6 +206,9 @@ pub(crate) struct App {
     /// Set whenever the palette has to be pushed into the context it is drawing into, which
     /// is the first frame and every theme switch.
     needs_style: bool,
+    /// Whether the style was last applied for a window painted over a background scene, so a
+    /// scene picked or taken away restyles the window.
+    styled_over_a_scene: bool,
     /// Frames still to repeat the window-theme command over - see
     /// [`theme::apply_window_theme`] for why once is not enough.
     window_theme_frames: u8,
@@ -475,6 +478,7 @@ impl App {
             restores_workspace: false,
             keymap: Keymap::default(),
             needs_style: true,
+            styled_over_a_scene: false,
             window_theme_frames: WINDOW_THEME_FRAMES,
             loaders_installed: false,
             fonts_installed: false,
@@ -536,7 +540,11 @@ impl App {
     }
 
     pub(crate) fn palette_of(&self) -> Palette {
-        Palette::of_workspace(self.model.theme, self.model.workspace_color)
+        let palette = Palette::of_workspace(self.model.theme, self.model.workspace_color);
+        match self.background_of_this_project() {
+            Some(_) => palette.seen_through(),
+            None => palette,
+        }
     }
 
     pub(crate) fn set_theme(&mut self, theme: ThemeMode) {

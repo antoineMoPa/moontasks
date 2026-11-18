@@ -4,6 +4,7 @@
 pub(crate) mod agent_logins;
 pub(crate) mod app;
 pub(crate) mod applications_offered;
+pub(crate) mod background;
 pub(crate) mod bindings;
 pub(crate) mod blame;
 pub(crate) mod board;
@@ -28,8 +29,6 @@ pub(crate) mod web_account;
 // browser's window is never on.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod extension_pane;
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) mod minerve_pane;
 pub(crate) mod file_pane;
 pub(crate) mod file_picker;
 pub(crate) mod file_tree;
@@ -38,6 +37,8 @@ pub(crate) mod fonts;
 pub(crate) mod formatting;
 pub(crate) mod hover;
 pub(crate) mod language_source;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod minerve_pane;
 // Launchers, and the programs a window starts, are this machine's: a browser's window is a page.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod launchers;
@@ -51,52 +52,52 @@ pub(crate) mod model;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod agent_asks;
 // `moon open` reaches a window through a socket on this machine, which a browser has none of.
+/// Only where a session can be managed: X11, which is Linux here.
+#[cfg(target_os = "linux")]
+pub(crate) mod application_pane;
+pub(crate) mod conversation_pane;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod open_from_shell;
 #[cfg(not(target_arch = "wasm32"))]
 mod open_in_web;
-#[cfg(not(target_arch = "wasm32"))]
-mod tunnel;
+pub(crate) mod palette;
+pub(crate) mod panes;
 #[cfg(not(target_arch = "wasm32"))]
 mod pass_key;
-pub(crate) mod palette;
 pub(crate) mod places;
-pub(crate) mod panes;
 #[cfg(not(target_arch = "wasm32"))]
 mod programs;
 pub(crate) mod project_pane;
-pub(crate) mod settings_pane;
 pub(crate) mod renaming;
 pub(crate) mod review;
+pub(crate) mod settings_pane;
 pub(crate) mod signature;
 pub(crate) mod space_selector;
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod tab_menu;
 pub(crate) mod start_pane;
 pub(crate) mod status_bar;
 pub(crate) mod submodules;
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod tab_menu;
 pub(crate) mod tasks;
 #[cfg(target_os = "macos")]
 mod text_without_a_key;
 pub(crate) mod theme;
+#[cfg(not(target_arch = "wasm32"))]
+mod tunnel;
 #[cfg(test)]
 pub(crate) mod ui_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod uninstalling;
 pub(crate) mod visualizations;
-pub(crate) mod conversation_pane;
-/// Only where a session can be managed: X11, which is Linux here.
-#[cfg(target_os = "linux")]
-pub(crate) mod application_pane;
 pub(crate) mod webview_pane;
+pub(crate) mod widgets;
 #[cfg(target_os = "macos")]
 pub(crate) mod window_drag;
-pub(crate) mod widgets;
 pub(crate) mod wire;
 pub(crate) mod work_log;
 pub(crate) mod workspace;
-pub(crate) mod workspace_edits;
 pub(crate) mod workspace_color;
+pub(crate) mod workspace_edits;
 
 use std::sync::Arc;
 

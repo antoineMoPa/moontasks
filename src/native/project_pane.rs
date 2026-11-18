@@ -62,6 +62,7 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
     egui::Frame::new()
         .inner_margin(egui::Margin::symmetric(12, 10))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.label(
                 RichText::new("Project Settings")
                     .size(SMALL_SIZE)
@@ -77,6 +78,8 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
             draw_day_end(app, ui);
             ui.add_space(16.0);
             draw_workspace_color(app, ui, &palette);
+            ui.add_space(16.0);
+            draw_board_background(app, ui, &palette);
         });
 }
 
@@ -123,10 +126,11 @@ fn draw_commands(app: &mut App, ui: &mut Ui, palette: &Palette) {
     app.model.project_unsaved |= edited;
 }
 
-/// The targets' names, the picked one lit, and a way to add another. Says whether the list
-/// changed, which is a file to write.
+/// The targets' names, the picked one lit (right-click one to remove it), and a way to add
+/// another. Says whether the list changed, which is a file to write.
 fn draw_target_list(editor: &mut ProjectEditor, ui: &mut Ui, palette: &Palette) -> bool {
     let mut picked = None;
+    let mut removed = None;
     for (place, target) in editor.targets.iter().enumerate() {
         // A name box that has been emptied still has a row to click back to it by.
         let name = if target.name.trim().is_empty() {
@@ -135,12 +139,26 @@ fn draw_target_list(editor: &mut ProjectEditor, ui: &mut Ui, palette: &Palette) 
             RichText::new(&target.name)
         };
         let row = ui.selectable_label(editor.selected == place, name.size(SMALL_SIZE));
-        if widgets::clickable(row).clicked() {
+        let row = widgets::clickable(row);
+        if row.clicked() {
             picked = Some(place);
         }
+        // Taken out on a right-click rather than by a button under the commands, which
+        // spelled the target's name as if it were an action of its own.
+        row.context_menu(|ui| {
+            if ui.button("remove target").clicked() {
+                removed = Some(place);
+                ui.close();
+            }
+        });
     }
     if let Some(place) = picked {
         editor.selected = place;
+    }
+    if let Some(place) = removed {
+        editor.selected = place;
+        editor.remove_selected();
+        return true;
     }
     let add = ui.selectable_label(
         false,
@@ -155,8 +173,7 @@ fn draw_target_list(editor: &mut ProjectEditor, ui: &mut Ui, palette: &Palette) 
     false
 }
 
-/// The picked target's name and its two commands, and a way to take it out. Says whether
-/// anything changed.
+/// The picked target's name and its two commands. Says whether anything changed.
 fn draw_target(
     editor: &mut ProjectEditor,
     ui: &mut Ui,
@@ -227,17 +244,6 @@ fn draw_target(
         }
         edited |= entry.changed();
         ui.add_space(10.0);
-    }
-
-    let remove = ui.selectable_label(
-        false,
-        RichText::new(format!("remove {}", target.name.trim()))
-            .size(SMALL_SIZE)
-            .color(palette.warn),
-    );
-    if widgets::clickable(remove).clicked() {
-        editor.remove_selected();
-        edited = true;
     }
     edited
 }
@@ -348,6 +354,47 @@ fn draw_workspace_color(app: &mut App, ui: &mut Ui, palette: &Palette) {
 
     if let Some(color) = picked {
         app.set_workspace_color(color);
+    }
+}
+
+/// The scene this project's board is painted over, or none.
+///
+/// Like the workspace color above it, this writes nothing to the repo: it is the person's
+/// own way of telling projects apart, kept in the server's `~/.moontasks/settings.json`
+/// against the project's path. How a scene is laid out and how see-through the cards over it
+/// are is the scene's own - see [`crate::native::background`].
+fn draw_board_background(app: &mut App, ui: &mut Ui, palette: &Palette) {
+    use crate::native::background::Scene;
+
+    ui.label(RichText::new("board background").size(SMALL_SIZE).strong());
+    ui.add_space(4.0);
+    if app.model.settings.is_none() {
+        ui.label(
+            RichText::new("reading the settings…")
+                .size(SMALL_SIZE)
+                .color(palette.muted),
+        );
+        return;
+    }
+
+    let current = app.background_of_this_project();
+    let mut picked = None;
+    ui.horizontal_wrapped(|ui| {
+        if ui.selectable_label(current.is_none(), "none").clicked() {
+            picked = Some(None);
+        }
+        for scene in Scene::ALL {
+            if ui
+                .selectable_label(current == Some(scene), scene.label())
+                .clicked()
+            {
+                picked = Some(Some(scene));
+            }
+        }
+    });
+
+    if let Some(scene) = picked {
+        app.pick_background(scene);
     }
 }
 

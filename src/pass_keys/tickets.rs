@@ -114,7 +114,6 @@ impl RedeemedTickets {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

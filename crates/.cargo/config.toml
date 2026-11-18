@@ -1,0 +1,5 @@
+# Every crate under crates/ is its own workspace, so built on its own each one used to get its own
+# target/ with its own copy of egui, wgpu, tokio... (26G for 9 copies). They share one here instead,
+# beside - not in - the root target/, so a sub-crate build doesn't wait on moon's build lock.
+[build]
+target-dir = "../target/crates"

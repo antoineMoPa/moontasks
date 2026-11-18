@@ -140,8 +140,14 @@ fn a_server_whose_shells_run_as_other_unix_users_listens_where_they_all_reach_it
     let beside_the_records = Some(PathBuf::from("/home/someone/.moontasks/instances/7.sock"));
     let shared = PathBuf::from("/run/moon/7.sock");
 
-    assert_eq!(socket_path_from(7, false, None, records()), beside_the_records);
-    assert_eq!(socket_path_from(7, true, None, records()), Some(shared.clone()));
+    assert_eq!(
+        socket_path_from(7, false, None, records()),
+        beside_the_records
+    );
+    assert_eq!(
+        socket_path_from(7, true, None, records()),
+        Some(shared.clone())
+    );
     assert_eq!(
         socket_path_from(7, false, Some(shared.clone()), records()),
         Some(shared.clone())
@@ -672,9 +678,13 @@ fn what_a_window_could_not_do_about_an_agent_is_refused_with_the_reason() {
     asks.agents_answered_by(std::sync::Arc::new(AnswersAboutAgents));
     let window = std::process::id();
 
-    let error =
-        super::start_agent(window, &project, "fix-the-races", crate::api::AgentKind::Codex)
-            .expect_err("expected a refusal");
+    let error = super::start_agent(
+        window,
+        &project,
+        "fix-the-races",
+        crate::api::AgentKind::Codex,
+    )
+    .expect_err("expected a refusal");
     assert!(
         error
             .to_string()
@@ -782,8 +792,8 @@ fn a_launch_is_answered_with_how_the_start_went_by_a_moon_that_starts_programs()
         launch_in(moon, "'test' '-f' 'a b.txt'", &folder).expect("expected it to start"),
         "this screen"
     );
-    let failure = launch_in(moon, "echo no display >&2; exit 3", &folder)
-        .expect_err("expected the failure");
+    let failure =
+        launch_in(moon, "echo no display >&2; exit 3", &folder).expect_err("expected the failure");
     assert_eq!(
         format!("{failure}"),
         "`echo no display >&2; exit 3` ended (exit status: 3): no display"
@@ -822,7 +832,11 @@ fn a_server_tells_and_shows_the_shells_it_holds() {
     let state = crate::server::build_state(Arc::new(Mutex::new(Instant::now())));
     let terminal_id = state
         .terminals
-        .spawn(crate::terminal::TerminalSpec::shell(folder.clone(), None, None))
+        .spawn(crate::terminal::TerminalSpec::shell(
+            folder.clone(),
+            None,
+            None,
+        ))
         .expect("expected a shell");
     let server = ServerAsks::listen(Arc::new(OnThisScreen)).expect("expected a socket");
     let moon = std::process::id();
@@ -842,7 +856,10 @@ fn a_server_tells_and_shows_the_shells_it_holds() {
         if screen.contains("told-42") {
             break;
         }
-        assert!(Instant::now() < deadline, "never showed the line:\n{screen}");
+        assert!(
+            Instant::now() < deadline,
+            "never showed the line:\n{screen}"
+        );
         std::thread::sleep(Duration::from_millis(100));
     }
 

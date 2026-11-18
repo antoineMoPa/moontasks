@@ -283,3 +283,136 @@ fn a_narrow_review_has_no_minimap() {
         "the diff still lays the review out"
     );
 }
+
+/// An image's card is a picture, not rows, and the map draws it where the card does: an added
+/// image's after down the right half of the strip. It once drew nothing at all, so a review of
+/// pictures was a blank strip.
+#[test]
+fn an_added_image_is_drawn_down_the_right_half_of_the_minimap() {
+    let fixture = Fixture::new("review-minimap-images");
+    fixture.write("README.md", "# fixture\n");
+    fixture.commit("Add the readme");
+    for picture in 0..4 {
+        image::RgbaImage::from_pixel(300, 200, image::Rgba([200, 20, 30, 255]))
+            .save(fixture.root.join(format!("picture_{picture}.png")))
+            .expect("failed to write the picture");
+    }
+
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    let session_id = Arc::new(Mutex::new(String::new()));
+    let session_id_in_ui = Arc::clone(&session_id);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 880.0))
+        .wgpu()
+        .build_ui(move |ui| {
+            app.draw(ui);
+            if app.model.review_ref(&app.model.root_session_id).is_some() {
+                session_id_in_ui
+                    .lock()
+                    .expect("poisoned")
+                    .clone_from(&app.model.root_session_id);
+            }
+        });
+    let strip_id = || minimap::strip_id(&session_id.lock().expect("poisoned"));
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline && harness.ctx.read_response(strip_id()).is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    harness.run_steps(8);
+    let strip = harness
+        .ctx
+        .read_response(strip_id())
+        .expect("expected the minimap beside the diff")
+        .rect;
+
+    let picture = harness.render().expect("the window should render");
+    let green_between = |left: f32, right: f32| -> u64 {
+        let mut green = 0;
+        for y in strip.top() as u32..strip.bottom() as u32 {
+            for x in left as u32..right as u32 {
+                // How much greener than grey it is: the window's own ground is bluish.
+                let [red, green_of, blue, _] = picture.get_pixel(x, y).0;
+                green += u64::from(green_of.saturating_sub(red.max(blue)));
+            }
+        }
+        green
+    };
+    let before_half = green_between(strip.left(), strip.center().x);
+    let after_half = green_between(strip.center().x, strip.right());
+    assert!(
+        after_half > 5_000 && after_half > before_half * 4,
+        "the after should be drawn down the right half: {before_half} on the left, {after_half} on the right"
+    );
+}
+
+/// A picture takes the room it will take before egui has decoded it. egui sizes a picture it
+/// has not decoded as a square, so a wide one measured while out of sight shrank once scrolled
+/// to - and the review under it moved, minimap and all, as it was scrolled through.
+#[test]
+fn scrolling_through_pictures_does_not_change_how_tall_the_review_is() {
+    let fixture = Fixture::new("review-minimap-picture-heights");
+    fixture.write("README.md", "# fixture\n");
+    fixture.commit("Add the readme");
+    for picture in 0..12 {
+        image::RgbaImage::from_pixel(800, 100, image::Rgba([20, 200, 30, 255]))
+            .save(fixture.root.join(format!("wide_{picture:02}.png")))
+            .expect("failed to write the picture");
+    }
+
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let seen_in_ui = Arc::clone(&seen);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 880.0))
+        .wgpu()
+        .build_ui(move |ui| {
+            app.draw(ui);
+            let session_id = app.model.root_session_id.clone();
+            if let Some(review) = app.model.review_ref(&session_id)
+                && !review.hunks().is_empty()
+            {
+                let mut seen = seen_in_ui.lock().expect("poisoned");
+                seen.scrolled = review.minimap.scrolled;
+                seen.session_id = session_id;
+            }
+        });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline && strip_of(&harness, &seen).is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let strip = strip_of(&harness, &seen).expect("expected the minimap beside the diff");
+    let settle = |harness: &mut Harness<'_>| {
+        for _ in 0..40 {
+            harness.step();
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    };
+    settle(&mut harness);
+    let at_the_top = scrolled(&seen).content_height;
+
+    let bottom = strip.center_bottom() - egui::vec2(0.0, 3.0);
+    harness.input_mut().events.extend([
+        egui::Event::PointerMoved(bottom),
+        pointer_button(bottom, true),
+    ]);
+    harness.run_steps(2);
+    harness
+        .input_mut()
+        .events
+        .push(pointer_button(bottom, false));
+    settle(&mut harness);
+    let at_the_bottom = scrolled(&seen);
+
+    assert!(
+        at_the_bottom.offset > 1000.0,
+        "the diff should have scrolled down the pictures, it is at {}",
+        at_the_bottom.offset
+    );
+    assert!(
+        (at_the_bottom.content_height - at_the_top).abs() < 1.0,
+        "the review should be as tall at its bottom as at its top: {at_the_top} then {}",
+        at_the_bottom.content_height
+    );
+}

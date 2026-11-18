@@ -81,7 +81,10 @@ fn a_double_click_on_the_empty_strip_of_any_column_asks_for_a_zoom() {
             pressed,
             modifiers: egui::Modifiers::NONE,
         };
-        harness.input_mut().events.push(egui::Event::PointerMoved(at));
+        harness
+            .input_mut()
+            .events
+            .push(egui::Event::PointerMoved(at));
         harness.step();
         for _ in 0..2 {
             harness

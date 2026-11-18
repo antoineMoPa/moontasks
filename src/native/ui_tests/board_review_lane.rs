@@ -24,9 +24,7 @@ use crate::{
     },
 };
 
-use super::{
-    CARDS, click_like_a_hand, drag_like_a_hand, press_modifiers, seeded_fixture, settle,
-};
+use super::{CARDS, click_like_a_hand, drag_like_a_hand, press_modifiers, seeded_fixture, settle};
 
 /// A window on a board of the three cards, its hooks started the way a real window's are.
 struct LaneBoard {
@@ -109,7 +107,12 @@ fn lane_board(root: &Path, render: bool) -> LaneBoard {
                 Some((status.to_string(), rect))
             })
             .collect();
-        seen.opened_reviews = app.model.chosen_review_of_session.values().cloned().collect();
+        seen.opened_reviews = app
+            .model
+            .chosen_review_of_session
+            .values()
+            .cloned()
+            .collect();
     });
     LaneBoard { harness, seen }
 }
@@ -236,11 +239,17 @@ fn dragging_a_review_into_a_status_moves_its_file_and_fires_the_statuss_hook() {
 
 /// Press a card, nudge the pointer `by`, and let go there.
 fn press_and_let_go(harness: &mut Harness<'_>, at: egui::Pos2, by: egui::Vec2) {
-    harness.input_mut().events.push(egui::Event::PointerMoved(at));
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(at));
     harness.run_steps(2);
     for (pos, pressed) in [(at, true), (at + by, false)] {
         if !pressed {
-            harness.input_mut().events.push(egui::Event::PointerMoved(pos));
+            harness
+                .input_mut()
+                .events
+                .push(egui::Event::PointerMoved(pos));
             harness.step();
         }
         harness.input_mut().events.push(egui::Event::PointerButton {
@@ -261,7 +270,8 @@ fn clicking_a_review_card_opens_its_review_but_a_small_drag_does_not() {
     write_the_parsers_reviews(&fixture);
     let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
     assert!(
-        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 3),
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len()
+            == 3),
         "the lane never drew the three review cards"
     );
     let card_at = |id: &str| {
@@ -302,7 +312,8 @@ fn two_reviews_of_one_name_in_two_statuses_are_two_cards() {
     );
     let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
     assert!(
-        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 4),
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len()
+            == 4),
         "the lane never drew the four review cards"
     );
     harness.run_steps(3);
@@ -333,7 +344,8 @@ fn the_dismiss_mark_on_a_review_card_deletes_that_review_and_not_its_namesake() 
     );
     let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
     assert!(
-        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 4),
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len()
+            == 4),
         "the lane never drew the four review cards"
     );
     harness.run_steps(3);
@@ -360,11 +372,15 @@ fn the_dismiss_mark_on_a_review_card_deletes_that_review_and_not_its_namesake() 
         "the dismissed review's file is still there"
     );
     assert!(
-        fixture.root.join(".moontasks/reviews/requested/login.md").is_file(),
+        fixture
+            .root
+            .join(".moontasks/reviews/requested/login.md")
+            .is_file(),
         "dismissing the pushed login review deleted its requested namesake"
     );
     assert!(
-        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 3),
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len()
+            == 3),
         "the dismissed review's card is still drawn: {:?}",
         seen.lock().expect("poisoned").cards
     );
@@ -386,7 +402,8 @@ fn a_long_branch_never_runs_under_the_review_cards_moonreview_link() {
     let render = std::env::var("MOON_REVIEW_LANE_SHOTS").is_ok();
     let LaneBoard { mut harness, seen } = lane_board(&fixture.root, render);
     assert!(
-        settle(&mut harness, || seen.lock().expect("poisoned").cards.len() == 1),
+        settle(&mut harness, || seen.lock().expect("poisoned").cards.len()
+            == 1),
         "the lane never drew the review card"
     );
     harness.run_steps(3);
@@ -409,7 +426,10 @@ fn a_long_branch_never_runs_under_the_review_cards_moonreview_link() {
         branch_label.right() <= mark.left(),
         "the branch {branch_label:?} runs under the × {mark:?}"
     );
-    assert!(card.contains_rect(link), "[moonreview] {link:?} is outside its card {card:?}");
+    assert!(
+        card.contains_rect(link),
+        "[moonreview] {link:?} is outside its card {card:?}"
+    );
 }
 
 /// cmd+click gathers review cards without opening them, and dragging one of the group carries
@@ -458,7 +478,12 @@ fn cmd_clicked_review_cards_are_dragged_to_a_status_together() {
         .find(|(status, _)| status == "deployed")
         .map(|(_, rect)| rect.left_bottom() + egui::vec2(-40.0, 30.0))
         .expect("the deployed heading is drawn");
-    drag_like_a_hand(&mut harness, card_at("parser"), target, egui::Modifiers::NONE);
+    drag_like_a_hand(
+        &mut harness,
+        card_at("parser"),
+        target,
+        egui::Modifiers::NONE,
+    );
 
     let deployed = fixture.root.join(".moontasks/reviews/deployed");
     assert!(
@@ -468,7 +493,10 @@ fn cmd_clicked_review_cards_are_dragged_to_a_status_together() {
         "the two marked reviews never both arrived in deployed/"
     );
     assert!(
-        fixture.root.join(".moontasks/reviews/pushed/login.md").is_file(),
+        fixture
+            .root
+            .join(".moontasks/reviews/pushed/login.md")
+            .is_file(),
         "the unmarked review was carried along"
     );
     harness.run_steps(5);

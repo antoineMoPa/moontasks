@@ -161,8 +161,11 @@ fn a_file_a_language_server_named_reads_and_says_it_is_outside_the_repo() {
 fn an_image_file_reads_as_a_picture_and_an_svg_as_its_text() {
     let served = served_repo("picture");
     // No text has a 0xff byte in it.
-    fs::write(served.repo_path.join("shot.webp"), b"RIFF\x04\0\0\0WEBP\xff")
-        .expect("failed to write the picture");
+    fs::write(
+        served.repo_path.join("shot.webp"),
+        b"RIFF\x04\0\0\0WEBP\xff",
+    )
+    .expect("failed to write the picture");
     fs::write(served.repo_path.join("logo.svg"), "<svg/>\n").expect("failed to write the svg");
 
     let picture = served

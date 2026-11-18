@@ -63,7 +63,10 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, palette: &Palette) {
     let pitch = STRIP_SQUARE.x + ui.spacing().item_spacing.x;
 
     let (strip, _) = ui.allocate_exact_size(
-        vec2(pitch * count as f32 - ui.spacing().item_spacing.x, STRIP_SQUARE.y),
+        vec2(
+            pitch * count as f32 - ui.spacing().item_spacing.x,
+            STRIP_SQUARE.y,
+        ),
         Sense::hover(),
     );
     let pointer = ui.input(|input| input.pointer.latest_pos());
@@ -81,7 +84,10 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, palette: &Palette) {
                 let without: Vec<usize> = (0..count).filter(|other| *other != lift.index).collect();
                 let mut order = without;
                 order.insert(landing, lift.index);
-                order.iter().position(|other| *other == index).expect("every space has a place")
+                order
+                    .iter()
+                    .position(|other| *other == index)
+                    .expect("every space has a place")
             }
             (Some(_), Some(landing)) => landing,
             _ => index,
@@ -111,10 +117,21 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, palette: &Palette) {
         };
         shown_at[index] = x;
         let rect = Rect::from_min_size(pos2(x, strip.min.y), STRIP_SQUARE);
-        let response = ui
-            .interact(rect, egui::Id::new(("space-square", index)), Sense::click_and_drag());
+        let response = ui.interact(
+            rect,
+            egui::Id::new(("space-square", index)),
+            Sense::click_and_drag(),
+        );
         let response = widgets::clickable(response);
-        draw_square(ui, rect, space, palette, mode, index == front, response.hovered() || is_lifted);
+        draw_square(
+            ui,
+            rect,
+            space,
+            palette,
+            mode,
+            index == front,
+            response.hovered() || is_lifted,
+        );
         if space.wants_attention {
             ui.painter()
                 .circle_filled(rect.right_top() + vec2(-1.0, 1.0), 3.0, palette.warn);
@@ -136,9 +153,9 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, palette: &Palette) {
                         grab: origin.x - rect.min.x,
                     });
                 }
-                Some((seconds, _)) => ctx.request_repaint_after(std::time::Duration::from_secs_f64(
-                    LONG_PRESS - seconds,
-                )),
+                Some((seconds, _)) => ctx.request_repaint_after(
+                    std::time::Duration::from_secs_f64(LONG_PRESS - seconds),
+                ),
                 None => {}
             }
         }
@@ -261,8 +278,13 @@ impl Blocks<'_> {
                 } else {
                     self.ground
                 };
-                self.painter
-                    .rect(block, CornerRadius::same(1), fill, self.outline, StrokeKind::Inside);
+                self.painter.rect(
+                    block,
+                    CornerRadius::same(1),
+                    fill,
+                    self.outline,
+                    StrokeKind::Inside,
+                );
             }
             LayoutNode::Split {
                 direction,

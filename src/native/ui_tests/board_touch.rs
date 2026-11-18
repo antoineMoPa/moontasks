@@ -115,14 +115,25 @@ fn a_finger_rested_on_a_card_and_lifted_opens_its_menu() {
         .center();
     {
         let seen = seen.lock().expect("poisoned");
-        assert!(!seen.page_open, "a hold is not a tap: the card's page stays shut");
-        assert_eq!(seen.column_of(card), "todo", "nor was the card carried anywhere");
+        assert!(
+            !seen.page_open,
+            "a hold is not a tap: the card's page stays shut"
+        );
+        assert_eq!(
+            seen.column_of(card),
+            "todo",
+            "nor was the card carried anywhere"
+        );
     }
 
     click_at(&mut harness, move_to_done);
     let read = std::sync::Arc::clone(&seen);
     assert!(
-        super::settle(&mut harness, || read.lock().expect("poisoned").column_of(card) == "done"),
+        super::settle(&mut harness, || read
+            .lock()
+            .expect("poisoned")
+            .column_of(card)
+            == "done"),
         "the menu should have sent the card to DONE"
     );
 }

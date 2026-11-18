@@ -15,9 +15,9 @@ use std::{
     env,
     ffi::OsString,
     fs,
-    sync::OnceLock,
     io::Write,
     path::{Path, PathBuf},
+    sync::OnceLock,
     time::{Duration, SystemTime},
 };
 

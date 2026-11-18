@@ -324,5 +324,4 @@ fn a_changed_image_is_drawn_as_before_and_after() {
         harness.step();
     }
     harness.run_steps(2);
-
 }

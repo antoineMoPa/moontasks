@@ -209,14 +209,19 @@ fn file_new_opens_untitled_tabs_and_writes_nothing() {
 
     harness.run_steps(5);
     asks.store(1, Ordering::Relaxed);
-    assert!(settle(&mut harness, || names.lock().expect("poisoned").len() == 1));
+    assert!(settle(&mut harness, || names
+        .lock()
+        .expect("poisoned")
+        .len()
+        == 1));
     asks.store(1, Ordering::Relaxed);
-    assert!(settle(&mut harness, || names.lock().expect("poisoned").len() == 2));
+    assert!(settle(&mut harness, || names
+        .lock()
+        .expect("poisoned")
+        .len()
+        == 2));
 
-    assert_eq!(
-        *names.lock().expect("poisoned"),
-        ["untitled", "untitled-2"]
-    );
+    assert_eq!(*names.lock().expect("poisoned"), ["untitled", "untitled-2"]);
     assert!(!fixture.root.join("untitled").exists());
 }
 

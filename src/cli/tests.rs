@@ -926,8 +926,9 @@ fn what_is_asked_of_an_agent_with_a_part_missing_is_refused() {
     assert!(refused(&["agent", "start"]).contains("takes the task and the agent"));
     assert!(refused(&["agent", "start", "fix-the-races"]).contains("takes the task and the agent"));
     assert!(
-        refused(&["agent", "start", "fix-the-races", "gemini"])
-            .contains("gemini is no agent moon starts: it starts pi, claude, codex, minerve, opencode")
+        refused(&["agent", "start", "fix-the-races", "gemini"]).contains(
+            "gemini is no agent moon starts: it starts pi, claude, codex, minerve, opencode"
+        )
     );
     assert!(refused(&["agent", "view"]).contains("`moon agent view` takes the task"));
     // The task comes first, so an option in its place is not one.

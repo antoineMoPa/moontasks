@@ -125,14 +125,28 @@ pub(super) fn draw_column(
         UiLayout::top_down(Align::Min),
         |ui| {
             ui.set_width(COLUMN_WIDTH);
-            columns::draw_heading(
-                app,
-                ui,
-                column,
-                cards::column_size(&app.model.board.tasks, &status),
-                palette,
-                actions,
-            );
+            // Over a background scene the heading is a pill like the strip's tabs - the same
+            // fill, the same corners, padded the same - so its text has a ground to be read on.
+            let count = cards::column_size(&app.model.board.tasks, &status);
+            match crate::native::background::heading_backing(app, palette) {
+                Some(fill) => {
+                    egui::Frame::new()
+                        .fill(fill)
+                        .corner_radius(CornerRadius::same(4))
+                        .inner_margin(egui::Margin::symmetric(
+                            crate::native::background::HEADING_PADDING.0,
+                            crate::native::background::HEADING_PADDING.1,
+                        ))
+                        .show(ui, |ui| {
+                            ui.set_width(
+                                COLUMN_WIDTH
+                                    - 2.0 * f32::from(crate::native::background::HEADING_PADDING.0),
+                            );
+                            columns::draw_heading(app, ui, column, count, palette, actions);
+                        });
+                }
+                None => columns::draw_heading(app, ui, column, count, palette, actions),
+            }
             ui.add_space(3.0);
 
             // Which end of this column the card being written on the new-task pane will join,
@@ -223,10 +237,7 @@ pub(super) fn draw_column(
                             let card = match &under[cards_above] {
                                 Some(_) => {
                                     egui::Frame::new()
-                                        .inner_margin(egui::Margin::symmetric(
-                                            SUB_TASK_INDENT,
-                                            0,
-                                        ))
+                                        .inner_margin(egui::Margin::symmetric(SUB_TASK_INDENT, 0))
                                         .show(ui, |ui| {
                                             draw_card(app, ui, task, origin, palette, actions)
                                         })
@@ -318,9 +329,7 @@ pub(super) fn draw_column(
             });
             let over = ghost.is_some() && pointer_over(ui, &response, ghost);
             let now = ui.input(|input| input.time);
-            let pointer = over
-                .then(|| ui.ctx().pointer_interact_pos())
-                .flatten();
+            let pointer = over.then(|| ui.ctx().pointer_interact_pos()).flatten();
             // Which card the pointer has been over the middle of, and since when: read from the
             // cards as they were laid out, ignoring any card the dwell has already opened up.
             let dwelt_on = app
@@ -330,7 +339,8 @@ pub(super) fn draw_column(
                 .as_ref()
                 .filter(|dwell| now - dwell.since >= SUB_TASK_DWELL_SECONDS)
                 .map(|dwell| dwell.card.clone());
-            let landing = pointer.map(|pointer| landing_among(&cards, pointer.y, dwelt_on.as_deref()));
+            let landing =
+                pointer.map(|pointer| landing_among(&cards, pointer.y, dwelt_on.as_deref()));
             let over_card = landing
                 .as_ref()
                 .and_then(|landing| landing.over_middle_of)
@@ -348,9 +358,10 @@ pub(super) fn draw_column(
                         card: card.clone(),
                         since: now,
                     });
-                    ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(
-                        SUB_TASK_DWELL_SECONDS,
-                    ));
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_secs_f64(
+                            SUB_TASK_DWELL_SECONDS,
+                        ));
                 }
                 (None, _) if over => app.model.board.dwelling = None,
                 (None, _) => {}
@@ -362,7 +373,10 @@ pub(super) fn draw_column(
             zone.paint(ui);
             // The card the drop would go under, outlined white once it has been held over long
             // enough.
-            if let Some(Landing { parent: Some(parent), .. }) = &landing
+            if let Some(Landing {
+                parent: Some(parent),
+                ..
+            }) = &landing
                 && dwelt_on.as_ref() == Some(parent)
                 && let Some(card) = cards.iter().find(|card| card.id == *parent)
             {

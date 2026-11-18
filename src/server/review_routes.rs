@@ -379,7 +379,8 @@ pub(super) async fn commit_state(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     mark_activity(&state);
-    let commit_state = core_session_work(state, session_id, crate::committing::commit_state).await?;
+    let commit_state =
+        core_session_work(state, session_id, crate::committing::commit_state).await?;
     Ok(Json(commit_state))
 }
 

@@ -500,14 +500,24 @@ pub(super) fn composer_is_past(app: &App, columns: usize) -> bool {
             .is_none_or(|at| at >= columns)
 }
 
-/// The `+` at the right-hand end of the board, which opens the box there.
-pub(super) fn draw_new_column_plus(ui: &mut Ui, palette: &Palette, actions: &mut Vec<BoardAction>) {
-    if plus_button(ui, palette)
-        .on_hover_text("New column at the end - right click a heading to add one beside it")
-        .clicked()
-    {
-        actions.push(BoardAction::OpenColumnComposer { at: None });
-    }
+/// The `+` at the right-hand end of the board, which opens the box there. It stands in a row
+/// as tall as a column's heading - `extra_height` is what the heading is padded with over a
+/// scene - so it is level with the middle of the headings beside it.
+pub(super) fn draw_new_column_plus(
+    ui: &mut Ui,
+    palette: &Palette,
+    actions: &mut Vec<BoardAction>,
+    extra_height: f32,
+) {
+    ui.horizontal(|ui| {
+        ui.set_min_height(ui.spacing().interact_size.y + extra_height);
+        if plus_button(ui, palette)
+            .on_hover_text("New column at the end - right click a heading to add one beside it")
+            .clicked()
+        {
+            actions.push(BoardAction::OpenColumnComposer { at: None });
+        }
+    });
 }
 
 /// The box a new column is named in, wherever on the board it was opened.

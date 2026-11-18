@@ -15,9 +15,9 @@
 
 mod drawing;
 mod encrypted;
-mod json_tree;
 #[cfg(test)]
 mod for_tests;
+mod json_tree;
 mod on_disk;
 mod opening;
 mod passphrase_field;
@@ -347,7 +347,10 @@ impl FileEditor {
         &mut self,
         entry: &crate::native::work_log::NewEntry,
     ) -> Result<(), String> {
-        assert!(self.is_loaded(), "an entry is put into a text that has arrived");
+        assert!(
+            self.is_loaded(),
+            "an entry is put into a text that has arrived"
+        );
         let Some(insertion) = crate::native::work_log::insertion(self.code.text(), entry) else {
             return Err(format!(
                 "no \"{}\" line in {}: a new entry goes in above it",

@@ -6,11 +6,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use moon_core::cli::agent::*;
-#[allow(unused_imports)]
-use std::path::Path;
-#[allow(unused_imports)]
-use anyhow::{Context, Result, bail};
 #[allow(unused_imports)]
 use crate::{
     api::AgentKind,
@@ -23,6 +18,11 @@ use crate::{
     },
     terminal::Shown,
 };
+#[allow(unused_imports)]
+use anyhow::{Context, Result, bail};
+use moon_core::cli::agent::*;
+#[allow(unused_imports)]
+use std::path::Path;
 
 use crate::{
     instances::{AgentAsks, window::ShellAsks},
@@ -138,8 +138,7 @@ fn a_start_with_no_window_on_the_repo_is_refused_with_how_to_open_one() {
     // A window on another project is not one to start this board's agents in.
     let (_asks, asked) = window_on(&elsewhere);
 
-    let error =
-        start(&repo, "fix-the-races", AgentKind::Claude).expect_err("expected a refusal");
+    let error = start(&repo, "fix-the-races", AgentKind::Claude).expect_err("expected a refusal");
 
     assert!(
         error
@@ -157,8 +156,7 @@ fn a_start_the_window_refuses_says_why() {
     let (repo, _, _) = board("refused");
     let (_asks, _asked) = window_on(&repo);
 
-    let error =
-        start(&repo, "fix-the-races", AgentKind::Codex).expect_err("expected a refusal");
+    let error = start(&repo, "fix-the-races", AgentKind::Codex).expect_err("expected a refusal");
 
     assert!(
         error.to_string().contains("Codex is not installed here"),

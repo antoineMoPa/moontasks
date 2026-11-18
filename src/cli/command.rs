@@ -253,7 +253,9 @@ pub(super) fn parse_command(launched_on: Option<Frame>, args: Vec<String>) -> Re
         "mcp" => Ok(MoonCommand::Mcp(mcp::parse(&rest, asks_for_help)?)),
         // The board in this terminal, read the way the `moon` without a window reads it.
         "tui" => match moon_tui::lite_cli::parse_lite_command(
-            &std::iter::once("tui".to_string()).chain(rest).collect::<Vec<_>>(),
+            &std::iter::once("tui".to_string())
+                .chain(rest)
+                .collect::<Vec<_>>(),
         )? {
             moon_tui::lite_cli::LiteCommand::Tui { repo } => Ok(MoonCommand::Tui { repo }),
             _ => Ok(MoonCommand::Help),

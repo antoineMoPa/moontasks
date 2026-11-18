@@ -119,7 +119,6 @@ pub(crate) fn open_file_menu(
 
 pub(crate) fn draw(app: &mut App, ui: &mut Ui, session_id: &str) {
     let palette = app.palette_of();
-
     // A review that has never loaded has nothing to lay out around yet.
     let has_payload = app
         .model

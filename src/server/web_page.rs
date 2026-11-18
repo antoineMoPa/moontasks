@@ -60,8 +60,8 @@ pub(super) async fn moon_page(
     headers: HeaderMap,
 ) -> Response {
     mark_activity(&state);
-    let session_id = cookie_key(&headers)
-        .and_then(|session| users.keys().admitted_browser_session_id(session));
+    let session_id =
+        cookie_key(&headers).and_then(|session| users.keys().admitted_browser_session_id(session));
     let Some(session_id) = session_id else {
         return login_page(&asked, None);
     };
@@ -120,7 +120,10 @@ pub(super) async fn log_in(
         StatusCode::SEE_OTHER,
         [
             // Never the key or the ticket: a session of the browser's own, good for a week.
-            (header::SET_COOKIE, logged_in_cookie(&keys.browser_session())),
+            (
+                header::SET_COOKIE,
+                logged_in_cookie(&keys.browser_session()),
+            ),
             (
                 header::LOCATION,
                 page_address(&state, asked)
@@ -135,7 +138,8 @@ pub(super) async fn log_in(
 /// The page a browser logs in on, kept apart as HTML - see `login.html` beside this file.
 const LOGIN_PAGE: &str = include_str!("login.html");
 const KEY_REFUSED: &str = "that pass key is not valid";
-const LOGIN_KICKED: &str = "this browser's login was kicked out of the server; log in with a new pass key";
+const LOGIN_KICKED: &str =
+    "this browser's login was kicked out of the server; log in with a new pass key";
 
 /// The login page, posting back to the query it was asked with. 401 either way: until the key
 /// is in, the page the address names is not being shown.

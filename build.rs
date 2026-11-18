@@ -15,7 +15,6 @@ use std::{
 
 use flate2::{Compression, write::GzEncoder};
 
-
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
 /// What the page is made of besides the module and its JavaScript, by where it is published
@@ -33,10 +32,8 @@ const GHOSTTY_ENV_IMPORT: &str = "from \"env\"";
 /// For each profile of the build embedding it: the browser build's cargo profile, and the
 /// folder cargo writes that profile to. A debug `moon` gets a debug page, which compiles
 /// faster, and that is what `cargo run` is for.
-const WASM_PROFILES: &[(&str, &str, &str)] = &[
-    ("debug", "dev", "debug"),
-    ("release", "release", "release"),
-];
+const WASM_PROFILES: &[(&str, &str, &str)] =
+    &[("debug", "dev", "debug"), ("release", "release", "release")];
 
 /// What the browser build is compiled from. Anything else changing leaves the page as it was.
 const WATCHED: &[&str] = &["src", "web", "crates", "Cargo.toml", "Cargo.lock", ".cargo"];
@@ -85,7 +82,9 @@ fn main() {
         .omit_default_module_path(false)
         .out_name("moontasks")
         .generate(&dist)
-        .unwrap_or_else(|error| panic!("wasm-bindgen could not bind {}: {error:#}", wasm.display()));
+        .unwrap_or_else(|error| {
+            panic!("wasm-bindgen could not bind {}: {error:#}", wasm.display())
+        });
     point_env_import_at_shim(&dist.join("moontasks.js"));
     for (published, source) in PAGE_FILES {
         let published = dist.join(published);
@@ -103,7 +102,10 @@ fn main() {
         .iter()
         .map(|(published, source)| {
             let packed = gzip_into(&gzipped, published, Path::new(source));
-            format!("    ({published:?}, include_bytes!({:?})),\n", packed.display())
+            format!(
+                "    ({published:?}, include_bytes!({:?})),\n",
+                packed.display()
+            )
         })
         .collect();
     fs::write(&bundle, format!("&[\n{entries}]\n")).expect("could not write web_bundle.rs");
@@ -138,7 +140,10 @@ fn point_env_import_at_shim(script: &Path) {
         found, 1,
         "expected wasm-bindgen's output to import `env` once, for Ghostty's log; it does {found} times"
     );
-    let pointed = generated.replace(GHOSTTY_ENV_IMPORT, &format!("from \"./{GHOSTTY_ENV_SHIM}\""));
+    let pointed = generated.replace(
+        GHOSTTY_ENV_IMPORT,
+        &format!("from \"./{GHOSTTY_ENV_SHIM}\""),
+    );
     fs::write(script, pointed)
         .unwrap_or_else(|error| panic!("could not write {}: {error}", script.display()));
 }
@@ -159,7 +164,14 @@ fn compile_wasm(
         .current_dir(manifest_dir)
         // A cdylib for this build alone: as a crate type in Cargo.toml, every native build
         // would link one as well.
-        .args(["rustc", "--lib", "--crate-type", "cdylib", "--target", WASM_TARGET])
+        .args([
+            "rustc",
+            "--lib",
+            "--crate-type",
+            "cdylib",
+            "--target",
+            WASM_TARGET,
+        ])
         .args(["--profile", wasm_profile])
         // Debug info would be most of the module, and all of it downloaded by every page load.
         .arg("--config")
@@ -175,8 +187,13 @@ fn compile_wasm(
     for inherited in INHERITED_ENV {
         build.env_remove(inherited);
     }
-    let status = build.status().expect("could not start cargo for the browser build");
-    assert!(status.success(), "the browser build failed - its errors are above");
+    let status = build
+        .status()
+        .expect("could not start cargo for the browser build");
+    assert!(
+        status.success(),
+        "the browser build failed - its errors are above"
+    );
 
     target_dir
         .join(WASM_TARGET)
@@ -218,10 +235,18 @@ fn target_root(out: &Path) -> PathBuf {
         .ancestors()
         .nth(3)
         .unwrap_or_else(|| panic!("{} is not where cargo puts OUT_DIR", out.display()));
-    let above = profile_dir.parent().expect("a profile folder is in a target directory");
+    let above = profile_dir
+        .parent()
+        .expect("a profile folder is in a target directory");
     let target = env::var("TARGET").expect("cargo sets TARGET");
-    if above.file_name().is_some_and(|name| name == target.as_str()) {
-        above.parent().expect("a triple folder is in a target directory").to_path_buf()
+    if above
+        .file_name()
+        .is_some_and(|name| name == target.as_str())
+    {
+        above
+            .parent()
+            .expect("a triple folder is in a target directory")
+            .to_path_buf()
     } else {
         above.to_path_buf()
     }

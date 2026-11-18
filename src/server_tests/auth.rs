@@ -152,7 +152,10 @@ fn a_request_from_another_site_s_page_is_refused_whatever_it_carries() {
 
     let other_site = client
         .get(&url)
-        .header(COOKIE, format!("moon_pass_key={}", of_this_test_run().browser_session()))
+        .header(
+            COOKIE,
+            format!("moon_pass_key={}", of_this_test_run().browser_session()),
+        )
         .header("sec-fetch-site", "same-site")
         .send()
         .expect("failed to ask");
@@ -161,7 +164,10 @@ fn a_request_from_another_site_s_page_is_refused_whatever_it_carries() {
     // The page's own requests name this server as their origin.
     let own_origin = client
         .get(&url)
-        .header(COOKIE, format!("moon_pass_key={}", of_this_test_run().browser_session()))
+        .header(
+            COOKIE,
+            format!("moon_pass_key={}", of_this_test_run().browser_session()),
+        )
         .header(ORIGIN, served.base_url.clone())
         .header("sec-fetch-site", "same-origin")
         .send()

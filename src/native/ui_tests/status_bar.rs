@@ -207,10 +207,7 @@ fn the_cross_on_the_status_bar_puts_the_message_away_without_opening_the_log() {
     click_at(
         &mut harness,
         egui::pos2(
-            WINDOW.x
-                - 24.0
-                - SPACE_SQUARES_WIDTH
-                - crate::native::status_bar::GAP_BEFORE_SPACES,
+            WINDOW.x - 24.0 - SPACE_SQUARES_WIDTH - crate::native::status_bar::GAP_BEFORE_SPACES,
             WINDOW.y - 20.0,
         ),
     );

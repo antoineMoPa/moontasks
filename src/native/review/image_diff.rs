@@ -15,6 +15,7 @@ use crate::{
     native::{
         app::App,
         model::hash_of,
+        review::minimap::{CardBeingDrawn, Side},
         theme::{Palette, SMALL_SIZE},
         widgets,
     },
@@ -31,11 +32,14 @@ const IMAGE_PADDING: i8 = 10;
 /// Between a side's label and its picture.
 const LABEL_GAP: f32 = 4.0;
 
+/// Draws an image's before and after side by side, and reports where each picture landed to
+/// `card`, for the minimap.
 pub(crate) fn draw_image_diff(
     app: &mut App,
     ui: &mut Ui,
     file_path: &str,
     image: &ImageDiffView,
+    card: &mut CardBeingDrawn,
     palette: &Palette,
 ) {
     egui::Frame::new()
@@ -50,20 +54,30 @@ pub(crate) fn draw_image_diff(
             let tallest = ui.ctx().viewport_rect().height() * TALLEST_IMAGE_FRACTION;
 
             ui.horizontal_top(|ui| {
-                for (label, source, left_out_bytes, missing) in [
+                // The two halves and the one gap between them are exactly the width there is.
+                // Wider, the card pushed the column wider for every card under it, so a
+                // picture's size hung on how many were drawn above it - which changes as the
+                // review scrolls and the ones out of sight are skipped.
+                ui.spacing_mut().item_spacing.x = 0.0;
+                for (side, label, source, left_out_bytes, missing) in [
                     (
+                        Side::Before,
                         "before",
                         &image.before_src,
                         image.before_left_out_bytes,
                         "(added)",
                     ),
                     (
+                        Side::After,
                         "after",
                         &image.after_src,
                         image.after_left_out_bytes,
                         "(deleted)",
                     ),
                 ] {
+                    if side == Side::After {
+                        ui.add_space(IMAGE_GAP);
+                    }
                     ui.vertical(|ui| {
                         ui.set_width(half);
                         ui.label(
@@ -77,12 +91,26 @@ pub(crate) fn draw_image_diff(
                             .as_deref()
                             .map(|source| decode_image_side(app, source, longest_side))
                         {
-                            Some(Ok(source)) => {
-                                ui.add(
-                                    egui::Image::new(source)
+                            Some(Ok((source, pixel_size))) => {
+                                let image = egui::Image::new(source);
+                                // Sized from the header, the picture takes the same room while
+                                // egui is still decoding it as once it has: egui sizes a picture
+                                // it has not decoded as a square, and a card measured as one
+                                // while out of sight shrank once scrolled to, which moved
+                                // everything under it, minimap and all.
+                                let image = match pixel_size {
+                                    Some(pixel_size) => image
+                                        .fit_to_exact_size(fit_picture_into(
+                                            pixel_size,
+                                            vec2(half, tallest),
+                                        ))
+                                        .maintain_aspect_ratio(false),
+                                    None => image
                                         .fit_to_exact_size(vec2(half, tallest))
                                         .maintain_aspect_ratio(true),
-                                );
+                                };
+                                let drawn = ui.add(image);
+                                card.picture(side, drawn.rect.top(), drawn.rect.bottom());
                             }
                             Some(Err(why)) => {
                                 ui.label(RichText::new(why).color(palette.warn));
@@ -100,7 +128,6 @@ pub(crate) fn draw_image_diff(
                             },
                         }
                     });
-                    ui.add_space(IMAGE_GAP);
                 }
             });
         });
@@ -161,11 +188,12 @@ pub(crate) struct DecodedImage {
 /// The image behind a `data:` URI, decoded on first sight - or why it is not drawn: it cannot
 /// be read, or it is longer on a side than one texture of the graphics card, which egui would
 /// take the window down over.
+/// With it, its width and height in pixels when its header says.
 fn decode_image_side(
     app: &mut App,
     data_uri: &str,
     longest_side: usize,
-) -> Result<egui::ImageSource<'static>, String> {
+) -> Result<(egui::ImageSource<'static>, Option<(u32, u32)>), String> {
     let key = hash_of(data_uri);
     let decoded = app.decoded_images.entry(key).or_insert_with(|| {
         decode_image_data_uri(data_uri).map(|(extension, bytes)| DecodedImage {
@@ -183,7 +211,17 @@ fn decode_image_side(
     {
         return Err(too_long);
     }
-    Ok(bytes_source(key, decoded.extension, &decoded.bytes))
+    Ok((
+        bytes_source(key, decoded.extension, &decoded.bytes),
+        decoded.size,
+    ))
+}
+
+/// The size a picture `(width, height)` pixels is drawn at to fill as much of `room` as its
+/// proportions allow.
+fn fit_picture_into((width, height): (u32, u32), room: egui::Vec2) -> egui::Vec2 {
+    let picture = vec2(width.max(1) as f32, height.max(1) as f32);
+    picture * (room.x / picture.x).min(room.y / picture.y)
 }
 
 /// What egui draws a decoded image from. `key` is the hash of the `data:` URI it arrived as.
@@ -236,6 +274,14 @@ pub(crate) fn describe_too_long_to_draw(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_fills_its_room_as_far_as_its_proportions_allow() {
+        let room = vec2(400.0, 300.0);
+        assert_eq!(fit_picture_into((800, 200), room), vec2(400.0, 100.0));
+        assert_eq!(fit_picture_into((100, 300), room), vec2(100.0, 300.0));
+        assert_eq!(fit_picture_into((16, 16), room), vec2(300.0, 300.0));
+    }
 
     #[test]
     fn a_data_uri_gives_up_its_bytes_and_a_name_to_read_them_as() {

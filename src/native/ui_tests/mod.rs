@@ -6,6 +6,7 @@
 
 mod attention;
 mod board;
+mod board_background;
 mod board_card_menu;
 mod board_cards;
 mod board_columns;

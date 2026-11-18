@@ -158,7 +158,6 @@ impl WorkspaceGround for WorkspaceColor {
             lean(plain.b(), ground.b()),
         )
     }
-
 }
 
 #[cfg(test)]

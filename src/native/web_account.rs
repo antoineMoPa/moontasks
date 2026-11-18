@@ -217,7 +217,7 @@ impl eframe::App for SignInPane {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         if !self.styled {
-            theme::apply(&ctx, self.theme, WorkspaceColor::default());
+            theme::apply(&ctx, self.theme, WorkspaceColor::default(), false);
             self.styled = true;
         }
         egui::CentralPanel::default().show(ui, |_| {});

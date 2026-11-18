@@ -178,12 +178,19 @@ fn run_window(launch: Launch, manages_the_session: bool) -> Result<()> {
 /// Moves eframe's storage - the window's place and the saved workspace - from where it was kept
 /// before moon was moontasks, once: when the old folder is there and the new one is not.
 fn move_the_old_window_storage() {
-    let (Some(old), Some(new)) = (eframe::storage_dir("moonreview"), eframe::storage_dir("moontasks")) else {
+    let (Some(old), Some(new)) = (
+        eframe::storage_dir("moonreview"),
+        eframe::storage_dir("moontasks"),
+    ) else {
         return;
     };
     if old.is_dir() && !new.exists() {
         if let Err(error) = std::fs::rename(&old, &new) {
-            eprintln!("[moon] could not move {} to {}: {error}", old.display(), new.display());
+            eprintln!(
+                "[moon] could not move {} to {}: {error}",
+                old.display(),
+                new.display()
+            );
         }
     }
 }

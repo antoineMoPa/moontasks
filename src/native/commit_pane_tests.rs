@@ -40,6 +40,41 @@ fn the_commit_button_opens_a_pane_beside_the_review() {
     }
 }
 
+/// A done moon review opens on its commit, read only: nothing to commit, but the branch can
+/// still be pushed and its pull request opened, so the header's way into the pane stays.
+#[test]
+fn a_commit_review_opens_the_commit_pane_to_push() {
+    let fixture = seeded_fixture("commit-review-push");
+    let head = crate::git::run_git(&fixture.root, &["rev-parse", "HEAD"])
+        .expect("failed to read the fixture's HEAD");
+    let state = crate::server::build_state(Arc::new(Mutex::new(Instant::now())));
+    let launch = crate::native::Launch {
+        backend: Arc::new(crate::backend::local::LocalBackend::new(state)),
+        open: Some(crate::api::OpenSessionRequest {
+            repo_path: fixture.root.display().to_string(),
+            diff_target: None,
+            active_commit: Some(head.trim().to_string()),
+        }),
+        frame: crate::cli::Frame::Review,
+    };
+    let mut app = crate::native::app::App::new(egui::Context::default(), launch);
+    app.set_theme(ThemeMode::Dark);
+    let mut harness = harness_with_loaded_review(app, ThemeMode::Dark);
+
+    assert!(
+        harness.query_by_label("[commit]").is_none(),
+        "a commit review has nothing to commit"
+    );
+    harness.get_by_label("[push]").click();
+    harness.run_steps(5);
+    for button in ["push", "open PR"] {
+        assert!(
+            harness.query_by_label(button).is_some(),
+            "the commit pane should have opened with its {button} button"
+        );
+    }
+}
+
 /// The whole of it: what the review staged, committed with a message written in the pane, by
 /// a real `git` in a real pty - which is what a signed commit needs.
 #[test]

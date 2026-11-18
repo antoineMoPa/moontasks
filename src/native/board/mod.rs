@@ -61,6 +61,8 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
     let palette = app.palette_of();
     let mut actions = Vec::new();
 
+    // A scene, when one is picked, is painted over the whole pane before anything else: the
+    // columns have no fill of their own and the cards are translucent, so it shows through.
     // The board sits off the pane's edges rather than against them: a column hard against the
     // left of the pane reads as cut off. A margin rather than an indent, which would draw the
     // rule down the side that goes with a nested list.
@@ -452,10 +454,11 @@ fn draw_column_row(
         if columns::composer_is_past(app, order.len()) {
             draw_new_column_slot(app, ui, height, palette, actions);
         } else if !app.model.board.column_composer_open {
+            let extra_height = crate::native::background::heading_extra_height(app);
             ui.allocate_ui_with_layout(
                 vec2(COLUMN_WIDTH, height),
                 UiLayout::top_down(Align::Min),
-                |ui| columns::draw_new_column_plus(ui, palette, actions),
+                |ui| columns::draw_new_column_plus(ui, palette, actions, extra_height),
             );
         }
     }

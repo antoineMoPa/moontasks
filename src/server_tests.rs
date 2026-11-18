@@ -45,8 +45,7 @@ pub(crate) fn serve(name: &str) -> Served {
 /// A server that lets `users` in, with a fixture repo: one changed file, committed once.
 fn serve_with(name: &str, users: Users) -> Served {
     let key = users.keys().generate();
-    let root =
-        std::env::temp_dir().join(format!("moontasks-server-{}-{name}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("moontasks-server-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("failed to create the fixture directory");
     run_git_no_output(&root, &["init"]).expect("failed to init the fixture repo");

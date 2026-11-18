@@ -182,7 +182,6 @@ fn workspace<'a>(session_id: &'a str, repo_root: &'a Path) -> Workspace<'a> {
     }
 }
 
-
 /// Remember every file outside the repo that this answer names, so the pane can open what the
 /// jump landed on. Called with a server's answer on its way back to the window, which is the
 /// only moment anything legitimately names a file outside the repo.

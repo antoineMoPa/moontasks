@@ -81,9 +81,7 @@ impl App {
                 // Compiled wherever `started` is: on Linux, and with the tests.
                 #[cfg(any(target_os = "linux", test))]
                 if self.manages_the_session {
-                    asks.applications_started_by(Arc::new(
-                        crate::display::started::OnThisScreen,
-                    ));
+                    asks.applications_started_by(Arc::new(crate::display::started::OnThisScreen));
                 }
                 self.shell_asks = Some(asks);
             }

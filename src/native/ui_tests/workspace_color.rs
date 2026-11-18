@@ -199,7 +199,6 @@ fn the_project_pane_offers_the_colors() {
         style.visuals.text_cursor.blink = false;
     });
     harness.run_steps(3);
-
 }
 
 /// Step the window until something the test is waiting for has happened.

@@ -199,8 +199,8 @@ mod tests {
                     remote_task_tracker_url: String::new(),
                     parent: None,
                     notes: String::new(),
-                attachments: Vec::new(),
-                folder_files: Vec::new(),
+                    attachments: Vec::new(),
+                    folder_files: Vec::new(),
                     resources: Vec::new(),
                     hooks_stopped: false,
                 })

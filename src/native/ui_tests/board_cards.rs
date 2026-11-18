@@ -178,7 +178,10 @@ fn each_review_is_listed_on_its_card_and_opens_its_review() {
 
     harness.get_by_label(requested).click();
     assert!(
-        settle(&mut harness, || !reviews.lock().expect("poisoned").is_empty()),
+        settle(&mut harness, || !reviews
+            .lock()
+            .expect("poisoned")
+            .is_empty()),
         "clicking a requested review should open moon's review of it"
     );
 }

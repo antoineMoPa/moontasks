@@ -382,7 +382,10 @@ mod tests {
                     on_a_button: true,
                     ..rested.clone()
                 }),
-                Ended::Click { on_a_button: true, .. }
+                Ended::Click {
+                    on_a_button: true,
+                    ..
+                }
             ),
             "a button held down is the button's press, not the card's"
         );

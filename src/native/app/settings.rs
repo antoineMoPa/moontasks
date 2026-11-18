@@ -44,6 +44,29 @@ impl App {
         );
     }
 
+    /// The scene the board of the project this window is on is painted over, `None` for the
+    /// plain board - and until there is a project and the settings have been read.
+    pub(crate) fn background_of_this_project(&self) -> Option<crate::settings::BackgroundScene> {
+        let project_path = self.model.project_path.as_deref()?;
+        self.model.settings.as_ref()?.background(project_path)
+    }
+
+    /// Pick the scene for this project's board, or `None` for the plain board: shown now, and
+    /// written to the settings file.
+    pub(crate) fn pick_background(&mut self, scene: Option<crate::settings::BackgroundScene>) {
+        let Some(project_path) = self.model.project_path.clone() else {
+            return;
+        };
+        // The two exclude each other - see [`Self::set_workspace_color`].
+        if scene.is_some() && self.model.workspace_color != WorkspaceColor::Plain {
+            self.set_workspace_color(WorkspaceColor::Plain);
+        }
+        self.change_settings(SettingsChange::SetBackground {
+            project_path,
+            scene,
+        });
+    }
+
     /// Pick the model `agent` runs with, or `None` for its own default - see
     /// [`crate::settings::Settings::agent_models`].
     pub(crate) fn select_agent_model(
@@ -66,6 +89,11 @@ impl App {
     /// A window that is on no project yet - the launch screen - has nothing to mark: the
     /// color is remembered against the project's path, so there is nowhere to put it.
     pub(crate) fn set_workspace_color(&mut self, color: WorkspaceColor) {
+        // A color and a scene are two ways of dressing the same window: a color picked takes a
+        // scene off, as a scene picked takes the color off.
+        if color != WorkspaceColor::Plain && self.background_of_this_project().is_some() {
+            self.pick_background(None);
+        }
         self.model.workspace_color = color;
         // The ground is baked into the style, so the whole window has to be restyled.
         self.needs_style = true;

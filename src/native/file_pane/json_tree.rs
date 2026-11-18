@@ -33,7 +33,14 @@ pub(super) fn draw_tree(app: &mut App, ui: &mut Ui, pane_id: PaneId) {
                 .id_salt(("file-pane-json-tree", pane_id))
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    draw_value(ui, &palette, egui::Id::new(("json", pane_id)), 0, None, &value);
+                    draw_value(
+                        ui,
+                        &palette,
+                        egui::Id::new(("json", pane_id)),
+                        0,
+                        None,
+                        &value,
+                    );
                 });
         }
     }
@@ -97,10 +104,14 @@ fn fold(
     body: impl FnOnce(&mut Ui),
 ) {
     let open_by_default = depth < 2;
-    egui::CollapsingHeader::new(RichText::new(summary).size(SMALL_SIZE + 2.0).color(palette.ink))
-        .id_salt(id)
-        .default_open(open_by_default)
-        .show(ui, body);
+    egui::CollapsingHeader::new(
+        RichText::new(summary)
+            .size(SMALL_SIZE + 2.0)
+            .color(palette.ink),
+    )
+    .id_salt(id)
+    .default_open(open_by_default)
+    .show(ui, body);
 }
 
 #[cfg(test)]

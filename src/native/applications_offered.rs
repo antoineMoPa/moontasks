@@ -76,7 +76,9 @@ impl App {
             |model, installed| match installed {
                 Ok(installed) => model.installed_applications = Some(installed),
                 Err(error) => {
-                    model.error(format!("could not list the server's applications: {error:#}"));
+                    model.error(format!(
+                        "could not list the server's applications: {error:#}"
+                    ));
                 }
             },
         );

@@ -6,9 +6,9 @@ mod palette;
 mod review;
 
 pub(crate) use board::{
-    AttachPicker, BoardState, CardMenu, Carrying, ColumnRename, MarkedReview, Dwelling, OpenedFile, OpenedShell,
-    PendingCard, PendingColumnPlace, PendingPlace, TabRename, TaskDraft, TaskEditor, TaskLanding,
-    TaskRename,
+    AttachPicker, BoardState, CardMenu, Carrying, ColumnRename, Dwelling, MarkedReview, OpenedFile,
+    OpenedShell, PendingCard, PendingColumnPlace, PendingPlace, TabRename, TaskDraft, TaskEditor,
+    TaskLanding, TaskRename,
 };
 pub(crate) use palette::PaletteState;
 pub(crate) use review::{

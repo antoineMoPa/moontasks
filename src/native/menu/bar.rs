@@ -278,7 +278,8 @@ pub(crate) fn hamburger(
         // Not the tab in front: there is nowhere to switch to from it, and its row would only
         // push the others down.
         for tab in tabs.iter().filter(|tab| !tab.in_front) {
-            let row = egui::Button::new(egui::RichText::new(&tab.title)).min_size(egui::vec2(ui.available_width(), 28.0));
+            let row = egui::Button::new(egui::RichText::new(&tab.title))
+                .min_size(egui::vec2(ui.available_width(), 28.0));
             if ui.add(row).clicked() {
                 picked.push(MenuAction::FocusTab(tab.pane_id));
                 ui.close();

@@ -219,8 +219,14 @@ impl Profiles {
 
     /// Every person this server has made a Unix user for, signed in right now or not.
     pub(crate) fn people(&self) -> Result<Vec<crate::unix_users::Person>> {
-        let accounts: Vec<Account> =
-            self.inner.lock().unwrap().accounts.values().cloned().collect();
+        let accounts: Vec<Account> = self
+            .inner
+            .lock()
+            .unwrap()
+            .accounts
+            .values()
+            .cloned()
+            .collect();
         let mut people = Vec::new();
         for account in accounts {
             let Some(name) = &account.unix_user else {

@@ -65,11 +65,11 @@ pub(crate) fn reviews_done_mark(ui: &mut Ui, palette: &Palette) {
     }
     let painter = ui.painter();
     painter.circle_filled(rect.center(), DIAMETER / 2.0, palette.added);
-    let points: Vec<egui::Pos2> = CHECK
-        .iter()
-        .map(|(x, y)| rect.min + vec2(*x, *y))
-        .collect();
-    painter.add(egui::Shape::line(points, egui::Stroke::new(1.0, palette.panel)));
+    let points: Vec<egui::Pos2> = CHECK.iter().map(|(x, y)| rect.min + vec2(*x, *y)).collect();
+    painter.add(egui::Shape::line(
+        points,
+        egui::Stroke::new(1.0, palette.panel),
+    ));
 }
 
 /// The dot of a document listed on the task: filled with the accent color, in the place a

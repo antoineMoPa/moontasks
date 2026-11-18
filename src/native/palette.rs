@@ -151,7 +151,10 @@ pub(crate) enum CommandAction {
     NextSpace,
     /// The space at `from` takes the place `to` in the list, the ones between it and there
     /// making room.
-    MoveSpace { from: usize, to: usize },
+    MoveSpace {
+        from: usize,
+        to: usize,
+    },
     PreviousSpace,
     /// Put the space at this place in the list away, unless it is the only one.
     CloseSpaceAt(usize),
@@ -218,7 +221,10 @@ pub(crate) enum CommandAction {
     /// Make a card with this title and start this agent on it, told the title - see
     /// [`crate::native::board::quick_task`]. A browser's window cannot tell a shell a line.
     #[cfg(not(target_arch = "wasm32"))]
-    StartQuickTask { title: String, agent: AgentKind },
+    StartQuickTask {
+        title: String,
+        agent: AgentKind,
+    },
 }
 
 /// Every typed term has to appear somewhere in the title or description, which makes
@@ -262,7 +268,10 @@ enum TitleMatch {
 impl TitleMatch {
     fn of(title: &str, terms: &[String]) -> Self {
         let title = title.to_lowercase();
-        if title.split_whitespace().eq(terms.iter().map(String::as_str)) {
+        if title
+            .split_whitespace()
+            .eq(terms.iter().map(String::as_str))
+        {
             Self::Whole
         } else if terms.iter().all(|term| title.contains(term.as_str())) {
             Self::EveryTerm
@@ -341,10 +350,8 @@ mod tests {
     #[test]
     fn a_command_typed_by_its_title_is_the_first_row() {
         let fixture = crate::native::ui_tests::seeded_fixture("palette-title");
-        let app = crate::native::ui_tests::app_for(
-            &fixture.root,
-            crate::native::theme::ThemeMode::Dark,
-        );
+        let app =
+            crate::native::ui_tests::app_for(&fixture.root, crate::native::theme::ThemeMode::Dark);
 
         let matches = ranked(commands_for(&app), "open file");
 
@@ -359,10 +366,8 @@ mod tests {
     #[test]
     fn a_typed_title_is_offered_as_a_quick_task_after_the_commands() {
         let fixture = crate::native::ui_tests::seeded_fixture("palette-quick-task");
-        let mut app = crate::native::ui_tests::app_for(
-            &fixture.root,
-            crate::native::theme::ThemeMode::Dark,
-        );
+        let mut app =
+            crate::native::ui_tests::app_for(&fixture.root, crate::native::theme::ThemeMode::Dark);
         crate::native::ui_tests::palette_sections::offer_agents(
             &mut app,
             &[AgentKind::Claude, AgentKind::Codex],

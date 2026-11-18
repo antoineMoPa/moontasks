@@ -201,22 +201,45 @@ fn draw_status_column(
         |ui| {
             ui.set_width(COLUMN_WIDTH);
             ui.set_min_height(height);
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(status.to_uppercase())
-                        .size(SMALL_SIZE)
-                        .strong()
-                        .color(palette.ink),
-                );
-                ui.label(
-                    RichText::new(in_status.len().to_string())
-                        .size(SMALL_SIZE - 1.0)
-                        .color(palette.muted),
-                );
-                ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
-                    draw_review_hook_pill(app, ui, status, palette);
+            // Over a scene the heading is a pill like the strip's tabs - see the board's.
+            let heading_fill = crate::native::background::heading_backing(app, palette);
+            let draw_heading = |app: &mut App, ui: &mut Ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(status.to_uppercase())
+                            .size(SMALL_SIZE)
+                            .strong()
+                            .color(palette.ink),
+                    );
+                    ui.label(
+                        RichText::new(in_status.len().to_string())
+                            .size(SMALL_SIZE - 1.0)
+                            .color(palette.muted),
+                    );
+                    ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
+                        draw_review_hook_pill(app, ui, status, palette);
+                    });
                 });
-            });
+            };
+            match heading_fill {
+                Some(fill) => {
+                    egui::Frame::new()
+                        .fill(fill)
+                        .corner_radius(CornerRadius::same(4))
+                        .inner_margin(egui::Margin::symmetric(
+                            crate::native::background::HEADING_PADDING.0,
+                            crate::native::background::HEADING_PADDING.1,
+                        ))
+                        .show(ui, |ui| {
+                            ui.set_width(
+                                COLUMN_WIDTH
+                                    - 2.0 * f32::from(crate::native::background::HEADING_PADDING.0),
+                            );
+                            draw_heading(app, ui);
+                        });
+                }
+                None => draw_heading(app, ui),
+            }
             ui.add_space(3.0);
             ScrollArea::vertical()
                 .id_salt(("moontasks-review-status", status))
@@ -360,144 +383,145 @@ fn draw_review_card(
             .id(card_id)
             .sense(Sense::click_and_drag()),
         |ui| {
-        // Its words are the card's to be dragged by, not text to select.
-        ui.style_mut().interaction.selectable_labels = false;
-        if another_is_marked {
-            ui.multiply_opacity(OTHER_TASKS_OPACITY);
-        }
-        // A marked card is outlined and washed in the accent color, as a marked board card is.
-        let (fill, edge) = match review_marked {
-            true => (
-                palette.panel.lerp_to_gamma(palette.accent, MARKED_REVIEW_WASH),
-                palette.accent,
-            ),
-            false => (palette.panel, palette.line),
-        };
-        egui::Frame::new()
-            .fill(fill)
-            .stroke(Stroke::new(1.0, edge))
-            .corner_radius(CornerRadius::same(6))
-            .inner_margin(egui::Margin {
-                left: 8,
-                right: 8,
-                top: 6,
-                bottom: 6,
-            })
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
-                        let dismiss = draw_dismiss_mark(ui, file, palette);
-                        on_a_button |= dismiss.contains_pointer();
-                        if dismiss.clicked() {
-                            actions.push(dismiss_review(file));
+            // Its words are the card's to be dragged by, not text to select.
+            ui.style_mut().interaction.selectable_labels = false;
+            if another_is_marked {
+                ui.multiply_opacity(OTHER_TASKS_OPACITY);
+            }
+            // A marked card is outlined and washed in the accent color, as a marked board card is.
+            let (fill, edge) = match review_marked {
+                true => (
+                    palette
+                        .panel
+                        .lerp_to_gamma(palette.accent, MARKED_REVIEW_WASH),
+                    palette.accent,
+                ),
+                false => (palette.panel, palette.line),
+            };
+            egui::Frame::new()
+                .fill(fill)
+                .stroke(Stroke::new(1.0, edge))
+                .corner_radius(CornerRadius::same(6))
+                .inner_margin(egui::Margin {
+                    left: 8,
+                    right: 8,
+                    top: 6,
+                    bottom: 6,
+                })
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
+                            let dismiss = draw_dismiss_mark(ui, file, palette);
+                            on_a_button |= dismiss.contains_pointer();
+                            if dismiss.clicked() {
+                                actions.push(dismiss_review(file));
+                            }
+                            // A long branch is cut short of the ×, never drawn under it.
+                            ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
+                                // The board's own repo goes without saying; a submodule is named. A
+                                // review of the board's repo naming nothing else is named after it
+                                // all the same.
+                                if !request.path_under_repo.is_empty() || pull_request.is_empty() {
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(&request.name)
+                                                .size(SMALL_SIZE + 1.0)
+                                                .color(palette.ink),
+                                        )
+                                        .truncate(),
+                                    );
+                                }
+                                if !pull_request.is_empty() {
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(&pull_request)
+                                                .size(SMALL_SIZE)
+                                                .color(palette.accent_2),
+                                        )
+                                        .truncate(),
+                                    );
+                                }
+                            });
+                        });
+                    });
+                    // Its links get a line of their own, so a long branch can't run under them. A
+                    // click on the card opens what the row on its task's card opens; these open
+                    // each one whatever the review's status.
+                    ui.horizontal(|ui| {
+                        let review = draw_card_button(ui, "[moonreview]").on_hover_text(
+                            match &file.commit {
+                                Some(_) => "Open the diff of this commit",
+                                None => "Open the changes waiting where this is reviewed",
+                            },
+                        );
+                        on_a_button |= review.contains_pointer();
+                        if review.clicked() {
+                            actions.push(BoardAction::OpenReviewOf(request.clone()));
                         }
-                        // A long branch is cut short of the ×, never drawn under it.
-                        ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
-                            // The board's own repo goes without saying; a submodule is named. A
-                            // review of the board's repo naming nothing else is named after it
-                            // all the same.
-                            if !request.path_under_repo.is_empty() || pull_request.is_empty() {
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(&request.name)
-                                            .size(SMALL_SIZE + 1.0)
-                                            .color(palette.ink),
-                                    )
-                                    .truncate(),
+                        if let Some(url) = &file.pr_url {
+                            let pr =
+                                draw_card_button(ui, "[pr]").on_hover_text(format!("Open {url}"));
+                            on_a_button |= pr.contains_pointer();
+                            if pr.clicked() {
+                                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                            }
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
+                            if let Some(deploy) = &file.deploy {
+                                ui.label(RichText::new(deploy).size(SMALL_SIZE - 1.0).color(
+                                    match deploy.as_str() {
+                                        "deployed" => palette.added,
+                                        "merged" => palette.accent_2,
+                                        _ => palette.muted,
+                                    },
+                                ));
+                            }
+                            // What is left to commit where it is reviewed - a commit review has
+                            // nothing of the kind.
+                            if file.commit.is_none() && request.has_work_to_commit() {
+                                ui.label(
+                                    RichText::new(crate::native::submodules::changes_label(
+                                        request.changed_files,
+                                    ))
+                                    .size(SMALL_SIZE - 1.0)
+                                    .color(palette.muted),
                                 );
                             }
-                            if !pull_request.is_empty() {
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(&pull_request)
-                                            .size(SMALL_SIZE)
-                                            .color(palette.accent_2),
-                                    )
-                                    .truncate(),
-                                );
+                            if let Some(subject) = request.suggestion.as_ref().map(|s| &s.subject) {
+                                ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(subject)
+                                                .size(SMALL_SIZE)
+                                                .color(palette.muted),
+                                        )
+                                        .truncate(),
+                                    );
+                                });
                             }
                         });
                     });
-                });
-                // Its links get a line of their own, so a long branch can't run under them. A
-                // click on the card opens what the row on its task's card opens; these open
-                // each one whatever the review's status.
-                ui.horizontal(|ui| {
-                    let review = draw_card_button(ui, "[moonreview]").on_hover_text(
-                        match &file.commit {
-                            Some(_) => "Open the diff of this commit",
-                            None => "Open the changes waiting where this is reviewed",
-                        },
-                    );
-                    on_a_button |= review.contains_pointer();
-                    if review.clicked() {
-                        actions.push(BoardAction::OpenReviewOf(request.clone()));
-                    }
-                    if let Some(url) = &file.pr_url {
-                        let pr = draw_card_button(ui, "[pr]").on_hover_text(format!("Open {url}"));
-                        on_a_button |= pr.contains_pointer();
-                        if pr.clicked() {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
-                        }
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
-                        if let Some(deploy) = &file.deploy {
-                            ui.label(RichText::new(deploy).size(SMALL_SIZE - 1.0).color(
-                                match deploy.as_str() {
-                                    "deployed" => palette.added,
-                                    "merged" => palette.accent_2,
-                                    _ => palette.muted,
-                                },
-                            ));
-                        }
-                        // What is left to commit where it is reviewed - a commit review has
-                        // nothing of the kind.
-                        if file.commit.is_none() && request.has_work_to_commit() {
-                            ui.label(
-                                RichText::new(crate::native::submodules::changes_label(
-                                    request.changed_files,
-                                ))
+                    // While one task's reviews show alone, whose they are goes without saying.
+                    let task_line = match (&task_title, request.task_id.is_empty()) {
+                        (Some(title), _) => format!("↳ {}", widgets::elide_end(title, 44)),
+                        (None, true) => "↳ no task".to_string(),
+                        (None, false) => format!("↳ {}", request.task_id),
+                    };
+                    if !focused {
+                        ui.label(
+                            RichText::new(task_line)
                                 .size(SMALL_SIZE - 1.0)
                                 .color(palette.muted),
-                            );
-                        }
-                        if let Some(subject) = request.suggestion.as_ref().map(|s| &s.subject) {
-                            ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(subject)
-                                            .size(SMALL_SIZE)
-                                            .color(palette.muted),
-                                    )
-                                    .truncate(),
-                                );
-                            });
-                        }
-                    });
+                        );
+                    }
+                    draw_hook_runs_of_review(app, ui, request, file, palette, actions);
                 });
-                // While one task's reviews show alone, whose they are goes without saying.
-                let task_line = match (&task_title, request.task_id.is_empty()) {
-                    (Some(title), _) => format!("↳ {}", widgets::elide_end(title, 44)),
-                    (None, true) => "↳ no task".to_string(),
-                    (None, false) => format!("↳ {}", request.task_id),
-                };
-                if !focused {
-                    ui.label(
-                        RichText::new(task_line)
-                            .size(SMALL_SIZE - 1.0)
-                            .color(palette.muted),
-                    );
-                }
-                draw_hook_runs_of_review(app, ui, request, file, palette, actions);
-            });
         },
     );
-    let card = drawn
-        .response
-        .on_hover_text(hover_of_review(request, file));
+    let card = drawn.response.on_hover_text(hover_of_review(request, file));
     let modifiers = ui.input(|input| input.modifiers);
     if was_card_clicked_in_place(ui, &card) && !on_a_button {
         // A press that came back where it started is a click, even after it began a drag.
@@ -507,9 +531,7 @@ fn draw_review_card(
         if !(modifiers.command || modifiers.shift) {
             match choose_review_link(request) {
                 ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
-                ReviewLink::MoonReview => {
-                    actions.push(BoardAction::OpenReviewOf(request.clone()))
-                }
+                ReviewLink::MoonReview => actions.push(BoardAction::OpenReviewOf(request.clone())),
             }
         }
     } else if card.drag_started() {

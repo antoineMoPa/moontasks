@@ -355,8 +355,18 @@ impl App {
         // The palette belongs to whichever context is being drawn into, which is not
         // necessarily the one the app was built with. Image loaders go the same way: without
         // them on this context, every image diff draws as a load error.
+        let over_a_scene = self.background_of_this_project().is_some();
+        if over_a_scene != self.styled_over_a_scene {
+            self.styled_over_a_scene = over_a_scene;
+            self.needs_style = true;
+        }
         if self.needs_style {
-            theme::apply(ctx, self.model.theme, self.model.workspace_color);
+            theme::apply(
+                ctx,
+                self.model.theme,
+                self.model.workspace_color,
+                over_a_scene,
+            );
             self.needs_style = false;
         }
         if self.window_theme_frames > 0 {
@@ -392,6 +402,10 @@ impl App {
         self.remember_tab_order();
         self.model
             .tick_toasts(ctx.input(|input| input.stable_dt).min(0.25));
+
+        // A project's scene is the window's ground, painted before any panel so the strip of
+        // tabs and the bar at the foot show it too.
+        crate::native::background::paint_window(self, ui, self.palette_of().bg);
 
         // The browser header reserves space before every stage, including the
         // project prompt and opening screen.

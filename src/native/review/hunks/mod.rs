@@ -93,7 +93,10 @@ pub(super) fn gutter_width(row_width: f32) -> f32 {
 /// body's columns is clipped to it - the gutter and the marker stay put.
 pub(super) fn code_rect(rect: Rect) -> Rect {
     Rect::from_min_max(
-        egui::pos2(rect.min.x + gutter_width(rect.width()) + 6.0 + 9.0, rect.min.y),
+        egui::pos2(
+            rect.min.x + gutter_width(rect.width()) + 6.0 + 9.0,
+            rect.min.y,
+        ),
         rect.max,
     )
 }
@@ -432,6 +435,13 @@ fn draw_file_heading(
     });
 }
 
+/// How tall a hunk's card was the last time it was drawn, and how wide it was offered to be.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MeasuredCard {
+    pub(crate) height: f32,
+    pub(crate) width: f32,
+}
+
 #[allow(
     clippy::too_many_arguments,
     reason = "one call site; the alternative is a \
@@ -475,10 +485,17 @@ fn draw_hunk_card(
     //
     // The card being scrolled to is always drawn, because it is the one that has to report
     // where it landed.
+    //
+    // A picture's height follows the width it is drawn at, so an image's card measured at
+    // another width is drawn again: skipped at its old height, it would keep a height it no
+    // longer has until scrolled to, and everything under it - minimap and all - would move
+    // when it got it.
+    let width = ui.available_width();
     if scrolling_here.is_none()
-        && let Some(height) = app.hunk_heights.get(&hunk.id).copied()
+        && let Some(measured) = app.hunk_heights.get(&hunk.id).copied()
+        && (hunk.image_diff.is_none() || (measured.width - width).abs() < 0.5)
     {
-        let skipped = Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), height));
+        let skipped = Rect::from_min_size(ui.cursor().min, vec2(width, measured.height));
         if !ui.is_rect_visible(skipped) {
             ui.allocate_exact_size(skipped.size(), Sense::hover());
             app.model.review(session_id).minimap.card(&hunk.id, skipped);
@@ -514,7 +531,14 @@ fn draw_hunk_card(
         .show(ui, |ui| {
             draw_hunk_toolbar(app, ui, session_id, hunk, read_only, palette);
             if let Some(image) = &hunk.image_diff {
-                image_diff::draw_image_diff(app, ui, &hunk.file_path, image, palette);
+                image_diff::draw_image_diff(
+                    app,
+                    ui,
+                    &hunk.file_path,
+                    image,
+                    &mut being_drawn,
+                    palette,
+                );
                 return;
             }
             line_scrolled = draw_hunk_body(
@@ -561,8 +585,13 @@ fn draw_hunk_card(
     }
 
     // What it measured this time is what the next frame skips it with.
-    app.hunk_heights
-        .insert(hunk.id.clone(), response.rect.height());
+    app.hunk_heights.insert(
+        hunk.id.clone(),
+        MeasuredCard {
+            height: response.rect.height(),
+            width,
+        },
+    );
     app.model
         .review(session_id)
         .minimap

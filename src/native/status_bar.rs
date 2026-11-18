@@ -370,8 +370,8 @@ fn draw_said(ui: &mut Ui, text: &str, failed: bool, at_unix: u64, palette: &Pale
         // one high. The first line is the command, so the output follows it after a `#`, and
         // the rest of the lines run on after it with spaces. The whole is in the log.
         egui::Label::new(RichText::new(on_one_line(text)).size(SMALL_SIZE).color(ink))
-        .selectable(false)
-        .truncate(),
+            .selectable(false)
+            .truncate(),
     );
 }
 

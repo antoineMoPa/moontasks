@@ -83,14 +83,12 @@ mod tests {
         let now = unix_seconds_now();
 
         assert!(keys.admits_browser_session_at(&session, now));
-        assert!(keys.admits_browser_session_at(
-            &session,
-            now + BROWSER_SESSION_LIFETIME.as_secs() - 60
-        ));
-        assert!(!keys.admits_browser_session_at(
-            &session,
-            now + BROWSER_SESSION_LIFETIME.as_secs() + 1
-        ));
+        assert!(
+            keys.admits_browser_session_at(&session, now + BROWSER_SESSION_LIFETIME.as_secs() - 60)
+        );
+        assert!(
+            !keys.admits_browser_session_at(&session, now + BROWSER_SESSION_LIFETIME.as_secs() + 1)
+        );
     }
 
     #[test]
@@ -105,8 +103,14 @@ mod tests {
             RedeemedTickets::default().redeem(&keys, &session).is_err(),
             "a session was redeemed as a ticket"
         );
-        assert!(!keys.admits_browser_session(&key), "a pass key was let in as a session");
-        assert!(!keys.admits_browser_session(&ticket), "a ticket was let in as a session");
+        assert!(
+            !keys.admits_browser_session(&key),
+            "a pass key was let in as a session"
+        );
+        assert!(
+            !keys.admits_browser_session(&ticket),
+            "a ticket was let in as a session"
+        );
     }
 
     #[test]

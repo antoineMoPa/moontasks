@@ -534,7 +534,10 @@ fn review_files_are_read_and_moved_over_http() {
     let requests = backend
         .list_review_requests(&opened.session_id)
         .expect("expected the remote review requests");
-    assert!(!requests[0].pending(), "the review should read as committed");
+    assert!(
+        !requests[0].pending(),
+        "the review should read as committed"
+    );
     assert!(
         served
             .root
@@ -546,7 +549,10 @@ fn review_files_are_read_and_moved_over_http() {
     // A follow-up request under the same name: dismissing the committed one leaves it be.
     fs::write(
         requested.join("fix-the-thing.md"),
-        format!("---\ntask: {}\nrepo: .\n---\nfix: the thing, again\n", task.id),
+        format!(
+            "---\ntask: {}\nrepo: .\n---\nfix: the thing, again\n",
+            task.id
+        ),
     )
     .expect("expected the follow-up review file to be written");
     backend
@@ -555,8 +561,15 @@ fn review_files_are_read_and_moved_over_http() {
     let requests = backend
         .list_review_requests(&opened.session_id)
         .expect("expected the remote review requests");
-    assert_eq!(requests.len(), 1, "only the dismissed review should be gone");
-    assert_eq!(requests[0].file.status, "requested", "its namesake should stay");
+    assert_eq!(
+        requests.len(),
+        1,
+        "only the dismissed review should be gone"
+    );
+    assert_eq!(
+        requests[0].file.status, "requested",
+        "its namesake should stay"
+    );
     assert!(
         !served
             .root

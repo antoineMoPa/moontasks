@@ -41,10 +41,8 @@ impl App {
         // to commit what the review shows, and a run in its shell is not ours to end.
         if let Some(Pane::Review { session_id, .. }) = &closed
             && !self.commit_pane_is_busy(session_id)
-            && let Some((commit_pane, _)) = self
-                .model
-                .layout
-                .find_pane(|pane| pane.commits(session_id))
+            && let Some((commit_pane, _)) =
+                self.model.layout.find_pane(|pane| pane.commits(session_id))
         {
             self.close_pane(commit_pane);
         }

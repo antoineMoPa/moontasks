@@ -483,7 +483,8 @@ fn a_build_shell_that_ended_behind_another_tab_is_not_typed_into() {
 
     // Assert: the window hears of it without the tab being looked at, and closes it.
     assert!(
-        settle_until(&mut harness, &|| !open_shells().contains(&first_build_shell)),
+        settle_until(&mut harness, &|| !open_shells()
+            .contains(&first_build_shell)),
         "a shell that ended behind another tab should have had its tab closed, and the open \
          shells were {:?}",
         open_shells(),
@@ -631,4 +632,66 @@ fn the_project_pane_shows_when_the_day_ends() {
         harness.query_by_value("05").is_some(),
         "the minute, two figures wide"
     );
+}
+
+/// No button under a target spells "remove <its name>": a target is taken out by
+/// right-clicking its row in the list, and the file loses it.
+#[test]
+fn a_target_is_removed_from_its_rows_menu_not_a_button() {
+    use egui_kittest::kittest::Queryable as _;
+
+    let fixture = seeded_fixture("project-pane-remove-target");
+    let project_file = fixture.root.join(".moontasks.json");
+    fixture.write(
+        ".moontasks.json",
+        "{ \"targets\": [ { \"name\": \"moontasks\", \"build\": \"true\" }, \
+         { \"name\": \"kept\", \"build\": \"true\" } ] }\n",
+    );
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    let mut opened = false;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1200.0, 760.0))
+        .with_theme(egui::Theme::Dark)
+        .wgpu()
+        .build_ui(move |ui| {
+            if !opened && matches!(app.model.stage, crate::native::model::Stage::Ready) {
+                app.open_pane(OpenPaneRequest::Project);
+                opened = true;
+            }
+            app.draw(ui);
+        });
+
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while harness.query_by_label("kept").is_none() && Instant::now() < deadline {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    harness.run_steps(3);
+
+    assert!(
+        harness.query_by_label("remove moontasks").is_none(),
+        "the pane should not spell the target's name as a remove button"
+    );
+
+    // Act: right-click the target's row, then pick the menu's remove.
+    let row = harness.get_by_label("moontasks").rect().center();
+    super::right_click_at(&mut harness, row);
+    harness.run_steps(3);
+    harness.get_by_label("remove target").click();
+    harness.run_steps(3);
+
+    // Assert: the row is gone and the file keeps only the other target.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut text = String::new();
+    while Instant::now() < deadline {
+        harness.step();
+        text = std::fs::read_to_string(&project_file).unwrap_or_default();
+        if !text.contains("moontasks") {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!text.contains("moontasks"), "the file still has it: {text}");
+    assert!(text.contains("kept"), "the other target went too: {text}");
+    assert!(harness.query_by_label("moontasks").is_none());
 }

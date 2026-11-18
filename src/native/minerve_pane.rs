@@ -47,7 +47,10 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, terminal_id: &str) -> bool {
     }
     if !views.views.contains_key(terminal_id) {
         let Some((link, opening_line)) = app.backend().minerve_link(terminal_id) else {
-            app.model.minerve_views.terminals.insert(terminal_id.to_string());
+            app.model
+                .minerve_views
+                .terminals
+                .insert(terminal_id.to_string());
             return false;
         };
         let options = minerve_gui::Options {
@@ -57,7 +60,10 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, terminal_id: &str) -> bool {
             ..Default::default()
         };
         let view = minerve_gui::MinerveView::attached(ui.ctx(), link, options);
-        app.model.minerve_views.views.insert(terminal_id.to_string(), view);
+        app.model
+            .minerve_views
+            .views
+            .insert(terminal_id.to_string(), view);
     }
     let colors = colors_of(&app.palette_of());
     let views = &mut app.model.minerve_views;
@@ -108,7 +114,11 @@ fn colors_of(palette: &crate::native::theme::Palette) -> minerve_gui::Colors {
 /// `a` moved `t` of the way to `b`.
 fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
     let channel = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-    Color32::from_rgb(channel(a.r(), b.r()), channel(a.g(), b.g()), channel(a.b(), b.b()))
+    Color32::from_rgb(
+        channel(a.r(), b.r()),
+        channel(a.g(), b.g()),
+        channel(a.b(), b.b()),
+    )
 }
 
 impl App {
@@ -120,12 +130,19 @@ impl App {
         let shown: HashSet<String> = layout
             .frame_ids()
             .into_iter()
-            .filter_map(|frame| layout.frame(frame).and_then(egui_frames::Frame::active_pane))
+            .filter_map(|frame| {
+                layout
+                    .frame(frame)
+                    .and_then(egui_frames::Frame::active_pane)
+            })
             .filter_map(|pane| match layout.pane(pane) {
                 Some(Pane::Terminal { terminal_id, .. }) => Some(terminal_id.clone()),
                 _ => None,
             })
             .collect();
-        self.model.minerve_views.views.retain(|terminal_id, _| shown.contains(terminal_id));
+        self.model
+            .minerve_views
+            .views
+            .retain(|terminal_id, _| shown.contains(terminal_id));
     }
 }

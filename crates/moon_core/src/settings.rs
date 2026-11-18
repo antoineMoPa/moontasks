@@ -82,6 +82,18 @@ pub struct Settings {
     /// opens them again - see `App::restore_workspace`.
     #[serde(default)]
     pub workspace_projects: WorkspaceProjects,
+    /// The scene each project's task board is painted over, by the project's path - see
+    /// [`BackgroundScene`]. Like the workspace color, it is the person's way of telling their
+    /// projects apart, so it is kept here rather than in the repo. A project that is not in the
+    /// map has the plain board; one set back to it is taken out of the map.
+    #[serde(default, deserialize_with = "read_backgrounds")]
+    pub backgrounds: BTreeMap<String, BackgroundScene>,
+    /// Whatever else the file holds that this build does not know: a setting from a newer
+    /// moon. Kept and written back as it was, because windows of different builds share the
+    /// one file, and an older window rewriting it would otherwise throw away what a newer one
+    /// saved - a project's scene, say - the next time it changed anything.
+    #[serde(flatten)]
+    pub other: BTreeMap<String, serde_json::Value>,
 }
 
 /// The projects a window's spaces hold, kept so a relaunch puts them back. Only the window
@@ -121,9 +133,33 @@ pub enum SettingsChange {
     },
     SelectQuickTaskAgent(AgentKind),
     SaveWorkspaceProjects(WorkspaceProjects),
+    /// The scene a project's board is painted over, `None` for the plain board.
+    SetBackground {
+        project_path: String,
+        scene: Option<BackgroundScene>,
+    },
 }
 
 impl Settings {
+    /// The scene `project_path`'s board is painted over: the plain board (`None`) unless set.
+    pub fn background(&self, project_path: &str) -> Option<BackgroundScene> {
+        self.backgrounds.get(project_path).copied()
+    }
+
+    /// Set the scene of one project's board. Returns whether anything changed. Back to the
+    /// plain board takes the project out of the map, so the file does not fill up with entries
+    /// that say nothing.
+    pub fn set_background(&mut self, project_path: &str, scene: Option<BackgroundScene>) -> bool {
+        if self.background(project_path) == scene {
+            return false;
+        }
+        match scene {
+            Some(scene) => self.backgrounds.insert(project_path.to_string(), scene),
+            None => self.backgrounds.remove(project_path),
+        };
+        true
+    }
+
     /// Returns whether anything changed, so a change to what the file already says does not
     /// rewrite it.
     pub fn apply(&mut self, change: SettingsChange) -> bool {
@@ -145,6 +181,9 @@ impl Settings {
                 let changed = self.quick_task_agent != agent;
                 self.quick_task_agent = agent;
                 changed
+            }
+            SettingsChange::SetBackground { project_path, scene } => {
+                self.set_background(&project_path, scene)
             }
             SettingsChange::SaveWorkspaceProjects(projects) => {
                 let changed = self.workspace_projects != projects;
@@ -381,6 +420,43 @@ fn write_at(path: &std::path::Path, settings: &Settings) -> Result<()> {
         .with_context(|| format!("failed to write {}", path.display()))
 }
 
+/// Read the scenes projects are set to, leaving out a scene this build no longer has: a file
+/// that names one is not refused, and the project it names is simply the plain board.
+fn read_backgrounds<'de, D>(
+    deserializer: D,
+) -> std::result::Result<BTreeMap<String, BackgroundScene>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let written = BTreeMap::<String, serde_json::Value>::deserialize(deserializer)?;
+    Ok(written
+        .into_iter()
+        .filter_map(|(project, scene)| Some((project, serde_json::from_value(scene).ok()?)))
+        .collect())
+}
+
+/// The scenes the task board can be painted over: a background picture and the objects set
+/// on it. The pictures ship with moon - see `native::background`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundScene {
+    /// A night sky over vintage electronics.
+    Moon,
+    /// Locomotives scattered over an engineer's paper.
+    Trains,
+}
+
+impl BackgroundScene {
+    pub const ALL: [Self; 2] = [Self::Moon, Self::Trains];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Moon => "moon",
+            Self::Trains => "trains",
+        }
+    }
+}
+
 /// A color a workspace can be marked with. Kept per project in
 /// `~/.moontasks/settings.json` on the machine the project is on, so it follows the project
 /// to a window on any machine: which color a window is belongs to the person, not the repo.
@@ -420,6 +496,71 @@ impl WorkspaceColor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_settings_file_from_before_backgrounds_reads_as_the_plain_board() {
+        let settings: Settings = serde_json::from_str(r#"{"selected_agent":"claude"}"#)
+            .expect("expected an old file to parse");
+
+        assert_eq!(settings.background("/repos/anything"), None);
+    }
+
+    #[test]
+    fn a_background_belongs_to_its_project_and_survives_the_trip_through_the_file() {
+        let mut settings = Settings::default();
+        let set = |scene| SettingsChange::SetBackground {
+            project_path: "/repos/one".into(),
+            scene,
+        };
+
+        assert!(settings.apply(set(Some(BackgroundScene::Trains))));
+        assert!(
+            !settings.apply(set(Some(BackgroundScene::Trains))),
+            "the same scene twice is no change"
+        );
+        assert_eq!(
+            settings.background("/repos/two"),
+            None,
+            "another project keeps the plain board"
+        );
+
+        let text = serde_json::to_string(&settings).expect("expected settings to serialize");
+        assert!(text.contains(r#""backgrounds":{"/repos/one":"trains"}"#), "{text}");
+        let read: Settings = serde_json::from_str(&text).expect("expected settings to parse");
+        assert_eq!(read.background("/repos/one"), Some(BackgroundScene::Trains));
+
+        assert!(settings.apply(set(None)));
+        assert!(
+            settings.backgrounds.is_empty(),
+            "the plain board is not kept as an entry"
+        );
+    }
+
+    #[test]
+    fn a_setting_this_build_does_not_know_survives_a_rewrite() {
+        let mut settings: Settings =
+            serde_json::from_str(r#"{"selected_agent":"claude","from_the_future":{"a":[1,2]}}"#)
+                .expect("expected the file to parse");
+
+        assert!(settings.apply(SettingsChange::SelectAgent(AgentKind::Codex)));
+
+        let written = serde_json::to_string(&settings).expect("expected settings to serialize");
+        assert!(
+            written.contains(r#""from_the_future":{"a":[1,2]}"#),
+            "the unknown setting was dropped: {written}"
+        );
+    }
+
+    #[test]
+    fn a_scene_this_build_no_longer_has_is_the_plain_board_and_the_file_still_reads() {
+        let settings: Settings = serde_json::from_str(
+            r#"{"backgrounds":{"/repos/one":"snow","/repos/two":"moon"}}"#,
+        )
+        .expect("expected the file to parse");
+
+        assert_eq!(settings.background("/repos/one"), None);
+        assert_eq!(settings.background("/repos/two"), Some(BackgroundScene::Moon));
+    }
 
     #[test]
     fn settings_live_in_a_dot_directory_of_the_home_directory() {
@@ -475,12 +616,14 @@ mod tests {
             agent_models: BTreeMap::new(),
             quick_task_agent: AgentKind::Codex,
             workspace_projects: WorkspaceProjects::default(),
+            backgrounds: BTreeMap::new(),
+            other: BTreeMap::new(),
         })
         .expect("expected json");
 
         assert_eq!(
             encoded,
-            r#"{"selected_agent":"claude","recent_projects":[],"workspace_colors":{},"applications":[],"agent_models":{},"quick_task_agent":"codex","workspace_projects":{"spaces":[],"front":0}}"#
+            r#"{"selected_agent":"claude","recent_projects":[],"workspace_colors":{},"applications":[],"agent_models":{},"quick_task_agent":"codex","workspace_projects":{"spaces":[],"front":0},"backgrounds":{}}"#
         );
     }
 

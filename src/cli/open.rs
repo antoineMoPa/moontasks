@@ -337,10 +337,8 @@ mod tests {
     /// A folder to stand in for the directory a shell is in, named after the test so two
     /// cannot collide.
     fn temporary_folder(name: &str) -> PathBuf {
-        let folder = std::env::temp_dir().join(format!(
-            "moontasks-test-open-{}-{name}",
-            std::process::id()
-        ));
+        let folder =
+            std::env::temp_dir().join(format!("moontasks-test-open-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&folder);
         std::fs::create_dir_all(&folder).expect("expected a folder");
         folder

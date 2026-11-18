@@ -27,10 +27,9 @@ use std::{
 use anyhow::{Context, Result};
 
 use super::{
-    AgentAsks, Answer, Ask, Instance, StartsApplications, answered, launched, listen_on_own_socket, not_a_line_of_the_wire,
-    read_ask, remove_records, write_answer, write_record,
+    AgentAsks, Answer, Ask, Instance, StartsApplications, answered, launched, listen_on_own_socket,
+    not_a_line_of_the_wire, read_ask, remove_records, write_answer, write_record,
 };
-
 
 /// Who answers about agents, once the window has said - see [`ShellAsks::agents_answered_by`].
 type AnswersAboutAgents = Arc<Mutex<Option<Arc<dyn AgentAsks>>>>;
@@ -115,11 +114,7 @@ impl ShellAsks {
     /// Open the window's socket and start answering on it. The window is not written down
     /// yet: it has nothing to be found by until it is open on a project, which is what
     /// [`ShellAsks::on_project`] says.
-    pub fn listen(
-        program: String,
-        reads_this_machine: bool,
-        ctx: egui::Context,
-    ) -> Result<Self> {
+    pub fn listen(program: String, reads_this_machine: bool, ctx: egui::Context) -> Result<Self> {
         let listener = listen_on_own_socket()?;
 
         let asks = Self {
@@ -505,4 +500,3 @@ fn wire_refusal(
     }
     not_a_line_of_the_wire(sender, recipient, message)
 }
-

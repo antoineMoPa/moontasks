@@ -170,6 +170,13 @@ impl App {
         self.follow_task_in_front();
         self.stamp_tab_shortcuts(ui.ctx());
         *self.frames.style_mut() = self.palette_of().frames_style();
+        // Over a scene the frames have no fill of their own - the panes carry theirs - so the
+        // strip of tabs is the scene itself rather than a darker band laid over it.
+        if self.background_of_this_project().is_some() {
+            let style = self.frames.style_mut();
+            style.background = egui::Color32::TRANSPARENT;
+            style.frame_fill = egui::Color32::TRANSPARENT;
+        }
         // A new tab is a shell in the project, and the launch screen has none yet.
         self.frames
             .set_new_tab_button(matches!(self.model.stage, Stage::Ready));

@@ -13,8 +13,7 @@ use crate::{
     api::{
         AppError, AppState, FolderQuery,
         folders::{
-            FilePlaced, FolderListing, NewProjectFolderRequest, PlaceFileRequest,
-            RepoFolderListing,
+            FilePlaced, FolderListing, NewProjectFolderRequest, PlaceFileRequest, RepoFolderListing,
         },
     },
     service,

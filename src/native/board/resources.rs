@@ -82,29 +82,26 @@ pub(crate) fn draw_list(
             draw_reviews_summary(ui, task, &requests, card, palette, actions)
         });
         for request in &requests {
-            rows.place(ui, |ui| draw_review_row(ui, request, card, palette, actions));
+            rows.place(ui, |ui| {
+                draw_review_row(ui, request, card, palette, actions)
+            });
         }
     }
 }
 
-/// Where a review's row on a card takes you: moon's review while the work is still to look at
-/// or only committed, its pull request once it is pushed - which is where it is looked at then.
+/// Where a review's row on a card takes you: its pull request whenever it has one - that is
+/// where it is looked at then - and moon's review otherwise.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ReviewLink {
     MoonReview,
     PullRequest(String),
 }
 
-/// Choose where one review's row opens, from its status and whether it has a pull request page.
+/// Choose where one review's row opens: its pull request page if it has one, else moon's review.
 pub(crate) fn choose_review_link(request: &ReviewRequestView) -> ReviewLink {
-    let past_the_commit = [
-        crate::moontasks::reviews::PUSHED_REVIEW_STATUS,
-        crate::moontasks::reviews::DEPLOYED_REVIEW_STATUS,
-    ]
-    .contains(&request.file.status.as_str());
-    match (&request.file.pr_url, past_the_commit) {
-        (Some(url), true) => ReviewLink::PullRequest(url.clone()),
-        _ => ReviewLink::MoonReview,
+    match &request.file.pr_url {
+        Some(url) => ReviewLink::PullRequest(url.clone()),
+        None => ReviewLink::MoonReview,
     }
 }
 
@@ -225,7 +222,12 @@ fn draw_reviews_summary(
     };
     // How many are open is the mark's to say: a yellow dot while any is, a check once none is.
     let label = reviews;
-    let row = draw_row(ui, palette, true, "Show this task's reviews in the reviews tab");
+    let row = draw_row(
+        ui,
+        palette,
+        true,
+        "Show this task's reviews in the reviews tab",
+    );
     draw_in_row(ui, row.rect, |ui| {
         // Yellow while one still wants looking at, a green check once every one is done.
         match open {
@@ -756,21 +758,17 @@ mod review_link_tests {
         }
     }
 
-    /// Before the push, the work is looked at in moon; after it, on its pull request - and in
-    /// moon still when there is no pull request page to go to.
+    /// A review opens on its pull request whenever it has one, whatever its status - and in
+    /// moon when there is no pull request page to go to.
     #[test]
-    fn a_review_opens_in_moon_until_pushed_then_on_its_pull_request() {
+    fn a_review_opens_on_its_pull_request_whenever_it_has_one() {
         let url = "https://github.com/o/r/pull/412";
-        assert_eq!(choose_review_link(&review_in("requested", Some(url))), ReviewLink::MoonReview);
-        assert_eq!(choose_review_link(&review_in("committed", Some(url))), ReviewLink::MoonReview);
-        assert_eq!(
-            choose_review_link(&review_in("pushed", Some(url))),
-            ReviewLink::PullRequest(url.to_string())
-        );
-        assert_eq!(
-            choose_review_link(&review_in("deployed", Some(url))),
-            ReviewLink::PullRequest(url.to_string())
-        );
-        assert_eq!(choose_review_link(&review_in("pushed", None)), ReviewLink::MoonReview);
+        for status in ["requested", "committed", "pushed", "deployed"] {
+            assert_eq!(
+                choose_review_link(&review_in(status, Some(url))),
+                ReviewLink::PullRequest(url.to_string())
+            );
+            assert_eq!(choose_review_link(&review_in(status, None)), ReviewLink::MoonReview);
+        }
     }
 }

@@ -10,7 +10,8 @@ impl App {
     /// in front since they opened are kept at the tail, in the order they were found.
     pub(crate) fn remember_tab_order(&mut self) {
         let layout = &self.model.layout;
-        self.tabs_most_recent_first.retain(|pane| layout.contains(*pane));
+        self.tabs_most_recent_first
+            .retain(|pane| layout.contains(*pane));
         for (pane_id, _) in layout.panes() {
             if !self.tabs_most_recent_first.contains(&pane_id) {
                 self.tabs_most_recent_first.push(pane_id);

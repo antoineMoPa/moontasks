@@ -2,11 +2,6 @@
 
 use std::path::PathBuf;
 
-use moon_core::cli::wire::*;
-#[allow(unused_imports)]
-use std::{ffi::OsString, path::Path};
-#[allow(unused_imports)]
-use anyhow::{Context, Result, bail};
 #[allow(unused_imports)]
 use crate::{
     instances::{self, Ask},
@@ -15,6 +10,11 @@ use crate::{
         wire::{self, broadcasts, direct, handles},
     },
 };
+#[allow(unused_imports)]
+use anyhow::{Context, Result, bail};
+use moon_core::cli::wire::*;
+#[allow(unused_imports)]
+use std::{ffi::OsString, path::Path};
 
 use crate::{
     api::AgentKind,
@@ -147,9 +147,8 @@ fn a_line_break_in_the_line_is_refused() {
 #[test]
 fn a_tag_that_names_no_task_sends_nothing_and_lists_the_agents_running() {
     let (repo, races, bing_bong) = board("unknown-tag");
-    let idle =
-        store::create_task(&repo, "Nobody home", &ColumnId::new("done"), ColumnEnd::Top)
-            .expect("expected the card to be made");
+    let idle = store::create_task(&repo, "Nobody home", &ColumnId::new("done"), ColumnEnd::Top)
+        .expect("expected the card to be made");
     let asks = ShellAsks::listen("moon tasks".to_string(), true, egui::Context::default())
         .expect("expected a socket");
     asks.on_project(&repo.display().to_string())

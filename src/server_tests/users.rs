@@ -189,7 +189,10 @@ fn a_kicked_browser_login_is_shown_the_login_page_in_place_of_the_window() {
         .expect("failed to ask for the page");
     assert_eq!(login.status(), StatusCode::UNAUTHORIZED);
     let login = login.text().expect("expected a page");
-    assert!(login.contains("name=\"pass_key\""), "the login page: {login}");
+    assert!(
+        login.contains("name=\"pass_key\""),
+        "the login page: {login}"
+    );
     assert!(
         login.contains("kicked out"),
         "the login page says the login was kicked: {login}"

@@ -557,7 +557,7 @@ const SHELL_GLYPHS: &str = concat!(
     "\u{28FE}\u{28FD}\u{28FB}\u{28BF}\u{287F}\u{28DF}\u{28EF}\u{28F7}", // and the fuller one
     "\u{2714}\u{2716}\u{26A1}\u{23F3}\u{231B}\u{1F504}", // tick, cross, bolt, hourglasses, refresh
     "\u{1F311}\u{1F312}\u{1F313}\u{1F314}\u{1F315}",     // the moon phases some tools spin
-    "\u{2722}\u{2733}\u{2736}\u{273B}\u{273D}",           // the stars Claude Code spins
+    "\u{2722}\u{2733}\u{2736}\u{273B}\u{273D}",          // the stars Claude Code spins
 );
 
 #[test]

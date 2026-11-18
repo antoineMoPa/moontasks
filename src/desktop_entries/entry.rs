@@ -6,14 +6,7 @@
 //! menu: `Type`, `Name`, `Exec`, `TryExec`, `Path`, `Categories`, `Icon`, and the keys that
 //! take an entry off a menu - `Hidden`, `NoDisplay`, `OnlyShowIn`, `NotShowIn`, `Terminal`.
 
-use std::{
-    collections::HashMap,
-    env,
-    ffi::OsStr,
-    fs,
-    os::unix::fs::PermissionsExt,
-    path::Path,
-};
+use std::{collections::HashMap, env, ffi::OsStr, fs, os::unix::fs::PermissionsExt, path::Path};
 
 use anyhow::{Context, Result, bail, ensure};
 
@@ -179,7 +172,9 @@ fn translation_tags(locale: &str) -> Vec<String> {
         Some((locale, modifier)) => (locale, Some(modifier)),
         None => (locale, None),
     };
-    let locale = locale.split_once('.').map_or(locale, |(locale, _encoding)| locale);
+    let locale = locale
+        .split_once('.')
+        .map_or(locale, |(locale, _encoding)| locale);
     let (language, country) = match locale.split_once('_') {
         Some((language, country)) => (language, Some(country)),
         None => (locale, None),
@@ -304,7 +299,11 @@ mod tests {
     }
 
     /// Read an entry of this text, as a file in a scratch folder of the test's own.
-    fn read_text(test: &str, text: &str, session: &Session) -> Result<Option<InstalledApplication>> {
+    fn read_text(
+        test: &str,
+        text: &str,
+        session: &Session,
+    ) -> Result<Option<InstalledApplication>> {
         let file = env::temp_dir().join(format!(
             "moontasks-desktop-entry-{}-{test}.desktop",
             std::process::id()
@@ -426,9 +425,21 @@ Exec=/usr/bin/chromium --new-window
     fn an_entry_the_specification_does_not_allow_says_what_is_wrong_with_it() {
         let broken = [
             ("no-group", "Name=Clock\n", "does not start with"),
-            ("no-type", "[Desktop Entry]\nName=Clock\nExec=xclock\n", "no Type"),
-            ("no-name", "[Desktop Entry]\nType=Application\nExec=xclock\n", "no Name"),
-            ("no-exec", "[Desktop Entry]\nType=Application\nName=Clock\n", "no Exec"),
+            (
+                "no-type",
+                "[Desktop Entry]\nName=Clock\nExec=xclock\n",
+                "no Type",
+            ),
+            (
+                "no-name",
+                "[Desktop Entry]\nType=Application\nExec=xclock\n",
+                "no Name",
+            ),
+            (
+                "no-exec",
+                "[Desktop Entry]\nType=Application\nName=Clock\n",
+                "no Exec",
+            ),
             (
                 "not-a-key",
                 "[Desktop Entry]\nType=Application\nName=Clock\nxclock\n",
@@ -460,7 +471,10 @@ Exec=/usr/bin/chromium --new-window
         };
 
         assert_eq!(line("gedit %F", None), "gedit");
-        assert_eq!(line("vlc --started-from-file %U", None), "vlc --started-from-file");
+        assert_eq!(
+            line("vlc --started-from-file %U", None),
+            "vlc --started-from-file"
+        );
         assert_eq!(line("printf 100%% %f", None), "printf 100%");
         assert_eq!(
             line("kate %i -caption %c", Some("kate")),
@@ -481,13 +495,17 @@ Exec=/usr/bin/chromium --new-window
     #[test]
     fn the_escapes_of_a_value_are_read_and_a_shell_s_are_left() {
         assert_eq!(unescaped(r"a\sb\tc\\d"), "a b\tc\\d");
-        assert_eq!(unescaped(r#"sh -c "echo \"\$HOME\"""#), r#"sh -c "echo \"\$HOME\"""#);
+        assert_eq!(
+            unescaped(r#"sh -c "echo \"\$HOME\"""#),
+            r#"sh -c "echo \"\$HOME\"""#
+        );
         assert_eq!(unescaped(r"ends in \"), r"ends in \");
     }
 
     #[test]
     fn an_entry_with_a_folder_of_its_own_is_started_in_it() {
-        let text = "[Desktop Entry]\nType=Application\nName=Game\nExec=./game %f\nPath=/opt/a game\n";
+        let text =
+            "[Desktop Entry]\nType=Application\nName=Game\nExec=./game %f\nPath=/opt/a game\n";
 
         let read = read_text("path", text, &session()).expect("an entry in order");
 

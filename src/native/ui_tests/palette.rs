@@ -59,7 +59,6 @@ fn the_command_palette_lists_what_can_be_opened() {
         .ctx
         .all_styles_mut(|style| style.visuals.text_cursor.blink = false);
     harness.run_steps(3);
-
 }
 
 /// `split bottom` from the palette: the frame in two the short way, with a live shell in the
@@ -223,7 +222,10 @@ fn typing_in_the_palette_highlights_the_first_match_again() {
         .expect("the palette should have been drawn");
     let over_lower_row = egui::pos2(palette.center().x, palette.min.y + 200.0);
     for at in [over_lower_row - egui::vec2(10.0, 0.0), over_lower_row] {
-        harness.input_mut().events.push(egui::Event::PointerMoved(at));
+        harness
+            .input_mut()
+            .events
+            .push(egui::Event::PointerMoved(at));
         harness.run_steps(1);
     }
     harness.run_steps(1);
@@ -804,17 +806,17 @@ fn the_palette_still_offers_a_review_that_is_already_open() {
 
 /// Opens the palette over a pane with the keyboard, presses Escape, and says whether the
 /// palette is still up.
-fn palette_survives_escape_over(
-    mut harness: Harness<'static>,
-    showing: Arc<AtomicBool>,
-) -> bool {
+fn palette_survives_escape_over(mut harness: Harness<'static>, showing: Arc<AtomicBool>) -> bool {
     press_key(
         &mut harness,
         egui::Key::P,
         egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT),
     );
     harness.run_steps(2);
-    assert!(showing.load(Ordering::Relaxed), "cmd+shift+P should have opened the palette");
+    assert!(
+        showing.load(Ordering::Relaxed),
+        "cmd+shift+P should have opened the palette"
+    );
     press_key(&mut harness, egui::Key::Escape, egui::Modifiers::NONE);
     harness.run_steps(2);
     showing.load(Ordering::Relaxed)
@@ -863,9 +865,14 @@ fn escape_puts_the_palette_away_over_a_file() {
                 );
             }
         });
-    assert!(settle(&mut harness, || loaded.load(Ordering::Relaxed)), "the file never loaded");
+    assert!(
+        settle(&mut harness, || loaded.load(Ordering::Relaxed)),
+        "the file never loaded"
+    );
     harness.run_steps(2);
-    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness
+        .get_by_role(egui::accesskit::Role::MultilineTextInput)
+        .click();
     harness.run_steps(2);
 
     assert!(
@@ -941,9 +948,9 @@ fn escape_puts_the_palette_away_over_a_shell() {
             app.draw(ui);
             showing_in_ui.store(app.model.palette.is_open(), Ordering::Relaxed);
             shell_in_ui.store(
-                app.model.terminal_with_keyboard.is_some_and(|id| {
-                    ui.ctx().memory(|memory| memory.has_focus(id))
-                }),
+                app.model
+                    .terminal_with_keyboard
+                    .is_some_and(|id| ui.ctx().memory(|memory| memory.has_focus(id))),
                 Ordering::Relaxed,
             );
         });
@@ -958,4 +965,3 @@ fn escape_puts_the_palette_away_over_a_shell() {
         "Escape should have put the palette away over a shell"
     );
 }
-

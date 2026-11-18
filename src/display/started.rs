@@ -266,7 +266,9 @@ mod tests {
         let id = program.id();
         assert_eq!(
             ended(program).failure_of("xlogo"),
-            Some(format!("`xlogo` ended (exit status: 3): {id} has no display"))
+            Some(format!(
+                "`xlogo` ended (exit status: 3): {id} has no display"
+            ))
         );
 
         // One that ended well is nothing to report.

@@ -6,10 +6,11 @@
 //! What is the review's own is what the map is of. A file is a line to a row; a review is
 //! cards of rows with headings between them and comments in among them. So the diff pane
 //! reports where every card landed as it draws - see [`Minimap::card`] - and a card that is
-//! really drawn reports where its rows and its comments are inside it - see
+//! really drawn reports where its rows, its comments and its pictures are inside it - see
 //! [`CardBeingDrawn`]. The map is folded from that layout, an added or a removed line in the
-//! ink the diff draws it in and a comment in the accent, so the strip and the diff cannot
-//! disagree about where a line is.
+//! ink the diff draws it in, a comment in the accent, and a changed image's before and after
+//! down the halves of the strip the card puts them in, so the strip and the diff cannot
+//! disagree about where anything is.
 
 use std::{collections::HashMap, ops::Range};
 
@@ -88,14 +89,32 @@ struct Stretch {
     lines: Range<usize>,
 }
 
-/// Where a card's rows and its comments are inside it, measured from the card's top - what
-/// only drawing the card can say, and what stays true of it while it is scrolled out of
-/// sight and skipped.
+/// Which side of an image's comparison a picture is: the card draws the before on the left
+/// and the after on the right.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Side {
+    Before,
+    After,
+}
+
+/// One side of a changed image, as drawn in its card.
+#[derive(Clone, Copy, Debug)]
+struct Picture {
+    side: Side,
+    /// Its top and its bottom, from the top of the card.
+    place: Rangef,
+}
+
+/// Where a card's rows, its comments and its pictures are inside it, measured from the card's
+/// top - what only drawing the card can say, and what stays true of it while it is scrolled
+/// out of sight and skipped.
 #[derive(Clone, Default, Debug)]
 pub(crate) struct CardShape {
     stretches: Vec<Stretch>,
     /// The comments and the composers between the rows, each as its top and its bottom.
     notes: Vec<Rangef>,
+    /// An image's card has these instead of rows.
+    pictures: Vec<Picture>,
 }
 
 impl CardShape {
@@ -111,10 +130,22 @@ impl CardShape {
                 .all(|(one, other)| {
                     one.lines == other.lines && (one.top - other.top).abs() < SAME_PLACE
                 })
-            && self.notes.iter().zip(&other.notes).all(|(one, other)| {
-                (one.min - other.min).abs() < SAME_PLACE && (one.max - other.max).abs() < SAME_PLACE
-            })
+            && self
+                .notes
+                .iter()
+                .zip(&other.notes)
+                .all(|(one, other)| same_range(*one, *other))
+            && self.pictures.len() == other.pictures.len()
+            && self
+                .pictures
+                .iter()
+                .zip(&other.pictures)
+                .all(|(one, other)| one.side == other.side && same_range(one.place, other.place))
     }
+}
+
+fn same_range(one: Rangef, other: Rangef) -> bool {
+    (one.min - other.min).abs() < SAME_PLACE && (one.max - other.max).abs() < SAME_PLACE
 }
 
 /// A card while it is being drawn: where on the screen it starts, and the shape it reports
@@ -158,18 +189,28 @@ impl CardBeingDrawn {
             .push(Rangef::new(top - self.top, bottom - self.top));
     }
 
+    /// One side of a changed image was drawn between two places on the screen.
+    pub(crate) fn picture(&mut self, side: Side, top: f32, bottom: f32) {
+        self.shape.pictures.push(Picture {
+            side,
+            place: Rangef::new(top - self.top, bottom - self.top),
+        });
+    }
+
     pub(crate) fn shape(self) -> CardShape {
         self.shape
     }
 }
 
 /// The inks of the map's layers, in the order they are drawn: the grounds first, then the
-/// lines over them, a change over the context around it.
+/// pictures and the comments, then the lines over them, a change over the context around it.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct Inks {
     card: Color32,
     removed_ground: Color32,
     added_ground: Color32,
+    before_picture: Color32,
+    after_picture: Color32,
     note: Color32,
     context: Color32,
     removed: Color32,
@@ -178,17 +219,46 @@ struct Inks {
 
 impl Inks {
     /// A card in the ground the diff draws one on, a changed line in the tint and the ink
-    /// the diff gives it, a comment in the accent, and context in the ink a file tab's map
-    /// draws a line in.
+    /// the diff gives it, a picture in a fainter one of the same - a block of it is a lot of
+    /// ink beside a line's two pixels - a comment in the accent, and context in the ink a
+    /// file tab's map draws a line in.
     fn of(palette: &Palette, style: &EditorStyle) -> Self {
         Self {
             card: palette.code_bg,
             removed_ground: palette.diff_removed_bg,
             added_ground: palette.diff_added_bg,
+            before_picture: palette.removed.gamma_multiply(PICTURE_INK),
+            after_picture: palette.added.gamma_multiply(PICTURE_INK),
             note: palette.accent,
             context: style.minimap_ink,
             removed: palette.removed,
             added: palette.added,
+        }
+    }
+}
+
+/// How much of a changed line's ink a picture is drawn in.
+const PICTURE_INK: f32 = 0.35;
+
+/// The halves of the strip an image's two sides are drawn down, as the card lays them out:
+/// the before on the left, the after on the right.
+#[derive(Clone, Copy)]
+struct Halves {
+    before: MinimapSpan,
+    after: MinimapSpan,
+}
+
+impl Halves {
+    /// The halves of a map `max_chars` wide. A span is only ever made from a line, so each
+    /// half is made from a line that inks it.
+    fn of_map_width(max_chars: usize) -> Self {
+        let half = max_chars / 2;
+        Self {
+            before: MinimapSpan::of(&"x".repeat(half), max_chars),
+            after: MinimapSpan::of(
+                &format!("{}{}", " ".repeat(half), "x".repeat(max_chars - half)),
+                max_chars,
+            ),
         }
     }
 }
@@ -201,17 +271,42 @@ struct Layers {
     removed_grounds: Vec<Range<f32>>,
     added_grounds: Vec<Range<f32>>,
     notes: Vec<Range<f32>>,
+    before_pictures: Vec<(f32, MinimapSpan)>,
+    after_pictures: Vec<(f32, MinimapSpan)>,
     context: Vec<(f32, MinimapSpan)>,
     removed: Vec<(f32, MinimapSpan)>,
     added: Vec<(f32, MinimapSpan)>,
 }
 
 impl Layers {
-    /// Add one card: its ground, then its lines and its comments where the card's shape
-    /// says they are. `lines` are the hunk's parsed lines, the ones the shape's stretches
-    /// index, and `max_chars` how many characters of one the map has room for.
-    fn card(&mut self, card: &Card, shape: &CardShape, lines: &[DiffLine], max_chars: usize) {
+    /// Add one card: its ground, then its lines, its comments and its pictures where the
+    /// card's shape says they are. `lines` are the hunk's parsed lines, the ones the shape's
+    /// stretches index, `max_chars` how many characters of one the map has room for, and
+    /// `row_pitch` how far apart one row of the diff is from the next.
+    fn card(
+        &mut self,
+        card: &Card,
+        shape: &CardShape,
+        lines: &[DiffLine],
+        max_chars: usize,
+        row_pitch: f32,
+    ) {
         self.cards.push(card.top..card.top + card.height);
+        let halves = Halves::of_map_width(max_chars);
+        for picture in &shape.pictures {
+            let (inked, half) = match picture.side {
+                Side::Before => (&mut self.before_pictures, halves.before),
+                Side::After => (&mut self.after_pictures, halves.after),
+            };
+            // A layer of spans is one to a pixel row of the map, and the map draws a line at
+            // most two of them tall: a span every half row is a picture with no gaps in it.
+            let step = (row_pitch / 2.0).max(1.0);
+            let mut top = card.top + picture.place.min;
+            while top < card.top + picture.place.max {
+                inked.push((top, half));
+                top += step;
+            }
+        }
         self.notes.extend(
             shape
                 .notes
@@ -286,14 +381,7 @@ impl Minimap {
 
     /// Fold the map again, from the cards the diff just reported. `session_ids` are the
     /// reviews whose hunks the cards are of.
-    fn fold(
-        &mut self,
-        app: &App,
-        session_ids: &[&str],
-        strip: Rect,
-        row_pitch: f32,
-        inks: Inks,
-    ) {
+    fn fold(&mut self, app: &App, session_ids: &[&str], strip: Rect, row_pitch: f32, inks: Inks) {
         let hunks: HashMap<u64, &HunkView> = session_ids
             .iter()
             .filter_map(|session_id| app.model.review_ref(session_id))
@@ -311,9 +399,9 @@ impl Minimap {
                 .hunk_shapes
                 .get(&hunk.id)
                 .expect("a card that was laid out was drawn once, which is what shaped it");
-            // An image's card has no lines to it, only the card itself.
+            // An image's card has no lines to it, only its pictures.
             let lines = app.built_diff_lines(&hunk.id).unwrap_or_default();
-            layers.card(card, shape, lines, max_chars);
+            layers.card(card, shape, lines, max_chars, row_pitch);
         }
 
         let mut fold = self
@@ -322,6 +410,8 @@ impl Minimap {
         fold.bands(inks.card, layers.cards);
         fold.bands(inks.removed_ground, layers.removed_grounds);
         fold.bands(inks.added_ground, layers.added_grounds);
+        fold.lines(inks.before_picture, layers.before_pictures);
+        fold.lines(inks.after_picture, layers.after_pictures);
         fold.bands(inks.note, layers.notes);
         fold.lines(inks.context, layers.context);
         fold.lines(inks.removed, layers.removed);

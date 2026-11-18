@@ -114,7 +114,8 @@ fn a_minerve_shell_is_drawn_with_minerves_view_and_ends_with_its_shell() {
                 }
                 // The ended shell's tab goes, or shows minerve gone.
                 Step::WaitForHangUp => {
-                    if minerve_shell(&app).is_none_or(|terminal_id| !connected(&app, &terminal_id)) {
+                    if minerve_shell(&app).is_none_or(|terminal_id| !connected(&app, &terminal_id))
+                    {
                         *step = Step::Done;
                     }
                 }
@@ -137,15 +138,28 @@ fn a_minerve_shell_is_drawn_with_minerves_view_and_ends_with_its_shell() {
     // Typed into minerve's own box, not the shell's pty: a click on the box gives it the
     // keyboard, which an embedded view does not take by itself.
     harness.run_steps(3);
-    harness.get_by_role(egui::accesskit::Role::MultilineTextInput).click();
+    harness
+        .get_by_role(egui::accesskit::Role::MultilineTextInput)
+        .click();
     harness.run_steps(2);
-    harness.input_mut().events.push(egui::Event::Text("/mc".to_string()));
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::Text("/mc".to_string()));
     harness.run_steps(3);
-    assert_eq!(draft(&draft_in_ui), "/mc", "typing should reach minerve's box");
+    assert_eq!(
+        draft(&draft_in_ui),
+        "/mc",
+        "typing should reach minerve's box"
+    );
     // The slash menu's rows are buttons: a click puts the command in the box.
     harness.get_by_label_contains("/mcp").click();
     harness.run_steps(3);
-    assert_eq!(draft(&draft_in_ui), "/mcp", "clicking a suggestion should pick it");
+    assert_eq!(
+        draft(&draft_in_ui),
+        "/mcp",
+        "clicking a suggestion should pick it"
+    );
     save_picture(&mut harness);
 
     *step.lock().unwrap() = Step::EndShell;
