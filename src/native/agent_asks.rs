@@ -48,6 +48,7 @@ impl AgentAsks for WindowAgents {
                 agent,
                 opens_in: StartFolder::Repo,
                 unattended: true,
+                moves_to_in_progress: false,
             },
         )?;
         self.backend

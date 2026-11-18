@@ -343,6 +343,7 @@ impl AgentAsks for AskedBy<'_> {
                 agent,
                 opens_in: StartFolder::Repo,
                 unattended: true,
+                moves_to_in_progress: false,
             },
         )?;
         state

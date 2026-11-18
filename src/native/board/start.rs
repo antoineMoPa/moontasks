@@ -59,6 +59,7 @@ fn offers(app: &App, task: RunsOf<'_>) -> Vec<Vec<StartOffer>> {
                     agent: AgentKind::None,
                     opens_in: StartFolder::Repo,
                     unattended: false,
+                    moves_to_in_progress: false,
                 },
             ),
         },
@@ -129,6 +130,7 @@ fn agent_offers(
             agent,
             opens_in: StartFolder::Repo,
             unattended: false,
+            moves_to_in_progress: false,
         },
     );
     let Some(log_in_command) = log_in_command else {

@@ -216,6 +216,7 @@ impl BoardSession {
                 agent,
                 opens_in: StartFolder::Repo,
                 unattended: false,
+                moves_to_in_progress: false,
             },
         )
     }
@@ -231,6 +232,7 @@ impl BoardSession {
                 agent: AgentKind::None,
                 opens_in,
                 unattended: false,
+                moves_to_in_progress: false,
             },
         )
     }

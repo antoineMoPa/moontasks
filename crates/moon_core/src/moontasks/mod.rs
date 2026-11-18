@@ -267,6 +267,11 @@ pub struct StartResourceRequest {
     /// the answer.
     #[serde(default)]
     pub unattended: bool,
+    /// Whether the task's card moves to in progress as the agent starts. Only the palette's
+    /// quick task asks for it: an agent started from a card, the CLI or a hook leaves the card
+    /// where the person put it.
+    #[serde(default)]
+    pub moves_to_in_progress: bool,
 }
 
 /// Which folder a task's shell or agent comes up in.

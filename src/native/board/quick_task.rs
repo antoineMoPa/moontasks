@@ -3,7 +3,7 @@
 //! What is typed into the palette is offered as the title of a new card, on one row with a
 //! chip per agent that can be started. Enter starts the agent picked, a chip its own. That
 //! makes the card at the top of the board's first column, starts the agent on it - which
-//! moves the card to in progress, see `crate::moontasks::service::resources` - and tells the
+//! moves the card to in progress, the one start that does - and tells the
 //! agent the title as its first line, so it starts on the work rather than waiting to be
 //! told it. Nothing opens: the palette was
 //! opened over something else, and that is what stays in front. The card's agent dot says it
@@ -148,6 +148,7 @@ pub(crate) fn start(app: &mut App, title: String, agent: AgentKind) {
                     agent,
                     opens_in: StartFolder::Repo,
                     unattended: false,
+                    moves_to_in_progress: true,
                 },
             )?;
             // Waits in the shell until the agent has a box to take it - see `told` in

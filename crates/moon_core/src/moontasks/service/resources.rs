@@ -57,6 +57,7 @@ pub(crate) fn start_hook_run(
         agent,
         opens_in: StartFolder::Repo,
         unattended: true,
+        moves_to_in_progress: false,
     };
     start_run(state, session_id, task_id, request, Some(hook))
 }
@@ -150,7 +151,7 @@ fn start_run(
             for_review: hook.as_ref().and_then(|hook| hook.for_review.clone()),
         });
         store::write_task(&repo_path, task_id, &metadata)?;
-        if hook.is_none() {
+        if hook.is_none() && request.moves_to_in_progress {
             move_to_in_progress(state, &repo_path, task_id, &metadata)?;
         }
     } else if let Some(hook) = &hook {
@@ -186,7 +187,7 @@ pub(crate) fn hook_of_shell(terminal_id: &str) -> (Option<String>, Option<String
         .map_or((None, None), |(label, review)| (Some(label), review))
 }
 
-/// The column a card goes to as soon as an agent is started on it.
+/// The column a card goes to when an agent is started on it from the palette's quick task.
 const IN_PROGRESS_COLUMN: &str = "in_progress";
 /// The column a card that is finished is in, which an agent started on it again does not take
 /// it out of.
