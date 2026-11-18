@@ -27,6 +27,8 @@ mod files;
 mod firing;
 #[cfg(not(target_arch = "wasm32"))]
 mod runner;
+#[cfg(not(target_arch = "wasm32"))]
+mod running_now;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 
@@ -36,6 +38,8 @@ pub use editing::{list_hooks, remove_hook, save_hook};
 pub(crate) use files::split_front_matter;
 #[cfg(not(target_arch = "wasm32"))]
 pub use runner::{note_window_focus, start_hook_runner};
+#[cfg(not(target_arch = "wasm32"))]
+pub use running_now::run_hook_now;
 
 use serde::{Deserialize, Serialize};
 
@@ -260,6 +264,34 @@ pub enum SaveHookRequest {
     Review {
         hook: ReviewHook,
     },
+}
+
+/// A hook fired at once from its editor, as typed there - see `running_now`. `task` and
+/// `review` name what it runs on; without one, a column's runs on its top card and a review
+/// status's on the review that arrived there last.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum RunHookNowRequest {
+    Column {
+        hook: ColumnHook,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        task: Option<String>,
+    },
+    Schedule {
+        schedule: Schedule,
+    },
+    Review {
+        hook: ReviewHook,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        review: Option<String>,
+    },
+}
+
+/// The run a [`RunHookNowRequest`] started, for the window to open.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HookRunStarted {
+    pub task_id: String,
+    pub terminal_id: String,
 }
 
 /// A hook taken off the board.

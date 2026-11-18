@@ -64,6 +64,19 @@ pub(super) async fn save_hook(
     Ok("ok")
 }
 
+pub(super) async fn run_hook_now(
+    AxumPath(session_id): AxumPath<String>,
+    State(state): State<AppState>,
+    Json(request): Json<moontasks::hooks::RunHookNowRequest>,
+) -> Result<Json<moontasks::hooks::HookRunStarted>, AppError> {
+    mark_activity(&state);
+    let started = core_session_work(state, session_id, move |state, session_id| {
+        moontasks::hooks::run_hook_now(state, session_id, request)
+    })
+    .await?;
+    Ok(Json(started))
+}
+
 pub(super) async fn remove_hook(
     AxumPath(session_id): AxumPath<String>,
     State(state): State<AppState>,

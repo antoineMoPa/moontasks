@@ -357,7 +357,7 @@ fn fire_due_schedules(
             continue;
         }
         let said = match fire_schedule(state, session_id, repo_path, schedule, &now.date) {
-            Ok(()) => format!("{}: started", schedule.name),
+            Ok(_) => format!("{}: started", schedule.name),
             Err(error) => format!("{}: failed: {error:#}", schedule.name),
         };
         write_log_line(repo_path, &said);
@@ -449,7 +449,7 @@ fn sweep_old_claims(repo_path: &Path, watch: &mut Watch) {
 
 /// Add a line to the hooks' log. A hook fires with nobody at the window, so this is the only
 /// account of what it did or why it did not.
-fn write_log_line(repo_path: &Path, said: &str) {
+pub(super) fn write_log_line(repo_path: &Path, said: &str) {
     let dir = hooks_dir(repo_path);
     let _ = std::fs::create_dir_all(&dir);
     let Ok(mut log) = std::fs::OpenOptions::new()

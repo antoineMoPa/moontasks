@@ -40,14 +40,36 @@ pub(super) fn fire_column_hook(
     hook: &ColumnHook,
     arrival: &Arrival,
 ) -> Result<Fired> {
-    let mut metadata = store::read_task(repo_path, arrival.task_id)?;
-    if metadata.hook_runs_in_a_row >= HOOK_RUNS_IN_A_ROW_CAP {
+    if !count_a_hook_run_on_card(repo_path, arrival.task_id)? {
         return Ok(Fired::StoppedForLoops);
     }
-    // Counted before the run starts, so the run's own move of the card cannot overtake it.
-    metadata.hook_runs_in_a_row += 1;
-    store::write_task(repo_path, arrival.task_id, &metadata)?;
+    start_column_hook_run(state, session_id, repo_path, hook, arrival)?;
+    Ok(Fired::Started)
+}
 
+/// Add one to a card's hook runs in a row - before the run starts, so the run's own move of the
+/// card cannot overtake it. Answers `false`, counting nothing, for a card hooks have stopped on.
+fn count_a_hook_run_on_card(repo_path: &Path, task_id: &str) -> Result<bool> {
+    let mut metadata = store::read_task(repo_path, task_id)?;
+    if metadata.hook_runs_in_a_row >= HOOK_RUNS_IN_A_ROW_CAP {
+        return Ok(false);
+    }
+    metadata.hook_runs_in_a_row += 1;
+    store::write_task(repo_path, task_id, &metadata)?;
+    Ok(true)
+}
+
+/// Start a column hook's run on a card, its prompt filled in from it, counting nothing: what
+/// an arrival fires once it has counted, and what `[run now]` fires straight away. Answers the
+/// run's terminal.
+pub(super) fn start_column_hook_run(
+    state: &AppState,
+    session_id: &str,
+    repo_path: &Path,
+    hook: &ColumnHook,
+    arrival: &Arrival,
+) -> Result<String> {
+    let metadata = store::read_task(repo_path, arrival.task_id)?;
     let task_dir = store::task_dir(repo_path, arrival.task_id)?;
     let prompt = fill_column_hook_prompt(
         &hook.prompt,
@@ -67,8 +89,7 @@ pub(super) fn fire_column_hook(
         arrival.column_label,
         &prompt,
         None,
-    )?;
-    Ok(Fired::Started)
+    )
 }
 
 /// Start a review status's hook on a review that has just arrived in it: on the review's card,
@@ -82,26 +103,46 @@ pub(super) fn fire_review_hook(
     review: &ReviewFile,
     from: &str,
 ) -> Result<Fired> {
-    let on_a_card = review
+    if let Some(task_id) = card_of_review(repo_path, review)
+        && !count_a_hook_run_on_card(repo_path, task_id)?
+    {
+        return Ok(Fired::StoppedForLoops);
+    }
+    start_review_hook_run(state, session_id, repo_path, hook, review, from)?;
+    Ok(Fired::Started)
+}
+
+/// The card a review is for, if it names one the board has.
+fn card_of_review<'a>(repo_path: &Path, review: &'a ReviewFile) -> Option<&'a str> {
+    review
         .task
         .as_deref()
-        .filter(|task| store::has_task_record(repo_path, task).unwrap_or(false));
-    let (task_id, title, folder) = match on_a_card {
+        .filter(|task| store::has_task_record(repo_path, task).unwrap_or(false))
+}
+
+/// Start a review hook's run on a review, counting nothing - see [`start_column_hook_run`].
+/// Answers the task the run is on, and its terminal.
+pub(super) fn start_review_hook_run(
+    state: &AppState,
+    session_id: &str,
+    repo_path: &Path,
+    hook: &ReviewHook,
+    review: &ReviewFile,
+    from: &str,
+) -> Result<(String, String)> {
+    let (task_id, title, folder) = match card_of_review(repo_path, review) {
         Some(task_id) => {
-            let mut metadata = store::read_task(repo_path, task_id)?;
-            if metadata.hook_runs_in_a_row >= HOOK_RUNS_IN_A_ROW_CAP {
-                return Ok(Fired::StoppedForLoops);
-            }
-            metadata.hook_runs_in_a_row += 1;
-            store::write_task(repo_path, task_id, &metadata)?;
+            let metadata = store::read_task(repo_path, task_id)?;
             let folder = store::task_dir(repo_path, task_id)?.display().to_string();
             (task_id.to_string(), metadata.title, folder)
         }
         None => {
-            if !store::has_task_record(repo_path, store::BOARD_TASK_ID)? {
-                store::create_board_task(repo_path)?;
-            }
-            (store::BOARD_TASK_ID.to_string(), String::new(), String::new())
+            ensure_board_task(repo_path)?;
+            (
+                store::BOARD_TASK_ID.to_string(),
+                String::new(),
+                String::new(),
+            )
         }
     };
     let file = reviews_root(repo_path)
@@ -138,7 +179,7 @@ pub(super) fn fire_review_hook(
         review.status,
         describe_pull_request(review.pr.as_deref(), review.branch.as_deref())
     );
-    start_with_prompt(
+    let terminal_id = start_with_prompt(
         state,
         session_id,
         &task_id,
@@ -147,20 +188,18 @@ pub(super) fn fire_review_hook(
         &prompt,
         Some(&review.id),
     )?;
-    Ok(Fired::Started)
+    Ok((task_id, terminal_id))
 }
 
-/// Start a schedule's run, on the board's own task.
+/// Start a schedule's run, on the board's own task. Answers the run's terminal.
 pub(super) fn fire_schedule(
     state: &AppState,
     session_id: &str,
     repo_path: &Path,
     schedule: &Schedule,
     date: &str,
-) -> Result<()> {
-    if !store::has_task_record(repo_path, store::BOARD_TASK_ID)? {
-        store::create_board_task(repo_path)?;
-    }
+) -> Result<String> {
+    ensure_board_task(repo_path)?;
     let prompt = schedule.prompt.replace("{date}", date);
     start_with_prompt(
         state,
@@ -173,8 +212,16 @@ pub(super) fn fire_schedule(
     )
 }
 
+fn ensure_board_task(repo_path: &Path) -> Result<()> {
+    if !store::has_task_record(repo_path, store::BOARD_TASK_ID)? {
+        store::create_board_task(repo_path)?;
+    }
+    Ok(())
+}
+
 /// Start the run, and hand it the prompt: typed into a shell as its commands, or pasted into
 /// an agent once it is up and reading - see [`crate::terminal::TerminalRegistry::tell_paste`].
+/// Answers the run's terminal.
 fn start_with_prompt(
     state: &AppState,
     session_id: &str,
@@ -183,7 +230,7 @@ fn start_with_prompt(
     label: &str,
     prompt: &str,
     for_review: Option<&str>,
-) -> Result<()> {
+) -> Result<String> {
     let shell_commands =
         (start == AgentKind::None && !prompt.trim().is_empty()).then(|| prompt.to_string());
     let terminal_id = start_hook_run(
@@ -204,7 +251,7 @@ fn start_with_prompt(
             .tell_paste(&terminal_id, prompt, Default::default(), Box::new(|_| {}))
             .with_context(|| format!("telling {label}'s run its prompt"))?;
     }
-    Ok(())
+    Ok(terminal_id)
 }
 
 /// What a column hook's placeholders stand for.

@@ -20,6 +20,8 @@ pub(crate) enum BoardAction {
     SaveHook(crate::moontasks::hooks::SaveHookRequest),
     /// Take a hook off the board.
     RemoveHook(crate::moontasks::hooks::RemoveHookRequest),
+    /// Fire a hook once, now, as its editor has it, and open the run it starts.
+    RunHookNow(crate::moontasks::hooks::RunHookNowRequest, AgentKind),
     /// Open the editor of a new schedule, under the board's `[start]` it was offered by.
     OpenScheduleEditor,
     /// Open a pane to write a new task on, joining this column at the end whose `+` was
@@ -603,6 +605,32 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
             act(app, "could not remove the hook", move |backend| {
                 backend.remove_hook(&session_id, &request)
             });
+        }
+        BoardAction::RunHookNow(request, start) => {
+            let command = (start != AgentKind::None).then_some(start);
+            app.tasks.spawn(
+                move |backend| backend.run_hook_now(&session_id, &request),
+                move |model, result| {
+                    model.board.refresh_requested = true;
+                    match result {
+                        // The editor stays open, with what was typed, for another try.
+                        Ok(started) => {
+                            if let Some(editor) = model.board.hook_editor.as_mut() {
+                                editor.error = None;
+                            }
+                            model.board.opened_shell = Some(OpenedShell {
+                                terminal_id: started.terminal_id,
+                                command,
+                                task_id: started.task_id,
+                            });
+                        }
+                        Err(error) => match model.board.hook_editor.as_mut() {
+                            Some(editor) => editor.error = Some(format!("{error:#}")),
+                            None => model.report(Err(error), "could not run the hook"),
+                        },
+                    }
+                },
+            );
         }
         BoardAction::SetColumnSort(column_id, sort) => {
             act(app, "could not sort the column", move |backend| {

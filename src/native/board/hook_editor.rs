@@ -12,13 +12,13 @@ use crate::{
     moontasks::{
         ColumnId,
         hooks::{
-            ColumnHook, RemoveHookRequest, ReviewHook, SaveHookRequest, Schedule, ScheduleEvery,
-            TimeAsked, TimeOfDay, start_word,
+            ColumnHook, RemoveHookRequest, ReviewHook, RunHookNowRequest, SaveHookRequest,
+            Schedule, ScheduleEvery, TimeAsked, TimeOfDay, start_word,
         },
     },
     native::{
         app::App,
-        board::{BoardAction, available_agents},
+        board::{BoardAction, available_agents, cards::column_cards},
         theme::{Palette, SMALL_SIZE},
         widgets,
     },
@@ -176,6 +176,7 @@ pub(super) fn draw(
         Some(HookEditorTarget::Review(status)) => format!("When a review arrives in {status}"),
         None => return,
     };
+    let run_on = choose_what_to_run_on(app);
     let frame_nr = ctx.cumulative_frame_nr();
     let Some(editor) = app.model.board.hook_editor.as_mut() else {
         return;
@@ -208,7 +209,7 @@ pub(super) fn draw(
                 .inner_margin(12)
                 .show(ui, |ui| {
                     ui.set_width(WIDTH);
-                    close = draw_contents(ui, editor, &title, &agents, palette, actions);
+                    close = draw_contents(ui, editor, &title, &agents, &run_on, palette, actions);
                 });
         });
 
@@ -222,6 +223,54 @@ pub(super) fn draw(
     let escaped = ctx.input(|input| input.key_pressed(egui::Key::Escape));
     if close || escaped || (clicked_elsewhere && frame_nr != editor.opened_on_frame) {
         app.model.board.hook_editor = None;
+    }
+}
+
+/// What `[run now]` runs the open hook on, and how its hover says so.
+struct RunOn {
+    /// The card or review, by id; `None` leaves it to the backend, which takes the review that
+    /// arrived in the status last.
+    target: Option<String>,
+    /// `None` when there is nothing to run on, which is the button greyed out.
+    hover: Option<String>,
+}
+
+/// The card a column hook's `[run now]` runs on - the marked one in its column, or else its top
+/// card - and the review a review hook's runs on: the marked one in its status, or else the
+/// last to arrive there. A schedule runs on the board.
+fn choose_what_to_run_on(app: &App) -> RunOn {
+    let board = &app.model.board;
+    match board.hook_editor.as_ref().map(|editor| &editor.target) {
+        Some(HookEditorTarget::Column(column)) => {
+            let cards = column_cards(app, column);
+            let card = cards
+                .iter()
+                .find(|card| board.marked.contains(&card.id))
+                .or_else(|| cards.first());
+            RunOn {
+                target: card.map(|card| card.id.clone()),
+                hover: card.map(|card| format!("Run it now on {:?}, as typed", card.title)),
+            }
+        }
+        Some(HookEditorTarget::Review(status)) => {
+            let marked = board
+                .marked_reviews
+                .iter()
+                .find(|review| review.status == *status)
+                .map(|review| review.id.clone());
+            let hover = match &marked {
+                Some(id) => format!("Run it now on the review {id}, as typed"),
+                None => format!("Run it now on the review that arrived in {status} last, as typed"),
+            };
+            RunOn {
+                target: marked,
+                hover: Some(hover),
+            }
+        }
+        _ => RunOn {
+            target: None,
+            hover: Some("Run it now on the board, as typed".to_string()),
+        },
     }
 }
 
@@ -241,6 +290,7 @@ fn draw_contents(
     editor: &mut HookEditor,
     title: &str,
     agents: &[AgentKind],
+    run_on: &RunOn,
     palette: &Palette,
     actions: &mut Vec<BoardAction>,
 ) -> bool {
@@ -364,6 +414,7 @@ fn draw_contents(
                 actions.push(BoardAction::RemoveHook(removal));
                 close = true;
             }
+            draw_run_now_button(ui, editor, run_on, palette, actions);
         });
     });
     close
@@ -430,6 +481,52 @@ fn request_to_save(editor: &HookEditor) -> Result<SaveHookRequest, String> {
             })
         }
     }
+}
+
+/// `[run now]`: fire the hook as typed, once, without saving it. Greyed out for a column with
+/// no card to run on.
+fn draw_run_now_button(
+    ui: &mut Ui,
+    editor: &mut HookEditor,
+    run_on: &RunOn,
+    palette: &Palette,
+    actions: &mut Vec<BoardAction>,
+) {
+    let Some(hover) = &run_on.hover else {
+        ui.add_enabled_ui(false, |ui| {
+            widgets::quiet_button_colored(ui, "[run now]", palette.muted)
+                .on_disabled_hover_text("There is no card in this column to run it on");
+        });
+        return;
+    };
+    if !widgets::quiet_button_colored(ui, "[run now]", palette.accent_2)
+        .on_hover_text(hover)
+        .clicked()
+    {
+        return;
+    }
+    match request_to_run_now(editor, run_on.target.clone()) {
+        Ok(request) => {
+            editor.error = None;
+            actions.push(BoardAction::RunHookNow(request, editor.start));
+        }
+        Err(error) => editor.error = Some(error),
+    }
+}
+
+/// The run the editor's fields make, on `target` - see [`RunOn`].
+fn request_to_run_now(
+    editor: &HookEditor,
+    target: Option<String>,
+) -> Result<RunHookNowRequest, String> {
+    Ok(match request_to_save(editor)? {
+        SaveHookRequest::Column { hook } => RunHookNowRequest::Column { hook, task: target },
+        SaveHookRequest::Review { hook } => RunHookNowRequest::Review {
+            hook,
+            review: target,
+        },
+        SaveHookRequest::Schedule { schedule, .. } => RunHookNowRequest::Schedule { schedule },
+    })
 }
 
 /// The removal of the hook being edited, if it was saved before - a new one has nothing to

@@ -16,7 +16,7 @@ use board_routes::{
     move_reviews_to_their_git_stage, open_task_notes, open_wire, open_work_log, opencode_models,
     palette_history, place_column, place_tasks, project_commands, record_in_palette_history,
     remove_hook, remove_task_attachment, rename_column, rename_task, resume_task_resource,
-    run_project_command, save_hook, set_column_arrivals, set_column_marks_a_days_work,
+    run_hook_now, run_project_command, save_hook, set_column_arrivals, set_column_marks_a_days_work,
     set_column_sort, set_project_config, set_task_remote_tracker_url, set_task_tags, settings,
     start_task_resource, stop_task_resource,
 };
@@ -279,6 +279,7 @@ fn protected_routes() -> Router<Served> {
             get(list_hooks).post(save_hook),
         )
         .route("/api/session/{session_id}/hooks/removal", post(remove_hook))
+        .route("/api/session/{session_id}/hooks/run-now", post(run_hook_now))
         .route("/api/settings", get(settings).post(change_settings))
         .route(
             "/api/session/{session_id}/palette-history",

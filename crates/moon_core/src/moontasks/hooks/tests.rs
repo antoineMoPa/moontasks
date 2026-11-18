@@ -286,3 +286,26 @@ fn a_card_moved_from_the_command_line_keeps_its_count_of_hook_runs() {
         3
     );
 }
+
+#[test]
+fn run_now_without_a_card_named_takes_the_top_card_of_the_column() {
+    let repo = Fixture::new("hooks-run-now-top-card");
+    let todo = ColumnId::new("todo");
+    assert_eq!(
+        super::running_now::find_top_card_of_column(&repo.root, &todo).unwrap(),
+        None
+    );
+    store::create_task(&repo.root, "Lower", &todo, store::ColumnEnd::Bottom).unwrap();
+    let top = store::create_task(&repo.root, "Top", &todo, store::ColumnEnd::Top).unwrap();
+    store::create_task(
+        &repo.root,
+        "Elsewhere",
+        &ColumnId::new("done"),
+        store::ColumnEnd::Top,
+    )
+    .unwrap();
+    assert_eq!(
+        super::running_now::find_top_card_of_column(&repo.root, &todo).unwrap(),
+        Some(top)
+    );
+}

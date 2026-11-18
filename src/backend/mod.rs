@@ -235,6 +235,12 @@ pub(crate) trait Backend: Send + Sync + 'static {
         session_id: &str,
         request: &crate::moontasks::hooks::SaveHookRequest,
     ) -> Result<()>;
+    /// Fire a hook once, now, as its editor has it - saved or not - and answer the run.
+    fn run_hook_now(
+        &self,
+        session_id: &str,
+        request: &crate::moontasks::hooks::RunHookNowRequest,
+    ) -> Result<crate::moontasks::hooks::HookRunStarted>;
     /// Take a hook off the board.
     fn remove_hook(
         &self,

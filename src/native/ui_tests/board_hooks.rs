@@ -35,6 +35,10 @@ struct Seen {
     pill: Option<egui::Rect>,
     hooks_read: bool,
     editor_open: bool,
+    /// How many cards the board has in the hooked column.
+    hooked_column_cards: usize,
+    /// What the open editor says went wrong, if anything.
+    editor_error: Option<String>,
     run_marks: Vec<String>,
 }
 
@@ -88,6 +92,19 @@ fn hooked_board(root: &Path, render: bool) -> HookedBoard {
             .map(|response| response.rect);
         seen.hooks_read = !app.model.board.hooks.columns.is_empty();
         seen.editor_open = app.model.board.hook_editor.is_some();
+        seen.hooked_column_cards = app
+            .model
+            .board
+            .tasks
+            .iter()
+            .filter(|task| task.status == ColumnId::new("in_progress"))
+            .count();
+        seen.editor_error = app
+            .model
+            .board
+            .hook_editor
+            .as_ref()
+            .and_then(|editor| editor.error.clone());
         seen.run_marks = app
             .model
             .board
@@ -376,4 +393,73 @@ fn hooks_fire_in_the_window_last_focused_on_the_board() {
         .find(|said| !said.is_empty())
         .unwrap_or_default();
     assert_eq!(said.trim(), CARDS[1].1);
+}
+
+/// `[run now]` in a column hook's editor fires the hook at once on the column's top card, with
+/// no card arriving - and counts nothing toward the hooks stopping on it.
+#[test]
+fn run_now_fires_a_column_hook_on_its_top_card_at_once() {
+    let fixture = seeded_fixture("hooks-run-now");
+    fixture.write(
+        QA_HOOK,
+        "---\nstart: shell\n---\necho \"{title} in {from}\" > ran-now.txt\n",
+    );
+    let render = std::env::var("MOON_HOOKS_SHOTS").is_ok();
+    let HookedBoard { mut harness, seen } = hooked_board(&fixture.root, render);
+    // Put in the column before the runner's first look, which only notes where cards are.
+    let (task_id, title, _) = CARDS[1];
+    let record = fixture
+        .root
+        .join(format!(".moontasks/{task_id}/metadata.json"));
+    let moved = std::fs::read_to_string(&record)
+        .unwrap()
+        .replace("\"status\": \"todo\"", "\"status\": \"in_progress\"");
+    std::fs::write(&record, moved).unwrap();
+
+    assert!(
+        settle(&mut harness, || {
+            let seen = seen.lock().expect("poisoned");
+            seen.hooks_read
+                && seen.hooked_column_cards == 1
+                && seen.pill.is_some_and(|pill| pill.is_positive())
+        }),
+        "the column's hook never showed as a pill over the card moved into it"
+    );
+    harness.run_steps(3);
+    let pill = seen.lock().expect("poisoned").pill.expect("drawn");
+    click_at(&mut harness, pill.center());
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").editor_open),
+        "the pill did not open its editor"
+    );
+    harness.run_steps(3);
+    leave_a_screenshot(&mut harness, "column-hook-editor-run-now");
+    harness.get_by_label("[run now]").click();
+
+    let ran = fixture.root.join("ran-now.txt");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut said = String::new();
+    while Instant::now() < deadline && said.trim().is_empty() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(50));
+        said = std::fs::read_to_string(&ran).unwrap_or_default();
+    }
+    let log = std::fs::read_to_string(fixture.root.join(".moontasks/hooks/hooks.log"))
+        .unwrap_or_default();
+    let error = seen.lock().expect("poisoned").editor_error.clone();
+    assert_eq!(
+        said.trim(),
+        format!("{title} in IN PROGRESS"),
+        "log: {log}; editor: {error:?}"
+    );
+    assert!(
+        log.contains(&format!("IN PROGRESS: run now on {task_id}")),
+        "{log}"
+    );
+    assert!(
+        seen.lock().expect("poisoned").editor_open,
+        "the editor went away, with what was typed in it"
+    );
+    let record = std::fs::read_to_string(&record).unwrap();
+    assert!(!record.contains("hook_runs_in_a_row"), "{record}");
 }

@@ -293,6 +293,14 @@ impl Backend for LocalBackend {
         moontasks::hooks::save_hook(&self.state, session_id, request.clone())
     }
 
+    fn run_hook_now(
+        &self,
+        session_id: &str,
+        request: &moontasks::hooks::RunHookNowRequest,
+    ) -> Result<moontasks::hooks::HookRunStarted> {
+        moontasks::hooks::run_hook_now(&self.state, session_id, request.clone())
+    }
+
     fn remove_hook(
         &self,
         session_id: &str,

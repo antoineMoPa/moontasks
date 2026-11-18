@@ -383,6 +383,14 @@ impl Backend for RemoteBackend {
         self.post(&format!("/api/session/{session_id}/hooks"), request)
     }
 
+    fn run_hook_now(
+        &self,
+        session_id: &str,
+        request: &crate::moontasks::hooks::RunHookNowRequest,
+    ) -> Result<crate::moontasks::hooks::HookRunStarted> {
+        self.post_json(&format!("/api/session/{session_id}/hooks/run-now"), request)
+    }
+
     fn remove_hook(
         &self,
         session_id: &str,
