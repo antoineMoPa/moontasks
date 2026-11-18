@@ -2,8 +2,8 @@
 //! [`super::selection`], so a group of reviews is gathered and dragged the way a group of cards is.
 //!
 //! cmd+click puts one review card in or out, shift+click takes the run between the anchor and
-//! the card clicked down its status, and a plain click marks that card alone (and still opens
-//! its review). A card dragged while marked carries every marked card with it.
+//! the card clicked down its status, and a plain click marks that card alone - a double-click
+//! opens it. A card dragged while marked carries every marked card with it.
 
 use egui::Modifiers;
 

@@ -446,8 +446,8 @@ fn draw_review_card(
                         });
                     });
                     // Its links get a line of their own, so a long branch can't run under them. A
-                    // click on the card opens what the row on its task's card opens; these open
-                    // each one whatever the review's status.
+                    // double-click on the card opens what the row on its task's card opens; these
+                    // open each one whatever the review's status.
                     ui.horizontal(|ui| {
                         let review = draw_card_button(ui, "[moonreview]").on_hover_text(
                             match &file.commit {
@@ -527,8 +527,8 @@ fn draw_review_card(
         // A press that came back where it started is a click, even after it began a drag.
         egui::DragAndDrop::clear_payload(ui.ctx());
         mark_reviews_on_click(&mut app.model.board, &this_card, column, modifiers);
-        // cmd and shift gather cards; only a plain click opens one.
-        if !(modifiers.command || modifiers.shift) {
+        // A click marks, so more cards can be gathered beside it; a plain double-click opens.
+        if card.double_clicked() && !(modifiers.command || modifiers.shift) {
             match choose_review_link(request) {
                 ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
                 ReviewLink::MoonReview => actions.push(BoardAction::OpenReviewOf(request.clone())),
@@ -584,7 +584,7 @@ fn draw_review_card(
 }
 
 /// How far the pointer may go between pressing a card and letting go for that to be a click
-/// that opens its review rather than a drag.
+/// that marks it (or, doubled, opens its review) rather than a drag.
 const CARD_CLICK_SLOP: f32 = 3.0;
 
 /// Whether the card was let go of no further than [`CARD_CLICK_SLOP`] from where it was
@@ -604,6 +604,9 @@ fn was_card_clicked_in_place(ui: &Ui, card: &egui::Response) -> bool {
     let released = ui.input(|input| input.pointer.interact_pos());
     match (origin, released) {
         (Some(origin), Some(released)) => origin.distance(released) <= CARD_CLICK_SLOP,
+        // Pressed and let go within one frame - a quick click on a busy window: egui's own
+        // click is all there is to go by.
+        (None, _) => card.clicked(),
         _ => false,
     }
 }

@@ -40,6 +40,8 @@ struct Seen {
     pills: Vec<(String, egui::Rect)>,
     /// The reviews a review pane was opened from, which is what clicking a card does.
     opened_reviews: Vec<String>,
+    /// The review cards marked, by review id, sorted.
+    marked: Vec<String>,
 }
 
 fn lane_board(root: &Path, render: bool) -> LaneBoard {
@@ -107,6 +109,14 @@ fn lane_board(root: &Path, render: bool) -> LaneBoard {
                 Some((status.to_string(), rect))
             })
             .collect();
+        seen.marked = app
+            .model
+            .board
+            .marked_reviews
+            .iter()
+            .map(|review| review.id.clone())
+            .collect();
+        seen.marked.sort();
         seen.opened_reviews = app
             .model
             .chosen_review_of_session
@@ -262,10 +272,34 @@ fn press_and_let_go(harness: &mut Harness<'_>, at: egui::Pos2, by: egui::Vec2) {
     }
 }
 
-/// A card let go of within 3px of where it was pressed opens its review; one let go of further
-/// away was the start of a drag, and opens nothing - though egui would still call it a click.
+/// Two quick clicks, each pressed and let go within a frame: the harness steps a quarter second
+/// a frame, and egui's double-click is two clicks within 0.3s.
+fn double_click(harness: &mut Harness<'_>, at: egui::Pos2) {
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(at));
+    harness.run_steps(2);
+    for _ in 0..2 {
+        for pressed in [true, false] {
+            harness.input_mut().events.push(egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        harness.step();
+    }
+    harness.run_steps(2);
+}
+
+/// A click on a card marks it and opens nothing, so cmd+click can gather more beside it; a
+/// double-click let go of within 3px of where it was pressed opens its review. One let go of
+/// further away was the start of a drag, and opens nothing - though egui would still call it a
+/// click.
 #[test]
-fn clicking_a_review_card_opens_its_review_but_a_small_drag_does_not() {
+fn a_click_marks_a_review_card_and_a_double_click_opens_it() {
     let fixture = seeded_fixture("review-lane-click");
     write_the_parsers_reviews(&fixture);
     let LaneBoard { mut harness, seen } = lane_board(&fixture.root, false);
@@ -284,19 +318,40 @@ fn clicking_a_review_card_opens_its_review_but_a_small_drag_does_not() {
             .expect("the card is drawn")
     };
 
-    press_and_let_go(&mut harness, card_at("parser"), egui::vec2(5.0, 0.0));
+    press_and_let_go(&mut harness, card_at("parser-tests"), egui::vec2(2.0, 1.0));
+    harness.run_steps(20);
+    press_modifiers(&mut harness, egui::Modifiers::COMMAND);
+    click_like_a_hand(&mut harness, card_at("login"), egui::Modifiers::COMMAND);
+    press_modifiers(&mut harness, egui::Modifiers::NONE);
+    harness.run_steps(20);
+    {
+        let seen = seen.lock().expect("poisoned");
+        assert!(
+            seen.opened_reviews.is_empty(),
+            "a single click opened its review"
+        );
+        assert_eq!(
+            seen.marked,
+            ["login", "parser-tests"],
+            "a click then a cmd+click did not mark both cards"
+        );
+    }
+
+    for _ in 0..2 {
+        press_and_let_go(&mut harness, card_at("parser"), egui::vec2(5.0, 0.0));
+    }
     harness.run_steps(20);
     assert!(
         seen.lock().expect("poisoned").opened_reviews.is_empty(),
-        "a card let go of 5px away opened its review"
+        "a card let go of 5px away, twice, opened its review"
     );
 
-    press_and_let_go(&mut harness, card_at("parser-tests"), egui::vec2(2.0, 1.0));
+    double_click(&mut harness, card_at("parser-tests"));
     assert!(
         settle(&mut harness, || {
             seen.lock().expect("poisoned").opened_reviews == ["parser-tests"]
         }),
-        "clicking the card never opened its review"
+        "double-clicking the card never opened its review"
     );
 }
 

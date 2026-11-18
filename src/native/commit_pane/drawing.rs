@@ -15,7 +15,9 @@ use crate::{
     },
 };
 
-use super::{MESSAGE_MAX_ROWS, MESSAGE_ROWS, RUN_TERMINAL_HEIGHT, RUN_TERMINAL_RANGE, Reached, words_for};
+use super::{
+    MESSAGE_MAX_ROWS, MESSAGE_ROWS, RUN_TERMINAL_HEIGHT, RUN_TERMINAL_RANGE, Reached, words_for,
+};
 
 pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str) {
     let palette = app.palette_of();

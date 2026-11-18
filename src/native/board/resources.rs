@@ -768,7 +768,10 @@ mod review_link_tests {
                 choose_review_link(&review_in(status, Some(url))),
                 ReviewLink::PullRequest(url.to_string())
             );
-            assert_eq!(choose_review_link(&review_in(status, None)), ReviewLink::MoonReview);
+            assert_eq!(
+                choose_review_link(&review_in(status, None)),
+                ReviewLink::MoonReview
+            );
         }
     }
 }
