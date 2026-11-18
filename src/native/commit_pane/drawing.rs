@@ -15,7 +15,7 @@ use crate::{
     },
 };
 
-use super::{MESSAGE_ROWS, RUN_TERMINAL_HEIGHT, RUN_TERMINAL_RANGE, Reached, words_for};
+use super::{MESSAGE_MAX_ROWS, MESSAGE_ROWS, RUN_TERMINAL_HEIGHT, RUN_TERMINAL_RANGE, Reached, words_for};
 
 pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str) {
     let palette = app.palette_of();
@@ -108,13 +108,26 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str
             // where they stay put as the staged listing under them grows and shrinks. Off while
             // git is going: the message has been handed to it already, and what is typed then -
             // a passphrase meant for pinentry, while hooks run - is not a change to it.
+            // A long description scrolls inside the box rather than pushing the buttons and the
+            // staged listing off the pane: the box grows with the message up to a cap, then
+            // stops.
+            let row_height = ui.text_style_height(&egui::TextStyle::Body);
+            let max_height = (row_height * MESSAGE_MAX_ROWS as f32)
+                .min(ui.available_height() * 0.5)
+                .max(row_height * MESSAGE_ROWS as f32);
             let output = ui
                 .add_enabled_ui(!running, |ui| {
-                    egui::TextEdit::multiline(&mut message)
-                        .hint_text("what this commit does")
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(MESSAGE_ROWS)
-                        .show(ui)
+                    egui::ScrollArea::vertical()
+                        .id_salt(("commit-message", session_id))
+                        .max_height(max_height)
+                        .show(ui, |ui| {
+                            egui::TextEdit::multiline(&mut message)
+                                .hint_text("what this commit does")
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(MESSAGE_ROWS)
+                                .show(ui)
+                        })
+                        .inner
                 })
                 .inner;
             if takes_keyboard && !running {

@@ -193,14 +193,22 @@ pub(crate) fn draw_box(app: &mut App, ui: &mut Ui, session_id: &str, palette: &P
                     / ui.text_style_height(&egui::TextStyle::Monospace))
                 .floor()
                 .max(3.0) as usize;
+                // A long description scrolls inside the box instead of growing the row past
+                // the terminal beside it.
+                let max_height = ui.available_height().max(60.0);
                 ui.add_enabled_ui(!running, |ui| {
-                    egui::TextEdit::multiline(&mut message)
-                        .id_salt(("inline-commit-message", session_id))
-                        .hint_text("what this commit does")
-                        .code_editor()
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(rows)
-                        .show(ui)
+                    egui::ScrollArea::vertical()
+                        .id_salt(("inline-commit-message-scroll", session_id))
+                        .max_height(max_height)
+                        .show(ui, |ui| {
+                            egui::TextEdit::multiline(&mut message)
+                                .id_salt(("inline-commit-message", session_id))
+                                .hint_text("what this commit does")
+                                .code_editor()
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(rows)
+                                .show(ui)
+                        });
                 });
             });
         });

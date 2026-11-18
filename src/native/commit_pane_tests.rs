@@ -867,3 +867,65 @@ fn the_message_box_is_off_while_the_commit_runs() {
         "the commit should have gone through once the hook let it go"
     );
 }
+
+/// A long description scrolls inside the box: the box stops growing, and what is under it - the
+/// buttons, then the staged listing - stays on screen however long the message gets.
+#[test]
+fn a_long_message_scrolls_instead_of_pushing_the_buttons_away() {
+    let fixture = seeded_fixture("commit-pane-long-message");
+    run_git_no_output(&fixture.root, &["add", "-A"]).expect("failed to stage the fixture");
+
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    let long_message = std::iter::once("Count the values\n".to_string())
+        .chain((0..200).map(|line| format!("description line {line}")))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let typing = Arc::new(Mutex::new(Some(long_message)));
+    let typing_in_ui = Arc::clone(&typing);
+    let staged_count = Arc::new(Mutex::new(None::<usize>));
+    let staged_in_ui = Arc::clone(&staged_count);
+
+    let window_height = 940.0;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1500.0, window_height))
+        .build_ui(move |ui| {
+            let session_id = app.model.root_session_id.clone();
+            if app.model.commit_panes.contains_key(&session_id)
+                && let Some(message) = typing_in_ui.lock().expect("expected the lock").take()
+                && let Some(pane) = app.model.commit_panes.get_mut(&session_id)
+            {
+                pane.message = message;
+            }
+            app.draw(ui);
+            *staged_in_ui.lock().expect("expected the lock") = app
+                .model
+                .commit_panes
+                .get(&session_id)
+                .and_then(|pane| pane.staged_count_for_test());
+        });
+
+    let deadline = Instant::now() + GIT_DEADLINE;
+    let mut opened = false;
+    while Instant::now() < deadline {
+        harness.step();
+        if !opened && harness.query_by_label("[commit]").is_some() {
+            harness.get_by_label("[commit]").click();
+            opened = true;
+        }
+        if staged_count
+            .lock()
+            .expect("expected the lock")
+            .is_some_and(|count| count > 0)
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    harness.run_steps(5);
+
+    let commit_button = harness.get_by_label("commit & push").rect();
+    assert!(
+        commit_button.bottom() < window_height / 2.0 + 120.0,
+        "the buttons under a long message should stay near the top of the pane, they are at {commit_button:?}"
+    );
+}

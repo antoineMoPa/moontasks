@@ -31,6 +31,9 @@ const RUN_TERMINAL_RANGE: std::ops::RangeInclusive<f32> = 90.0..=640.0;
 /// How many lines of message the box shows before it scrolls: a subject, a blank line, and a
 /// couple of lines of body.
 const MESSAGE_ROWS: usize = 5;
+/// How many lines the box grows to with a long message before it scrolls instead. Half the
+/// pane's height caps it too, so a short pane keeps room for the buttons and the staged list.
+const MESSAGE_MAX_ROWS: usize = 16;
 /// How often the pane asks how the run is going.
 ///
 /// The shell a run goes in outlives the command it was given - that is the point of it - so
