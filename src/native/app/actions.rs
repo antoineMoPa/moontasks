@@ -468,7 +468,7 @@ impl App {
     pub(crate) fn run_action(&mut self, ctx: &egui::Context, action: CommandAction) {
         match action {
             CommandAction::OpenPane(request) => self.open_pane(request),
-            CommandAction::ToggleTheme => self.set_theme(self.model.theme.toggled()),
+            CommandAction::ToggleTheme => self.pick_theme(self.model.theme.toggled()),
             CommandAction::MarkWorkspace(color) => self.set_workspace_color(color),
             #[cfg(not(target_arch = "wasm32"))]
             CommandAction::InstallLaunchers => self.install_launchers(),
@@ -667,7 +667,7 @@ impl App {
             self.open_new_window(frame);
         }
         if toggles_theme {
-            self.set_theme(self.model.theme.toggled());
+            self.pick_theme(self.model.theme.toggled());
         }
         // The launch screen is not drawn with the workspace's pending action, so what the
         // chords above asked for is run here.
@@ -780,7 +780,7 @@ impl App {
                     self.save_file_pane(pane_id, &session_id);
                 }
             }
-            Action::ToggleTheme => self.set_theme(self.model.theme.toggled()),
+            Action::ToggleTheme => self.pick_theme(self.model.theme.toggled()),
             Action::AdvanceHunk => self.apply_hunk_shortcut(true),
             Action::ReverseHunk => self.apply_hunk_shortcut(false),
             Action::FocusNextFrame => self.focus_next_frame(),

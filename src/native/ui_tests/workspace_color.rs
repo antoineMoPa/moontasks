@@ -161,7 +161,8 @@ fn a_marked_workspace_keeps_its_color_across_the_theme_switch() {
 
     assert_eq!(
         *reopened_ground.lock().expect("the ground"),
-        WorkspaceColor::Teal.bg(ThemeMode::Dark),
+        // Light: the switch thrown above is saved too, and the next window opens on it.
+        WorkspaceColor::Teal.bg(ThemeMode::Light),
         "a window reopened on a marked project should come up in its color"
     );
 }
@@ -202,7 +203,7 @@ fn the_project_pane_offers_the_colors() {
 }
 
 /// Step the window until something the test is waiting for has happened.
-fn step_until(harness: &mut Harness<'static>, done: &AtomicBool, complaint: &str) {
+pub(super) fn step_until(harness: &mut Harness<'static>, done: &AtomicBool, complaint: &str) {
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
         harness.step();

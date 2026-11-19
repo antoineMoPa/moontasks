@@ -2,7 +2,10 @@
 //! [`SettingsChange`] at a time through it - see [`crate::settings`] for why the file is the
 //! server's rather than the window's.
 
-use crate::{native::workspace_color::WorkspaceColor, settings::SettingsChange};
+use crate::{
+    native::{theme::ThemeMode, workspace_color::WorkspaceColor},
+    settings::SettingsChange,
+};
 
 use super::App;
 
@@ -82,6 +85,31 @@ impl App {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn remember_quick_task_agent(&mut self, agent: crate::api::AgentKind) {
         self.change_settings(SettingsChange::SelectQuickTaskAgent(agent));
+    }
+
+    /// Switch the window light or dark, and remember it in `settings.json` so the next launch
+    /// opens the same way rather than on the system's theme.
+    pub(crate) fn pick_theme(&mut self, theme: ThemeMode) {
+        self.set_theme(theme);
+        self.change_settings(SettingsChange::PickTheme(theme.into()));
+    }
+
+    /// Put back the theme last picked. The settings arrive a moment after the window does,
+    /// so this runs each frame and does nothing until they are there - or while nothing has
+    /// been picked yet, when the window stays on the system's theme.
+    pub(super) fn follow_saved_theme(&mut self) {
+        let Some(saved) = self
+            .model
+            .settings
+            .as_ref()
+            .and_then(|settings| settings.theme)
+        else {
+            return;
+        };
+        let theme = ThemeMode::from(saved);
+        if theme != self.model.theme {
+            self.set_theme(theme);
+        }
     }
 
     /// Mark this window's project with a color, and keep `settings.json` in step.

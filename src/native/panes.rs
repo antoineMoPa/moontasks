@@ -813,7 +813,7 @@ impl App {
             .on_hover_text(format!("switch to {} (⌘J)", next.label()))
             .clicked()
         {
-            self.set_theme(next);
+            self.pick_theme(next);
         }
     }
 }

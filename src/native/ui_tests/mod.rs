@@ -63,6 +63,7 @@ mod spaces;
 mod status_bar;
 mod submodules;
 mod tab_rename;
+mod theme;
 mod toasts;
 mod waiting;
 mod window_zoom;

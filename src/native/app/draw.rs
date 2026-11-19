@@ -390,6 +390,7 @@ impl App {
         self.tasks.drain(&mut self.model);
         self.remember_opened_project();
         self.follow_project_color();
+        self.follow_saved_theme();
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.restore_workspace(ctx);

@@ -88,6 +88,11 @@ pub struct Settings {
     /// map has the plain board; one set back to it is taken out of the map.
     #[serde(default, deserialize_with = "read_backgrounds")]
     pub backgrounds: BTreeMap<String, BackgroundScene>,
+    /// Light or dark, as last switched with the sun/moon button or ⌘J. `None` until the
+    /// person has switched once: the window then follows the system's own theme. Left out of
+    /// the file while `None`, so a file from before this setting reads and writes the same.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<Theme>,
     /// Whatever else the file holds that this build does not know: a setting from a newer
     /// moon. Kept and written back as it was, because windows of different builds share the
     /// one file, and an older window rewriting it would otherwise throw away what a newer one
@@ -138,6 +143,8 @@ pub enum SettingsChange {
         project_path: String,
         scene: Option<BackgroundScene>,
     },
+    /// Light or dark, picked by the person.
+    PickTheme(Theme),
 }
 
 impl Settings {
@@ -184,6 +191,11 @@ impl Settings {
             }
             SettingsChange::SetBackground { project_path, scene } => {
                 self.set_background(&project_path, scene)
+            }
+            SettingsChange::PickTheme(theme) => {
+                let changed = self.theme != Some(theme);
+                self.theme = Some(theme);
+                changed
             }
             SettingsChange::SaveWorkspaceProjects(projects) => {
                 let changed = self.workspace_projects != projects;
@@ -435,6 +447,14 @@ where
         .collect())
 }
 
+/// Whether the window is drawn light or dark - see [`Settings::theme`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    Light,
+    Dark,
+}
+
 /// The scenes the task board can be painted over: a background picture and the objects set
 /// on it. The pictures ship with moon - see `native::background`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -617,6 +637,7 @@ mod tests {
             quick_task_agent: AgentKind::Codex,
             workspace_projects: WorkspaceProjects::default(),
             backgrounds: BTreeMap::new(),
+            theme: None,
             other: BTreeMap::new(),
         })
         .expect("expected json");
@@ -701,6 +722,18 @@ mod tests {
         assert!(!settings.apply(SettingsChange::SelectAgent(AgentKind::Claude)));
         assert!(settings.apply(SettingsChange::RememberProject("/a".to_string())));
         assert!(!settings.apply(SettingsChange::RememberProject("/a".to_string())));
+    }
+
+    #[test]
+    fn a_picked_theme_survives_the_trip_through_the_file() {
+        let mut settings = Settings::default();
+        assert!(settings.apply(SettingsChange::PickTheme(Theme::Light)));
+        assert!(!settings.apply(SettingsChange::PickTheme(Theme::Light)));
+
+        let text = serde_json::to_string(&settings).expect("expected settings to serialize");
+        assert!(text.contains(r#""theme":"light""#), "{text}");
+        let read: Settings = serde_json::from_str(&text).expect("expected settings to parse");
+        assert_eq!(read.theme, Some(Theme::Light));
     }
 
     /// The change travels as JSON, and reads as what it asks for.

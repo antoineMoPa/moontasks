@@ -6,7 +6,7 @@ use egui_moon_editor::TokenStyle;
 
 use crate::native::{fonts, workspace_color::WorkspaceColor};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum ThemeMode {
     Light,
     Dark,
@@ -24,6 +24,24 @@ impl ThemeMode {
         match self {
             Self::Light => "light",
             Self::Dark => "dark",
+        }
+    }
+}
+
+impl From<crate::settings::Theme> for ThemeMode {
+    fn from(theme: crate::settings::Theme) -> Self {
+        match theme {
+            crate::settings::Theme::Light => Self::Light,
+            crate::settings::Theme::Dark => Self::Dark,
+        }
+    }
+}
+
+impl From<ThemeMode> for crate::settings::Theme {
+    fn from(mode: ThemeMode) -> Self {
+        match mode {
+            ThemeMode::Light => Self::Light,
+            ThemeMode::Dark => Self::Dark,
         }
     }
 }
