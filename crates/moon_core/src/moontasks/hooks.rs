@@ -15,7 +15,8 @@
 //! Every firing starts a new run, on the card or on the board task, marked with what started
 //! it. Hooks run in the moon window last focused on the board, or else in whichever moon has
 //! it open - a window or `moon serve` - and a claim on disk keeps two of them from firing the
-//! same hook twice - see `runner`.
+//! same hook twice - see `runner`. While the machine is offline, the hooks wait and fire once it is
+//! back - see `network`.
 
 #[cfg(not(target_arch = "wasm32"))]
 mod clock;
@@ -25,6 +26,8 @@ mod editing;
 mod files;
 #[cfg(not(target_arch = "wasm32"))]
 mod firing;
+#[cfg(not(target_arch = "wasm32"))]
+mod network;
 #[cfg(not(target_arch = "wasm32"))]
 mod runner;
 #[cfg(not(target_arch = "wasm32"))]
@@ -36,6 +39,8 @@ mod tests;
 pub use editing::{list_hooks, remove_hook, save_hook};
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use files::split_front_matter;
+#[cfg(not(target_arch = "wasm32"))]
+pub use network::turn_off_network_check;
 #[cfg(not(target_arch = "wasm32"))]
 pub use runner::{note_window_focus, start_hook_runner};
 #[cfg(not(target_arch = "wasm32"))]
@@ -64,7 +69,15 @@ pub const REVIEW_HOOKS_DIR_NAME: &str = "reviews";
 pub const COLUMN_HOOK_PLACEHOLDERS: &[&str] = &["{title}", "{notes}", "{from}", "{folder}", "{id}"];
 /// The same for a review hook: the review that arrived, and the card it is on.
 pub const REVIEW_HOOK_PLACEHOLDERS: &[&str] = &[
-    "{title}", "{repo}", "{branch}", "{pr}", "{subject}", "{file}", "{from}", "{folder}", "{id}",
+    "{title}",
+    "{repo}",
+    "{branch}",
+    "{pr}",
+    "{subject}",
+    "{file}",
+    "{from}",
+    "{folder}",
+    "{id}",
 ];
 /// The same for a schedule, which is about no card.
 pub const SCHEDULE_PLACEHOLDERS: &[&str] = &["{date}"];

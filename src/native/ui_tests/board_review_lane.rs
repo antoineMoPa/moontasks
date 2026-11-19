@@ -59,6 +59,7 @@ fn lane_board(root: &Path, render: bool) -> LaneBoard {
     }
 
     let state = crate::server::build_state(Arc::new(Mutex::new(Instant::now())));
+    crate::moontasks::hooks::turn_off_network_check();
     crate::moontasks::hooks::start_hook_runner(state.core.clone());
     let launch = Launch {
         backend: Arc::new(LocalBackend::new(state)),

@@ -14,9 +14,12 @@
 //! Of the moons that may fire, only one does. Before firing, a moon claims
 //! the arrival or the schedule's day by making a file under `.moontasks/hooks/.fired/` that
 //! must not already be there - the one whose file it was fires, and the others see it exists.
+//!
+//! While the machine is offline, no look is taken: the cards' places stay as the last look saw
+//! them, so the moves made offline fire once it is back - as does a schedule still in its slot.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::Write,
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
@@ -32,6 +35,7 @@ use super::{
         read_board_hooks,
     },
     firing::{Arrival, Fired, fire_column_hook, fire_review_hook, fire_schedule},
+    network::NetworkCheck,
 };
 use crate::{
     api::AppState,
@@ -91,6 +95,9 @@ struct Watch {
     claims_swept_at: HashMap<PathBuf, Instant>,
     /// When each board's reviews were last moved along with git.
     git_stages_synced_at: HashMap<PathBuf, Instant>,
+    network: NetworkCheck,
+    /// The boards whose log already says their hooks wait for the network.
+    boards_waiting_offline: HashSet<PathBuf>,
 }
 
 fn look_at_open_boards(state: &AppState, watch: &mut Watch) {
@@ -151,6 +158,9 @@ fn look_at_board(
     if !has_column_hooks && !has_schedules && !has_review_hooks {
         return Ok(());
     }
+    if !is_online_noting_changes(repo_path, watch) {
+        return Ok(());
+    }
     if WINDOW_FOCUSED.load(Ordering::Relaxed) {
         name_this_moon_the_watcher(repo_path);
     }
@@ -167,6 +177,23 @@ fn look_at_board(
     }
     sweep_old_claims(repo_path, watch);
     Ok(())
+}
+
+/// Whether the machine is online, writing in the board's log when its hooks start and stop
+/// waiting for the network.
+fn is_online_noting_changes(repo_path: &Path, watch: &mut Watch) -> bool {
+    let online = watch.network.is_machine_online();
+    if online {
+        if watch.boards_waiting_offline.remove(repo_path) {
+            write_log_line(repo_path, "back online: the hooks fire again");
+        }
+    } else if watch.boards_waiting_offline.insert(repo_path.to_path_buf()) {
+        write_log_line(
+            repo_path,
+            "offline: the hooks wait, and fire on what they missed once the network is back",
+        );
+    }
+    online
 }
 
 /// Move the board's reviews to `committed/` and `pushed/` as git says, every
@@ -269,7 +296,12 @@ fn fire_on_review_arrivals(
     let reviews = crate::moontasks::reviews::read_review_files(repo_path);
     let now: HashMap<String, (String, i64)> = reviews
         .iter()
-        .map(|review| (review.id.clone(), (review.status.clone(), review.arrived_at)))
+        .map(|review| {
+            (
+                review.id.clone(),
+                (review.status.clone(), review.arrived_at),
+            )
+        })
         .collect();
     let Some(before) = watch.reviews_seen.insert(repo_path.to_path_buf(), now) else {
         return;
@@ -286,7 +318,10 @@ fn fire_on_review_arrivals(
         let Some(hook) = hooks.of_review_status(&review.status) else {
             continue;
         };
-        let claim_name = format!("review-{}-{}-{}", review.id, review.status, review.arrived_at);
+        let claim_name = format!(
+            "review-{}-{}-{}",
+            review.id, review.status, review.arrived_at
+        );
         if !claim(repo_path, &claim_name) {
             continue;
         }
@@ -299,7 +334,10 @@ fn fire_on_review_arrivals(
                 review.id,
                 super::HOOK_RUNS_IN_A_ROW_CAP
             ),
-            Err(error) => format!("review {}: failed on {}: {error:#}", review.status, review.id),
+            Err(error) => format!(
+                "review {}: failed on {}: {error:#}",
+                review.status, review.id
+            ),
         };
         write_log_line(repo_path, &said);
     }

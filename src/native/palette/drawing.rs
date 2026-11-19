@@ -50,7 +50,7 @@ fn description_kept(mode: PaletteMode) -> Kept {
 /// The palette's colours and row sizes, out of the window's.
 fn style_of(palette: &Palette) -> egui_command_palette::PaletteStyle {
     egui_command_palette::PaletteStyle {
-        panel: palette.panel,
+        panel: thicken_palette_panel(palette.panel),
         line: palette.line,
         selected: palette.control_active_bg,
         accent: palette.accent,
@@ -64,6 +64,20 @@ fn style_of(palette: &Palette) -> egui_command_palette::PaletteStyle {
         detail_top: 24.0,
         header_height: 32.0,
     }
+}
+
+/// How much of the scene behind a thinned panel the palette still lets through: far less
+/// than a pane does, since the palette floats over text it must be read against.
+const PALETTE_PANEL_OPACITY: f32 = 0.92;
+
+/// The palette's ground: the window's panel, but nearly solid when a background scene has
+/// thinned it ([`Palette::seen_through`]). An already-solid panel stays solid.
+fn thicken_palette_panel(panel: Color32) -> Color32 {
+    let opacity = PALETTE_PANEL_OPACITY * 255.0;
+    if f32::from(panel.a()) >= opacity {
+        return panel;
+    }
+    panel.to_opaque().gamma_multiply(PALETTE_PANEL_OPACITY)
 }
 
 /// The row of the list a command is.
