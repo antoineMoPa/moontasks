@@ -1,4 +1,5 @@
-//! Webview pane - shows an agent's visualization in the system's webview, WKWebView on macOS.
+//! Webview pane - shows an agent's visualization, or a markdown file's rendered page, in the
+//! system's webview, WKWebView on macOS.
 //!
 //! The page is not drawn by egui. A webview is a native view of its own, put in the window as
 //! a child of the view eframe draws into, and laid over the pane: egui only keeps the room for
@@ -10,8 +11,9 @@
 //! That is why the webviews are hidden while the palette or the find bar is up: those are
 //! drawn over the panes, and would be drawn under the page.
 //!
-//! The page is the visualization's - see [`crate::native::visualizations`]. A webview is only
-//! made once its page has arrived, and loads the page again each time a newer one does.
+//! The page is the visualization's - see [`crate::native::visualizations`] - or, on a file
+//! tab showing its preview, the markdown file's - see `file_pane::markdown_page`. A webview is
+//! only made once its page has arrived, and loads the page again each time a newer one does.
 
 use std::collections::HashMap;
 
@@ -40,6 +42,14 @@ struct PlacedView {
     arrival: u64,
 }
 
+/// What a webview pane shows: its page, by when it arrived, and whether it is a markdown file's.
+#[cfg(target_os = "macos")]
+struct Shown<'a> {
+    html: &'a str,
+    arrival: u64,
+    markdown: bool,
+}
+
 #[cfg(target_os = "macos")]
 impl Webviews {
     /// Hide every webview, for a space that is being put down: the next frame is not drawn
@@ -55,16 +65,24 @@ impl Webviews {
 }
 
 pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId) {
-    // Only what can be seen of the pane: a webview is not clipped by the frame around it.
-    let rect = ui.max_rect().intersect(ui.clip_rect());
-    ui.allocate_rect(rect, Sense::hover());
-    // Under where the page will be, and covered by it once it has arrived.
     let waiting = if cfg!(target_os = "macos") {
-        app.webviews.drawn.insert(pane_id, rect);
         "loading the visualization"
     } else {
         "visualizations are only shown on macOS for now"
     };
+    reserve_room(app, ui, pane_id, waiting);
+}
+
+/// Keep the rest of `ui` for the pane's webview, saying `waiting` under it until its page
+/// covers the words.
+pub(crate) fn reserve_room(app: &mut App, ui: &mut Ui, pane_id: PaneId, waiting: &str) {
+    // Only what can be seen of the pane: a webview is not clipped by the frame around it.
+    let rect = ui.max_rect().intersect(ui.clip_rect());
+    ui.allocate_rect(rect, Sense::hover());
+    if cfg!(target_os = "macos") {
+        app.webviews.drawn.insert(pane_id, rect);
+    }
+    // Under where the page will be, and covered by it once it has arrived.
     ui.painter().text(
         rect.center(),
         Align2::CENTER_CENTER,
@@ -84,13 +102,31 @@ impl App {
     #[cfg(target_os = "macos")]
     pub(crate) fn place_webviews(&mut self, window: &eframe::Frame, ctx: &egui::Context) {
         let drawn = std::mem::take(&mut self.webviews.drawn);
-        let open: HashMap<PaneId, String> = self
-            .model
+        let model = &self.model;
+        let open: HashMap<PaneId, Option<Shown>> = model
             .layout
             .panes()
             .filter_map(|(pane_id, pane)| match pane {
                 crate::native::panes::Pane::Visualization { fragment_path } => {
-                    Some((pane_id, fragment_path.clone()))
+                    let shown = model
+                        .visualizations
+                        .pages
+                        .get(fragment_path)
+                        .map(|page| Shown {
+                            html: page.html.as_str(),
+                            arrival: page.arrival,
+                            markdown: false,
+                        });
+                    Some((pane_id, shown))
+                }
+                crate::native::panes::Pane::File { .. } => {
+                    let page = &model.file_editors.get(&pane_id)?.markdown_page;
+                    let shown = page.html.as_deref().map(|html| Shown {
+                        html,
+                        arrival: page.arrival,
+                        markdown: true,
+                    });
+                    Some((pane_id, shown))
                 }
                 _ => None,
             })
@@ -101,7 +137,7 @@ impl App {
             .retain(|pane_id, _| open.contains_key(pane_id));
 
         // Drawn over the panes: a page left showing would cover them.
-        let covered = self.model.palette.is_open() || self.model.find.is_some();
+        let covered = model.palette.is_open() || model.find.is_some();
         let pixels_per_point = ctx.pixels_per_point();
         for (pane_id, placed) in &self.webviews.views {
             if covered || !drawn.contains_key(pane_id) {
@@ -114,16 +150,17 @@ impl App {
         for (pane_id, rect) in drawn {
             // A pane drawn this frame can be closed later in the same frame - its tab's close
             // button is handled after the pane was drawn - and there is nothing to place for it.
-            let Some(fragment_path) = open.get(&pane_id) else {
-                continue;
-            };
-            let Some(page) = self.model.visualizations.pages.get(fragment_path) else {
+            let Some(Some(page)) = open.get(&pane_id) else {
                 continue;
             };
             let bounds = physical_bounds(rect, pixels_per_point);
             let placed = self.webviews.views.entry(pane_id).or_insert_with(|| {
-                let view = wry::WebViewBuilder::new()
-                    .with_html(page.html.as_str())
+                let mut builder = wry::WebViewBuilder::new();
+                if page.markdown {
+                    builder = builder.with_navigation_handler(navigate_within_the_page);
+                }
+                let view = builder
+                    .with_html(page.html)
                     // The first click on a window in the background lands on what it clicked,
                     // as it does on the rest of the window's panes, rather than only bringing
                     // the window forward.
@@ -140,7 +177,7 @@ impl App {
             if placed.arrival != page.arrival {
                 placed
                     .view
-                    .load_html(&page.html)
+                    .load_html(page.html)
                     .expect("a webview can always be handed a page");
                 placed.arrival = page.arrival;
             }
@@ -159,6 +196,18 @@ impl App {
             }
         }
     }
+}
+
+/// Whether a markdown page may go where a click on a link takes it: to a heading of its own,
+/// yes; to a web address, no - that opens in the browser, and the pane keeps the file.
+#[cfg(target_os = "macos")]
+fn navigate_within_the_page(url: String) -> bool {
+    let leaves = url.starts_with("http://") || url.starts_with("https://");
+    if leaves {
+        // Nowhere to say it failed from in here; the click simply does nothing.
+        let _ = webbrowser::open(&url);
+    }
+    !leaves
 }
 
 /// A rect of the window in points, as the webview is placed: in physical pixels from the

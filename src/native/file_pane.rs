@@ -18,11 +18,11 @@ mod encrypted;
 #[cfg(test)]
 mod for_tests;
 mod json_tree;
+mod markdown_page;
 mod on_disk;
 mod opening;
 mod passphrase_field;
 mod picture;
-mod preview_images;
 mod serving;
 
 pub(crate) use opening::tab_on_file;
@@ -142,8 +142,10 @@ pub(crate) struct FileEditor {
     picture: Option<picture::Picture>,
     /// Whether the pictures on the rendered page are read again before the page is next
     /// drawn: as the tab opens and each time the page is flipped to, so a picture written
-    /// since is the one shown - see [`preview_images`].
+    /// since is the one shown - see [`markdown_page`].
     preview_images_stale: bool,
+    /// The rendered page of a markdown file, which the webview over the pane shows.
+    pub(crate) markdown_page: markdown_page::MarkdownPage,
     /// The passphrase of a file kept encrypted, and the question asking for it - see
     /// [`encrypted`]. `None` for every other file.
     encrypted: Option<encrypted::Encrypted>,
@@ -194,6 +196,7 @@ impl FileEditor {
             revision: None,
             picture: None,
             preview_images_stale: true,
+            markdown_page: Default::default(),
             encrypted,
         }
     }
@@ -421,6 +424,7 @@ mod tests {
             revision: None,
             picture: None,
             preview_images_stale: true,
+            markdown_page: Default::default(),
             encrypted: None,
         }
     }

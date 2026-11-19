@@ -188,7 +188,11 @@ pub(crate) fn paint_scene(ui: &Ui, clip: Rect, window: Rect, scene: Scene, groun
         painter.rect_filled(
             window,
             0.0,
-            ground.gamma_multiply(f32::from(spec.default_dim) / 100.0),
+            // Opaque first: the ground handed in is already see-through, and dimming with it
+            // would weaken the dim by that much again.
+            ground
+                .to_opaque()
+                .gamma_multiply(f32::from(spec.default_dim) / 100.0),
         );
     }
 

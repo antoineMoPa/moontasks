@@ -90,8 +90,8 @@ pub(super) static MOON: SceneSpec = SceneSpec {
         },
     ],
     default_size: 80,
-    default_fade: 40,
-    default_dim: 8,
+    default_fade: 20,
+    default_dim: 55,
 };
 
 pub(super) static TRAINS: SceneSpec = SceneSpec {
@@ -317,6 +317,6 @@ pub(super) static TRAINS: SceneSpec = SceneSpec {
         },
     ],
     default_size: 100,
-    default_fade: 45,
-    default_dim: 0,
+    default_fade: 20,
+    default_dim: 40,
 };

@@ -1,8 +1,6 @@
 //! Drawing a file tab: its header, the rendered page a markdown file opens on, and the editor
 //! with its context menu.
 
-use std::sync::Arc;
-
 use egui::{Align, Layout, RichText, Ui};
 use egui_frames::PaneId;
 use egui_moon_code_ide::LspPosition;
@@ -14,7 +12,7 @@ use crate::native::{
     widgets,
 };
 
-use super::{is_markdown, json_tree, preview_images::PreviewImages};
+use super::{is_markdown, json_tree, markdown_page::PageLook};
 
 /// Between the pane's border and what it is showing.
 const PANE_PADDING: i8 = 10;
@@ -381,65 +379,31 @@ fn draw_picture(app: &App, ui: &mut Ui, pane_id: PaneId, palette: &Palette) {
     picture.draw(ui, palette);
 }
 
-/// About the measure GitHub lays a readme out at. Prose in a full-width pane puts a whole
-/// paragraph on one line, which is more head-turning than reading.
-const PREVIEW_MAX_WIDTH: f32 = 900.0;
-
-/// What the rendered page keeps clear on either side even in a narrow pane - text against
-/// the pane's edge reads like a mistake.
-const PREVIEW_SIDE_PADDING: f32 = 100.0;
-
-/// The markdown rendered as the page it describes, in place of the text of it.
+/// The markdown rendered as the page it describes, in place of the text of it: HTML, drawn by
+/// the system's webview laid over the pane - see [`super::markdown_page`].
 ///
 /// It renders the edited text rather than the saved one, so flipping to the preview shows
 /// what would be saved, not what was.
-///
-/// The pictures the text writes beside itself are fetched through the backend - see
-/// [`preview_images`].
 fn draw_preview(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str) {
     let Some(editor) = app.model.file_editors.get_mut(&pane_id) else {
         return;
     };
-    let text = editor.code.text().to_string();
-    let images = PreviewImages::of(ui.ctx());
-    let uris_of_page = images.uris_of_page(session_id, &editor.file_path);
     if std::mem::take(&mut editor.preview_images_stale) {
-        images.forget_page(ui.ctx(), &uris_of_page);
+        editor.markdown_page.forget_pictures();
     }
+    let look = PageLook::of_visuals(ui.visuals());
+    app.refresh_markdown_page(pane_id, session_id, &look);
 
-    // Measured out here: inside a scroll area that scrolls sideways, the room on offer has no
-    // end, and the column would be centred on nothing.
-    let pane_width = ui.available_width();
-    // Both ways, so a table or image wider than the column scrolls sideways instead of running
-    // off the pane's edge.
-    egui::ScrollArea::both()
-        .id_salt(("file-pane-preview", pane_id))
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            let width = (pane_width - 2.0 * PREVIEW_SIDE_PADDING)
-                .min(PREVIEW_MAX_WIDTH)
-                // A pane too narrow for the full padding still gets a readable column.
-                .max(pane_width * 0.5);
-            let margin = ((pane_width - width) / 2.0).max(0.0);
-            ui.horizontal_top(|ui| {
-                ui.add_space(margin);
-                ui.vertical(|ui| {
-                    ui.set_max_width(width);
-                    egui_commonmark::CommonMarkViewer::new()
-                        .default_implicit_uri_scheme(uris_of_page)
-                        .show(ui, &mut app.model.markdown_cache, &text);
-                });
-            });
+    if cfg!(target_os = "macos") && cfg!(not(target_arch = "wasm32")) {
+        crate::native::webview_pane::reserve_room(app, ui, pane_id, "rendering the page");
+    } else {
+        ui.vertical_centered(|ui| {
+            ui.add_space(24.0);
+            ui.label("the page is drawn in a webview, which only macOS has here");
+            if widgets::quiet_button(ui, "[open in browser]").clicked() {
+                app.open_markdown_in_browser(pane_id);
+            }
         });
-
-    // Sent for once the page has been drawn, which is what asked for them.
-    for asked in images.take_asked() {
-        let images = Arc::clone(&images);
-        let (session_id, file_path) = (asked.session_id.clone(), asked.file_path.clone());
-        app.tasks.spawn(
-            move |backend| backend.file_content(&session_id, &file_path),
-            move |_, read| images.arrived(&asked, read),
-        );
     }
 }
 

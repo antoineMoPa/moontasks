@@ -201,22 +201,21 @@ fn a_markdown_file_opens_rendered() {
     );
 }
 
-/// A picture a markdown file writes beside itself is drawn on the rendered page: read from the
+/// A picture a markdown file writes beside itself is put in the rendered page: read from the
 /// repo, against the folder the markdown file is in.
 #[test]
-fn a_markdown_page_shows_the_pictures_beside_it() {
-    /// A color nothing else in the window is drawn in.
-    const DOT: [u8; 4] = [255, 0, 255, 255];
-
+fn a_markdown_page_carries_the_pictures_beside_it() {
     let fixture = Fixture::new("file-markdown-pictures");
     fixture.write("docs/NOTES.md", "# The plan\n\n![the dot](img/dot.png)\n");
-    fixture.write_png("docs/img/dot.png", DOT);
+    fixture.write_png("docs/img/dot.png", [255, 0, 255, 255]);
     fixture.commit("Add the notes");
 
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     app.set_theme(ThemeMode::Dark);
     let opened = Arc::new(AtomicBool::new(false));
     let opened_in_ui = Arc::clone(&opened);
+    let carried = Arc::new(AtomicBool::new(false));
+    let carried_in_ui = Arc::clone(&carried);
     let mut harness = Harness::builder()
         .with_size(egui::vec2(1200.0, 760.0))
         .with_theme(egui::Theme::Dark)
@@ -230,18 +229,26 @@ fn a_markdown_page_shows_the_pictures_beside_it() {
                 opened_in_ui.store(true, Ordering::Relaxed);
             }
             app.draw(ui);
+            let page_has_it = app.model.file_editors.values().any(|editor| {
+                editor
+                    .markdown_page
+                    .html
+                    .as_deref()
+                    .is_some_and(|html| html.contains(r#"src="data:image/png;base64,"#))
+            });
+            carried_in_ui.store(page_has_it, Ordering::Relaxed);
         });
 
     // The file's read and then the picture's are each a worker thread away.
-    let mut drawn = false;
     let deadline = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < deadline && !drawn {
+    while Instant::now() < deadline && !carried.load(Ordering::Relaxed) {
         harness.step();
         std::thread::sleep(Duration::from_millis(10));
-        let window = harness.render().expect("the window should render");
-        drawn = window.pixels().any(|pixel| pixel.0 == DOT);
     }
-    assert!(drawn, "the page should have drawn the picture beside it");
+    assert!(
+        carried.load(Ordering::Relaxed),
+        "the page should carry the picture beside it"
+    );
 }
 
 /// Pointed at a file nobody has touched, the review shows the file itself rather than an
