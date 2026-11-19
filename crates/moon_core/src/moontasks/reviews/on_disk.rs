@@ -75,7 +75,7 @@ pub fn list_review_statuses(repo_path: &Path) -> Vec<String> {
     statuses
 }
 
-/// Every review file of the board, status by status in the lane's order, and within a status
+/// Every review file of the board, status by status, and within a status
 /// by the order the files give, then oldest first.
 ///
 /// A file that cannot be read is passed over rather than failing the rest: it is written by
@@ -218,7 +218,9 @@ pub fn move_review_file(repo_path: &Path, id: &str, to_status: Option<&str>) -> 
 pub fn locate_review_file_in_status(repo_path: &Path, status: &str, id: &str) -> Result<PathBuf> {
     ensure_plain_name(status)?;
     ensure_plain_name(id)?;
-    let path = reviews_root(repo_path).join(status).join(format!("{id}.md"));
+    let path = reviews_root(repo_path)
+        .join(status)
+        .join(format!("{id}.md"));
     match path.is_file() {
         true => Ok(path),
         false => Err(anyhow!("there is no review called {id} in {status}")),
@@ -233,8 +235,7 @@ pub fn move_review_file_at(
     to_status: Option<&str>,
 ) -> Result<()> {
     let Some(status) = to_status else {
-        return std::fs::remove_file(from)
-            .with_context(|| format!("removing {}", from.display()));
+        return std::fs::remove_file(from).with_context(|| format!("removing {}", from.display()));
     };
     ensure_plain_name(status)?;
     let dir = reviews_root(repo_path).join(status);
@@ -268,4 +269,51 @@ fn ensure_plain_name(name: &str) -> Result<()> {
         bail!("{name:?} cannot name a review or a status");
     }
     Ok(())
+}
+
+/// Put away the reviews of tasks deleted from the board: each file moves into its task's folder
+/// under [`store::DELETED_TASKS_DIR_NAME`], as `reviews/<status>/<id>.md`, so it comes back with
+/// the task if the folder is moved back by hand. Returns a line for each review put away.
+///
+/// A review is only ever shown on its task's card, so one whose card is gone would otherwise
+/// sit in its status folder unseen. A review that names no task, or one the board has never
+/// had - a name mistyped by an agent - is left where it is.
+pub fn put_away_reviews_of_deleted_tasks(repo_path: &Path) -> Vec<String> {
+    let mut said = Vec::new();
+    for review in read_review_files(repo_path) {
+        let Some(task_id) = review.task.as_deref() else {
+            continue;
+        };
+        let Some(kept_at) = find_folder_of_deleted_task(repo_path, task_id) else {
+            continue;
+        };
+        let from = reviews_root(repo_path)
+            .join(&review.status)
+            .join(format!("{}.md", review.id));
+        let dir = kept_at.join(REVIEWS_DIR_NAME).join(&review.status);
+        let moved = std::fs::create_dir_all(&dir)
+            .and_then(|()| std::fs::rename(&from, choose_free_review_path(&dir, &review.id)));
+        said.push(match moved {
+            Ok(()) => format!(
+                "review {}: put away with its deleted task {task_id}",
+                review.id
+            ),
+            Err(error) => format!("review {}: could not be put away: {error}", review.id),
+        });
+    }
+    said
+}
+
+/// Where a deleted task's folder is kept, if the task is deleted: it is no longer on the board,
+/// and a folder of its name is under [`store::DELETED_TASKS_DIR_NAME`].
+fn find_folder_of_deleted_task(repo_path: &Path, task_id: &str) -> Option<PathBuf> {
+    // Checked as a task id first, so a name that climbs out of the folder finds nothing.
+    store::task_dir(repo_path, task_id).ok()?;
+    if store::has_task_record(repo_path, task_id).unwrap_or(true) {
+        return None;
+    }
+    let kept_at = store::tasks_root(repo_path)
+        .join(store::DELETED_TASKS_DIR_NAME)
+        .join(task_id);
+    kept_at.is_dir().then_some(kept_at)
 }

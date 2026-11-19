@@ -346,12 +346,7 @@ impl App {
                     // A review that cannot be followed stays where it is until the next look.
                     let _ = backend.move_reviews_to_their_git_stage(&session_id);
                 }
-                let requests = backend.list_review_requests(&session_id)?;
-                // Read with the rows, so a status folder made by hand shows with them.
-                let statuses = backend
-                    .list_review_statuses(&session_id)
-                    .unwrap_or_default();
-                Ok((requests, statuses))
+                backend.list_review_requests(&session_id)
             },
             move |model, result| {
                 // A read that started before a row was dismissed or crossed off from the
@@ -362,9 +357,8 @@ impl App {
                 }
                 // A failed read leaves the last answer standing, the way the hub's does: a list
                 // that is a poll out of date is worth more than an empty one.
-                if let Ok((requests, statuses)) = result {
+                if let Ok(requests) = result {
                     model.review_requests = requests;
-                    model.review_statuses = statuses;
                 }
             },
         );

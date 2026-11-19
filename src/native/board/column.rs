@@ -180,9 +180,10 @@ pub(super) fn draw_column(
                 .corner_radius(CornerRadius::same(8))
                 .inner_margin(egui::Margin::same(4))
                 .begin(ui);
+            let scroll_bar_of_the_cards;
             {
                 let ui = &mut zone.content_ui;
-                ScrollArea::vertical()
+                let cards_area = ScrollArea::vertical()
                     .id_salt(format!("moontasks-column-{status}"))
                     // Dragging is how a card is moved, so it must not also mean "scroll the
                     // column" - the same reason the board's own scroll area says it.
@@ -305,6 +306,7 @@ pub(super) fn draw_column(
                             ui.label(RichText::new(empty).size(SMALL_SIZE).color(palette.muted));
                         }
                     });
+                scroll_bar_of_the_cards = cards_area.id;
             }
             let response = zone.allocate_space(ui);
             // A press in the column that no card claimed - the space under the last card, the
@@ -320,6 +322,12 @@ pub(super) fn draw_column(
                     false,
                 );
             }
+            // A press on the column's scroll bar is the bar's, whatever card lies under it.
+            gesture::leave_a_press_on_the_scroll_bar_to_it(
+                &mut app.model.board,
+                ui,
+                scroll_bar_of_the_cards,
+            );
 
             // Which column the pointer is in, worked out from the pointer rather than taken from
             // the response: egui hit-tests a frame behind, on the widgets the last frame drew, and

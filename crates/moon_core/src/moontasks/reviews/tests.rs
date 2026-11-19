@@ -1,4 +1,5 @@
 use super::*;
+use crate::moontasks::store;
 
 #[test]
 fn a_review_file_reads_its_keys_and_its_commit_message() {
@@ -17,7 +18,10 @@ fn a_review_file_reads_its_keys_and_its_commit_message() {
     assert_eq!(review.deploy.as_deref(), Some("pending"));
     assert_eq!(review.order, Some(2));
     let suggestion = review.suggestion.expect("expected a commit message");
-    assert_eq!(suggestion.subject, "fix(encabulator): put the bearing races back");
+    assert_eq!(
+        suggestion.subject,
+        "fix(encabulator): put the bearing races back"
+    );
     assert_eq!(suggestion.paragraph, "They were reversed.");
 }
 
@@ -171,5 +175,53 @@ fn moving_a_review_onto_a_namesake_keeps_both() {
     assert!(root.join("pushed/a-2.md").is_file());
     assert!(!root.join("requested/a.md").exists());
     let pushed = std::fs::read_to_string(root.join("pushed/a.md")).expect("read");
-    assert!(pushed.contains("feat: a pushed"), "the older review was written over");
+    assert!(
+        pushed.contains("feat: a pushed"),
+        "the older review was written over"
+    );
+}
+
+/// A deleted task takes its reviews with it, into its folder under `.deleted` - and only its
+/// own: a review of a task still on the board, one that names no task and one whose task the
+/// board never had all stay where they are.
+#[test]
+fn the_reviews_of_a_deleted_task_are_put_away_with_it() {
+    let board = crate::test_fixture::Fixture::new("review-files-of-deleted-task");
+    let tasks = store::tasks_root(&board.root);
+    let metadata = "{\n  \"title\": \"A task\",\n  \"status\": \"todo\",\n  \
+                    \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n";
+    for task in ["kept-1111", "gone-2222"] {
+        std::fs::create_dir_all(tasks.join(task)).expect("expected the folder");
+        std::fs::write(tasks.join(task).join("metadata.json"), metadata)
+            .expect("expected the file");
+    }
+    let root = reviews_root(&board.root);
+    std::fs::create_dir_all(root.join("requested")).expect("expected the folder");
+    std::fs::create_dir_all(root.join("pushed")).expect("expected the folder");
+    let write = |path: &str, task: &str| {
+        std::fs::write(
+            root.join(path),
+            format!("---\n{task}repo: .\n---\nfeat: a\n"),
+        )
+        .expect("expected the file");
+    };
+    write("requested/of-kept.md", "task: kept-1111\n");
+    write("requested/of-gone.md", "task: gone-2222\n");
+    write("pushed/of-gone-too.md", "task: gone-2222\n");
+    write("requested/of-nobody.md", "");
+    write("requested/of-a-typo.md", "task: never-was-3333\n");
+
+    assert!(put_away_reviews_of_deleted_tasks(&board.root).is_empty());
+    store::delete_task(&board.root, "gone-2222").expect("expected the task deleted");
+    assert_eq!(put_away_reviews_of_deleted_tasks(&board.root).len(), 2);
+
+    let left: Vec<String> = read_review_files(&board.root)
+        .into_iter()
+        .map(|review| review.id)
+        .collect();
+    assert_eq!(left, ["of-a-typo", "of-kept", "of-nobody"]);
+    let kept_at = tasks.join(store::DELETED_TASKS_DIR_NAME).join("gone-2222");
+    assert!(kept_at.join("reviews/requested/of-gone.md").is_file());
+    assert!(kept_at.join("reviews/pushed/of-gone-too.md").is_file());
+    assert!(put_away_reviews_of_deleted_tasks(&board.root).is_empty());
 }

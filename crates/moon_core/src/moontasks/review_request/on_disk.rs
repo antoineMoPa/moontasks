@@ -15,7 +15,7 @@ use crate::moontasks::{
 /// the branch - not one from months ago.
 pub(crate) const COMMITTED_LOOKBACK: &str = "30";
 
-/// Every review file of the board, in the lane's order, each with where its work is and how
+/// Every review file of the board, status by status, each with where its work is and how
 /// much of it is uncommitted.
 ///
 /// A repo with no board, or a board with no review, has an empty list - neither is an error.
@@ -69,6 +69,9 @@ pub fn list_for_repo(repo_path: &Path) -> Vec<ReviewRequestView> {
                     status: file.status,
                     pr_url: file.pr.as_deref().and_then(|pr| {
                         crate::moontasks::reviews::find_pull_request_url(repo_path, &path, pr)
+                    }),
+                    pr_state: file.pr.as_deref().and_then(|pr| {
+                        crate::moontasks::reviews::read_known_pull_request_state(&path, pr)
                     }),
                     pr: file.pr,
                     deploy: file.deploy,

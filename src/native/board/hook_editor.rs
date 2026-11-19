@@ -12,8 +12,8 @@ use crate::{
     moontasks::{
         ColumnId,
         hooks::{
-            ColumnHook, RemoveHookRequest, ReviewHook, RunHookNowRequest, SaveHookRequest,
-            Schedule, ScheduleEvery, TimeAsked, TimeOfDay, start_word,
+            ColumnHook, RemoveHookRequest, RunHookNowRequest, SaveHookRequest, Schedule,
+            ScheduleEvery, TimeAsked, TimeOfDay, start_word,
         },
     },
     native::{
@@ -34,8 +34,6 @@ pub(crate) enum HookEditorTarget {
     Column(ColumnId),
     /// A schedule, by the name it was saved under - `None` for one not saved yet.
     Schedule(Option<String>),
-    /// A review status's hook - see [`crate::native::board::review_lane`].
-    Review(String),
 }
 
 /// The hook being edited, as it is being typed.
@@ -114,24 +112,8 @@ pub(crate) fn open_hook_editor(app: &mut App, target: HookEditorTarget, anchor: 
             editor.focus_prompt = false;
             editor.focus_title = true;
         }
-        HookEditorTarget::Review(status) => {
-            if let Some(hook) = hooks.of_review_status(status) {
-                editor.saved_before = true;
-                editor.start = hook.start;
-                editor.prompt = hook.prompt.clone();
-            }
-        }
     }
     app.model.board.hook_editor = Some(editor);
-}
-
-/// Whether the editor open is a review status's, which the reviews frame draws.
-pub(crate) fn edits_a_review_status(app: &App) -> bool {
-    app.model
-        .board
-        .hook_editor
-        .as_ref()
-        .is_some_and(|editor| matches!(editor.target, HookEditorTarget::Review(_)))
 }
 
 /// The editor, if one is open, over the board.
@@ -173,7 +155,6 @@ pub(super) fn draw(
             format!("When a card arrives in {}", column_label(&column))
         }
         Some(HookEditorTarget::Schedule(_)) => String::new(),
-        Some(HookEditorTarget::Review(status)) => format!("When a review arrives in {status}"),
         None => return,
     };
     let run_on = choose_what_to_run_on(app);
@@ -186,7 +167,7 @@ pub(super) fn draw(
     }
 
     let (pivot, at) = match editor.target {
-        HookEditorTarget::Column(_) | HookEditorTarget::Review(_) => (
+        HookEditorTarget::Column(_) => (
             Align2::RIGHT_TOP,
             editor.anchor.right_bottom() + vec2(0.0, GAP),
         ),
@@ -228,16 +209,14 @@ pub(super) fn draw(
 
 /// What `[run now]` runs the open hook on, and how its hover says so.
 struct RunOn {
-    /// The card or review, by id; `None` leaves it to the backend, which takes the review that
-    /// arrived in the status last.
+    /// The card, by id.
     target: Option<String>,
     /// `None` when there is nothing to run on, which is the button greyed out.
     hover: Option<String>,
 }
 
 /// The card a column hook's `[run now]` runs on - the marked one in its column, or else its top
-/// card - and the review a review hook's runs on: the marked one in its status, or else the
-/// last to arrive there. A schedule runs on the board.
+/// card. A schedule runs on the board.
 fn choose_what_to_run_on(app: &App) -> RunOn {
     let board = &app.model.board;
     match board.hook_editor.as_ref().map(|editor| &editor.target) {
@@ -250,21 +229,6 @@ fn choose_what_to_run_on(app: &App) -> RunOn {
             RunOn {
                 target: card.map(|card| card.id.clone()),
                 hover: card.map(|card| format!("Run it now on {:?}, as typed", card.title)),
-            }
-        }
-        Some(HookEditorTarget::Review(status)) => {
-            let marked = board
-                .marked_reviews
-                .iter()
-                .find(|review| review.status == *status)
-                .map(|review| review.id.clone());
-            let hover = match &marked {
-                Some(id) => format!("Run it now on the review {id}, as typed"),
-                None => format!("Run it now on the review that arrived in {status} last, as typed"),
-            };
-            RunOn {
-                target: marked,
-                hover: Some(hover),
             }
         }
         _ => RunOn {
@@ -365,10 +329,6 @@ fn draw_contents(
     };
     let placeholders = match editor.target {
         HookEditorTarget::Schedule(_) => "{date} is filled in with today's date",
-        HookEditorTarget::Review(_) => {
-            "{repo} {branch} {pr} {subject} {file} {from} {id} are filled in from the review, \
-             {title} {folder} from its card"
-        }
         HookEditorTarget::Column(_) => {
             "{title} {notes} {from} {folder} {id} are filled in from the card"
         }
@@ -449,13 +409,6 @@ fn request_to_save(editor: &HookEditor) -> Result<SaveHookRequest, String> {
                 prompt: editor.prompt.clone(),
             },
         }),
-        HookEditorTarget::Review(status) => Ok(SaveHookRequest::Review {
-            hook: ReviewHook {
-                status: status.clone(),
-                start: editor.start,
-                prompt: editor.prompt.clone(),
-            },
-        }),
         HookEditorTarget::Schedule(renamed_from) => {
             if editor.name.trim().is_empty() {
                 return Err("A schedule needs a title".to_string());
@@ -521,10 +474,6 @@ fn request_to_run_now(
 ) -> Result<RunHookNowRequest, String> {
     Ok(match request_to_save(editor)? {
         SaveHookRequest::Column { hook } => RunHookNowRequest::Column { hook, task: target },
-        SaveHookRequest::Review { hook } => RunHookNowRequest::Review {
-            hook,
-            review: target,
-        },
         SaveHookRequest::Schedule { schedule, .. } => RunHookNowRequest::Schedule { schedule },
     })
 }
@@ -543,8 +492,5 @@ fn request_to_remove(editor: &HookEditor) -> Option<RemoveHookRequest> {
             Some(RemoveHookRequest::Schedule { name: name.clone() })
         }
         HookEditorTarget::Schedule(None) => None,
-        HookEditorTarget::Review(status) => Some(RemoveHookRequest::Review {
-            status: status.clone(),
-        }),
     }
 }

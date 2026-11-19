@@ -353,7 +353,6 @@ impl App {
                 project_shell: None,
                 submodule_filter: String::new(),
                 review_requests: Vec::new(),
-                review_statuses: Vec::new(),
                 recently_closed: Vec::new(),
                 placing_reopened: None,
                 command_launcher: None,

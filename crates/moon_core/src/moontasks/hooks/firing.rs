@@ -4,11 +4,10 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use super::{ColumnHook, HOOK_RUNS_IN_A_ROW_CAP, ReviewHook, Schedule};
+use super::{ColumnHook, HOOK_RUNS_IN_A_ROW_CAP, Schedule};
 use crate::{
     api::{AgentKind, AppState},
     moontasks::{
-        reviews::{ReviewFile, describe_pull_request, reviews_root},
         service::{HookStart, start_hook_run},
         store,
     },
@@ -90,105 +89,6 @@ pub(super) fn start_column_hook_run(
         &prompt,
         None,
     )
-}
-
-/// Start a review status's hook on a review that has just arrived in it: on the review's card,
-/// or on the board's own task for a review that names none. Loops are stopped the way a
-/// column's are, by the card's count of hook runs in a row.
-pub(super) fn fire_review_hook(
-    state: &AppState,
-    session_id: &str,
-    repo_path: &Path,
-    hook: &ReviewHook,
-    review: &ReviewFile,
-    from: &str,
-) -> Result<Fired> {
-    if let Some(task_id) = card_of_review(repo_path, review)
-        && !count_a_hook_run_on_card(repo_path, task_id)?
-    {
-        return Ok(Fired::StoppedForLoops);
-    }
-    start_review_hook_run(state, session_id, repo_path, hook, review, from)?;
-    Ok(Fired::Started)
-}
-
-/// The card a review is for, if it names one the board has.
-fn card_of_review<'a>(repo_path: &Path, review: &'a ReviewFile) -> Option<&'a str> {
-    review
-        .task
-        .as_deref()
-        .filter(|task| store::has_task_record(repo_path, task).unwrap_or(false))
-}
-
-/// Start a review hook's run on a review, counting nothing - see [`start_column_hook_run`].
-/// Answers the task the run is on, and its terminal.
-pub(super) fn start_review_hook_run(
-    state: &AppState,
-    session_id: &str,
-    repo_path: &Path,
-    hook: &ReviewHook,
-    review: &ReviewFile,
-    from: &str,
-) -> Result<(String, String)> {
-    let (task_id, title, folder) = match card_of_review(repo_path, review) {
-        Some(task_id) => {
-            let metadata = store::read_task(repo_path, task_id)?;
-            let folder = store::task_dir(repo_path, task_id)?.display().to_string();
-            (task_id.to_string(), metadata.title, folder)
-        }
-        None => {
-            ensure_board_task(repo_path)?;
-            (
-                store::BOARD_TASK_ID.to_string(),
-                String::new(),
-                String::new(),
-            )
-        }
-    };
-    let file = reviews_root(repo_path)
-        .join(&review.status)
-        .join(format!("{}.md", review.id))
-        .display()
-        .to_string();
-    let repo = match review.path_under_repo.as_str() {
-        "" => ".",
-        path => path,
-    };
-    let subject = review
-        .suggestion
-        .as_ref()
-        .map(|suggestion| suggestion.subject.as_str())
-        .unwrap_or_default();
-    let pr = review.pr.as_deref().unwrap_or_default();
-    let prompt = fill_placeholders(
-        &hook.prompt,
-        &[
-            ("{title}", &title),
-            ("{repo}", repo),
-            ("{branch}", review.branch.as_deref().unwrap_or_default()),
-            ("{pr}", pr),
-            ("{subject}", subject),
-            ("{file}", &file),
-            ("{from}", from),
-            ("{folder}", &folder),
-            ("{id}", &review.id),
-        ],
-    );
-    let label = format!(
-        "{} {}",
-        review.status,
-        describe_pull_request(review.pr.as_deref(), review.branch.as_deref())
-    );
-    let terminal_id = start_with_prompt(
-        state,
-        session_id,
-        &task_id,
-        hook.start,
-        label.trim(),
-        &prompt,
-        Some(&review.id),
-    )?;
-    Ok((task_id, terminal_id))
 }
 
 /// Start a schedule's run, on the board's own task. Answers the run's terminal.

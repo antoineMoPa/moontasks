@@ -516,6 +516,10 @@ fn draw_card_body(
             title_rect,
             card.took_the_press(),
         );
+        // A right click on a row with a menu of its own opens that menu, not the card's too.
+        if card.took_the_right_click() {
+            app.model.board.card_menu = None;
+        }
     }
     rect
 }

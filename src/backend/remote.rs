@@ -512,10 +512,6 @@ impl Backend for RemoteBackend {
         )
     }
 
-    fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>> {
-        self.get(&format!("/api/session/{session_id}/review-statuses"))
-    }
-
     fn settings(&self) -> Result<Settings> {
         self.get("/api/settings")
     }

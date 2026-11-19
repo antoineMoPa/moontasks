@@ -184,13 +184,14 @@ pub struct TaskResourceView {
     /// schedule - see [`hooks`]. `None` for a run a person started.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_by_hook: Option<String>,
-    /// The review file a review hook started the run for - drawn on that review's card.
+    /// The review file a review status's hook started the run for, when moon had such hooks -
+    /// read from older runs, written by none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub for_review: Option<String>,
 }
 
 /// One review file of the board, as the board draws it - see [`reviews`]. They arrive in the
-/// lane's order: status by status, and within a status in deploy order.
+/// reviews' order: status by status, and within a status in deploy order.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ReviewRequestView {
     /// The card the review was asked for on, or empty for one that names none.

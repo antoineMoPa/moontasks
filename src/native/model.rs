@@ -6,9 +6,9 @@ mod palette;
 mod review;
 
 pub(crate) use board::{
-    AttachPicker, BoardState, CardMenu, Carrying, ColumnRename, Dwelling, MarkedReview, OpenedFile,
-    OpenedShell, PendingCard, PendingColumnPlace, PendingPlace, TabRename, TaskDraft, TaskEditor,
-    TaskLanding, TaskRename,
+    AttachPicker, BoardState, CardMenu, Carrying, ColumnRename, Dwelling, OpenedFile, OpenedShell,
+    PendingCard, PendingColumnPlace, PendingPlace, TabRename, TaskDraft, TaskEditor, TaskLanding,
+    TaskRename,
 };
 pub(crate) use palette::PaletteState;
 pub(crate) use review::{
@@ -123,8 +123,6 @@ pub(crate) struct Model {
     /// [`crate::moontasks::TaskView`] because the commit pane reads it too, and it has to be
     /// there whether or not a board is open.
     pub(crate) review_requests: Vec<ReviewRequestView>,
-    /// The board's review statuses, in the lane's order - see [`crate::moontasks::reviews`].
-    pub(crate) review_statuses: Vec<String>,
     /// How to open again the tabs that were closed, the last one closed at the end - what ⌘⇧T
     /// pops. See [`crate::native::panes::Pane::reopening`].
     /// The command being typed into the status bar, while the line is up - see
@@ -141,7 +139,7 @@ pub(crate) struct Model {
     /// is dropped if the count has moved on - see `App::poll_review_requests`.
     pub(crate) review_request_amendments: u64,
     /// Set when this window has just committed or pushed: the reviews are moved to where git
-    /// now says they are, and the lane read again, on the next frame rather than the next poll.
+    /// now says they are, and the cards' review rows read again, on the next frame rather than the next poll.
     pub(crate) reviews_follow_git_now: bool,
     /// The review session of each repo a task's combined review shows, by repo path - see
     /// [`crate::native::review::task_review`]. A session lives as long as the server that made

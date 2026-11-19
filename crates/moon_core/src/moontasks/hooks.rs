@@ -62,23 +62,9 @@ pub const HOOKS_DIR_NAME: &str = "hooks";
 pub const COLUMN_HOOKS_DIR_NAME: &str = "columns";
 /// Under [`HOOKS_DIR_NAME`], the folder of the board's schedules, one file per schedule.
 pub const SCHEDULES_DIR_NAME: &str = "board";
-/// Under [`HOOKS_DIR_NAME`], the folder of review hooks, one file per review status.
-pub const REVIEW_HOOKS_DIR_NAME: &str = "reviews";
 
 /// The words a hook's prompt is filled with as it fires.
 pub const COLUMN_HOOK_PLACEHOLDERS: &[&str] = &["{title}", "{notes}", "{from}", "{folder}", "{id}"];
-/// The same for a review hook: the review that arrived, and the card it is on.
-pub const REVIEW_HOOK_PLACEHOLDERS: &[&str] = &[
-    "{title}",
-    "{repo}",
-    "{branch}",
-    "{pr}",
-    "{subject}",
-    "{file}",
-    "{from}",
-    "{folder}",
-    "{id}",
-];
 /// The same for a schedule, which is about no card.
 pub const SCHEDULE_PLACEHOLDERS: &[&str] = &["{date}"];
 
@@ -88,15 +74,6 @@ pub struct ColumnHook {
     pub column: ColumnId,
     /// The agent started on the card, or [`AgentKind::None`] for a shell the prompt is typed
     /// into as commands.
-    pub start: AgentKind,
-    pub prompt: String,
-}
-
-/// What a review status does when a review arrives in it - see [`crate::moontasks::reviews`].
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReviewHook {
-    /// The status, which is the folder the review files are in.
-    pub status: String,
     pub start: AgentKind,
     pub prompt: String,
 }
@@ -241,9 +218,6 @@ pub struct BoardHooks {
     pub columns: Vec<ColumnHook>,
     /// In the order of their names.
     pub schedules: Vec<Schedule>,
-    /// One per review status that has one, by status.
-    #[serde(default)]
-    pub reviews: Vec<ReviewHook>,
     /// A line for each hook file that could not be read, which is a hook that does not fire:
     /// the board says so rather than leaving someone to wonder why.
     #[serde(default)]
@@ -253,10 +227,6 @@ pub struct BoardHooks {
 impl BoardHooks {
     pub fn of_column(&self, column: &ColumnId) -> Option<&ColumnHook> {
         self.columns.iter().find(|hook| hook.column == *column)
-    }
-
-    pub fn of_review_status(&self, status: &str) -> Option<&ReviewHook> {
-        self.reviews.iter().find(|hook| hook.status == status)
     }
 }
 
@@ -274,14 +244,10 @@ pub enum SaveHookRequest {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         renamed_from: Option<String>,
     },
-    Review {
-        hook: ReviewHook,
-    },
 }
 
-/// A hook fired at once from its editor, as typed there - see `running_now`. `task` and
-/// `review` name what it runs on; without one, a column's runs on its top card and a review
-/// status's on the review that arrived there last.
+/// A hook fired at once from its editor, as typed there - see `running_now`. `task` names
+/// the card a column's runs on; without one, it runs on the column's top card.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RunHookNowRequest {
@@ -292,11 +258,6 @@ pub enum RunHookNowRequest {
     },
     Schedule {
         schedule: Schedule,
-    },
-    Review {
-        hook: ReviewHook,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        review: Option<String>,
     },
 }
 
@@ -313,7 +274,6 @@ pub struct HookRunStarted {
 pub enum RemoveHookRequest {
     Column { column: ColumnId },
     Schedule { name: String },
-    Review { status: String },
 }
 
 /// The agents a hook can start, by the word its file names them with. `shell` is a shell the
@@ -364,11 +324,6 @@ pub fn schedule_name_of(typed: &str) -> String {
 /// Where a column's hook is kept, from the repo root - what the hook's editor shows.
 pub fn column_hook_repo_path(column: &ColumnId) -> String {
     format!(".moontasks/{HOOKS_DIR_NAME}/{COLUMN_HOOKS_DIR_NAME}/{column}.md")
-}
-
-/// Where a review status's hook is kept, from the repo root.
-pub fn review_hook_repo_path(status: &str) -> String {
-    format!(".moontasks/{HOOKS_DIR_NAME}/{REVIEW_HOOKS_DIR_NAME}/{status}.md")
 }
 
 /// Where a schedule is kept, from the repo root.

@@ -2,28 +2,22 @@
 //! be tried before it is left to fire by itself.
 //!
 //! A column's hook runs on the card it is asked to run on, or else the top card of its column;
-//! a review status's on the review asked for, or else the one that arrived there last; a
-//! schedule on the board's own task, with today's date. Nothing is claimed and nothing is
+//! a schedule on the board's own task, with today's date. Nothing is claimed and nothing is
 //! counted toward [`super::HOOK_RUNS_IN_A_ROW_CAP`]: a person pressing a button is not a loop.
 
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 
 use super::{
     HookRunStarted, RunHookNowRequest,
     clock::LocalNow,
-    firing::{Arrival, fire_schedule, start_column_hook_run, start_review_hook_run},
+    firing::{Arrival, fire_schedule, start_column_hook_run},
     runner::write_log_line,
 };
 use crate::{
     api::AppState,
-    moontasks::{
-        ColumnId,
-        reviews::{ReviewFile, read_review_files},
-        service::repo_of as repo_of_session,
-        store,
-    },
+    moontasks::{ColumnId, service::repo_of as repo_of_session, store},
 };
 
 /// Fire a hook now, once, and answer the run it started so the window can open it.
@@ -60,25 +54,6 @@ pub fn run_hook_now(
             let terminal_id =
                 start_column_hook_run(state, session_id, &repo_path, &hook, &arrival)?;
             let said = format!("{column_label}: run now on {task_id}");
-            (
-                HookRunStarted {
-                    task_id,
-                    terminal_id,
-                },
-                said,
-            )
-        }
-        RunHookNowRequest::Review { hook, review } => {
-            let review = find_review_to_run_on(&repo_path, &hook.status, review.as_deref())?;
-            let (task_id, terminal_id) = start_review_hook_run(
-                state,
-                session_id,
-                &repo_path,
-                &hook,
-                &review,
-                &review.status,
-            )?;
-            let said = format!("review {}: run now on {}", hook.status, review.id);
             (
                 HookRunStarted {
                     task_id,
@@ -131,20 +106,4 @@ pub(super) fn find_top_card_of_column(
         }
     }
     Ok(top.map(|(_, _, task_id)| task_id))
-}
-
-/// The review asked for in a status, or the one that arrived there last.
-fn find_review_to_run_on(repo_path: &Path, status: &str, id: Option<&str>) -> Result<ReviewFile> {
-    let in_status = read_review_files(repo_path)
-        .into_iter()
-        .filter(|review| review.status == status);
-    match id {
-        Some(id) => in_status
-            .into_iter()
-            .find(|review| review.id == id)
-            .with_context(|| format!("there is no review {id} in {status}")),
-        None => in_status
-            .max_by_key(|review| review.arrived_at)
-            .ok_or_else(|| anyhow!("{status} has no review to run it on")),
-    }
 }

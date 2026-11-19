@@ -20,11 +20,11 @@ pub use columns::{
     add_column, delete_column, list_columns, place_column, rename_column, set_column_arrivals,
     set_column_marks_a_days_work, set_column_sort,
 };
+pub(crate) use resources::{HookStart, start_hook_run};
 pub use resources::{
     attach_resource, delete_resource, record_run_name, resume_resource, start_resource,
     stop_resource,
 };
-pub(crate) use resources::{HookStart, start_hook_run};
 
 use std::path::{Path, PathBuf};
 
@@ -35,8 +35,7 @@ use crate::{
     api::{AgentKind, AppState},
     moontasks::{
         BoardTaskView, CreateTaskRequest, ReviewRequestView, TaskResourceView, TaskView,
-        agent_launch, appears_on, column_sort,
-        review_request,
+        agent_launch, appears_on, column_sort, review_request,
         store::{
             self, BoardConfig, ColumnEnd, ColumnId, TaskMetadata, TaskResource, TaskResourceKind,
         },
@@ -583,24 +582,24 @@ fn resources_of(
             .map(|shell| {
                 let (started_by_hook, for_review) = resources::hook_of_shell(&shell.terminal_id);
                 TaskResourceView {
-                // A shell is its terminal, so that is the name the board takes it off the task by.
-                id: shell.terminal_id.clone(),
-                kind: TaskResourceKind::Shell,
-                agent: AgentKind::None,
-                label: shell.name.unwrap_or_else(|| "shell".to_string()),
-                file_path: None,
-                running: true,
-                going_elsewhere_in: None,
-                quiet_for_secs: None,
-                attention: state.terminals.attention(&shell.terminal_id),
-                terminal_id: Some(shell.terminal_id),
-                resumable: false,
-                started_at_unix: shell.started_at_unix,
-                started_by: None,
-                work_tree: None,
-                started_by_hook,
-                for_review,
-            }
+                    // A shell is its terminal, so that is the name the board takes it off the task by.
+                    id: shell.terminal_id.clone(),
+                    kind: TaskResourceKind::Shell,
+                    agent: AgentKind::None,
+                    label: shell.name.unwrap_or_else(|| "shell".to_string()),
+                    file_path: None,
+                    running: true,
+                    going_elsewhere_in: None,
+                    quiet_for_secs: None,
+                    attention: state.terminals.attention(&shell.terminal_id),
+                    terminal_id: Some(shell.terminal_id),
+                    resumable: false,
+                    started_at_unix: shell.started_at_unix,
+                    started_by: None,
+                    work_tree: None,
+                    started_by_hook,
+                    for_review,
+                }
             }),
     );
     resources.sort_by_key(|resource| resource.started_at_unix);
@@ -636,7 +635,8 @@ fn view_of(
         attachments,
         folder_files,
         resources: resources_of(state, repo_path, works_in, task_id, metadata, open),
-        hooks_stopped: metadata.hook_runs_in_a_row >= crate::moontasks::hooks::HOOK_RUNS_IN_A_ROW_CAP,
+        hooks_stopped: metadata.hook_runs_in_a_row
+            >= crate::moontasks::hooks::HOOK_RUNS_IN_A_ROW_CAP,
     }
 }
 
@@ -831,11 +831,11 @@ pub fn move_reviews_to_their_git_stage(state: &AppState, session_id: &str) -> Re
     ))
 }
 
-/// The review statuses of the board, in the lane's order.
+/// The review statuses of the board, in the order a review goes through them.
 pub fn list_review_statuses(state: &AppState, session_id: &str) -> Result<Vec<String>> {
-    Ok(crate::moontasks::reviews::list_review_statuses(
-        &repo_of(state, session_id)?,
-    ))
+    Ok(crate::moontasks::reviews::list_review_statuses(&repo_of(
+        state, session_id,
+    )?))
 }
 
 pub fn delete_task(state: &AppState, session_id: &str, task_id: &str) -> Result<()> {
@@ -850,7 +850,10 @@ pub fn delete_task(state: &AppState, session_id: &str, task_id: &str) -> Result<
             store::unlink_sub_task(&repo_path, &parent, &child)?;
         }
     }
-    store::delete_task(&repo_path, task_id)
+    store::delete_task(&repo_path, task_id)?;
+    // Its reviews go with it: a review is only shown on its task's card.
+    crate::moontasks::reviews::put_away_reviews_of_deleted_tasks(&repo_path);
+    Ok(())
 }
 
 /// Give a task a different title. The folder keeps the name it was created with, because it

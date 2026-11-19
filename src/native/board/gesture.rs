@@ -36,6 +36,8 @@ pub(crate) struct Controls {
     marking: bool,
     /// Whether one of the buttons has the pointer down on it.
     took_the_press: bool,
+    /// Whether a right click has just gone down on a row that has a menu of its own.
+    took_the_right_click: bool,
 }
 
 impl Controls {
@@ -44,6 +46,7 @@ impl Controls {
         Self {
             marking: modifiers.command || modifiers.shift,
             took_the_press: false,
+            took_the_right_click: false,
         }
     }
 
@@ -53,6 +56,7 @@ impl Controls {
         Self {
             marking: false,
             took_the_press: false,
+            took_the_right_click: false,
         }
     }
 
@@ -75,6 +79,19 @@ impl Controls {
 
     pub(crate) fn took_the_press(&self) -> bool {
         self.took_the_press
+    }
+
+    /// A row with a right-click menu of its own: note a right click that has just gone down on
+    /// it, so the card under it keeps its own menu shut - one menu a click, the row's.
+    pub(crate) fn keep_right_click_for_menu_of(&mut self, response: &egui::Response) {
+        self.took_the_right_click |= response.contains_pointer()
+            && response
+                .ctx
+                .input(|input| input.pointer.button_pressed(egui::PointerButton::Secondary));
+    }
+
+    pub(crate) fn took_the_right_click(&self) -> bool {
+        self.took_the_right_click
     }
 }
 
@@ -199,6 +216,32 @@ pub(crate) fn claim(
         held: false,
         pressed_at: ui.input(|input| input.time),
     });
+}
+
+/// Give back a press that went down on one of a scroll area's bars.
+///
+/// A bar floats over what it scrolls, and the cards under it read the pointer rather than ask
+/// `egui` whose press it was - so the card beneath a bar claims the press that is dragging the
+/// bar, and is carried off as the column scrolls. Called once the area has been drawn, which
+/// is after everything in it has claimed what it could.
+pub(crate) fn leave_a_press_on_the_scroll_bar_to_it(
+    board: &mut BoardState,
+    ui: &egui::Ui,
+    scroll_area: egui::Id,
+) {
+    // The ids `egui` gives a scroll area's two bars: the area's own, with the axis.
+    let on_a_bar = (0..2usize).any(|axis| {
+        ui.ctx()
+            .read_response(scroll_area.with(axis))
+            .is_some_and(|bar| bar.is_pointer_button_down_on())
+    });
+    if !on_a_bar {
+        return;
+    }
+    board.press = None;
+    if ui.input(|input| input.pointer.button_pressed(egui::PointerButton::Secondary)) {
+        board.card_menu = None;
+    }
 }
 
 /// Follow the press: how far it has carried, and what it was when it ends.

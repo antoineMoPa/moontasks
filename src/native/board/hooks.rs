@@ -227,11 +227,6 @@ pub(super) fn draw_hook_mark_on_run(ui: &mut Ui, resource: &TaskResourceView, pa
     let Some(label) = resource.started_by_hook.as_deref() else {
         return;
     };
-    // A review's run is on that review's card, in that status's column: the mark would say
-    // again what both already say.
-    if resource.for_review.is_some() {
-        return;
-    }
     let font = egui::FontId::proportional(SMALL_SIZE - 1.0);
     let word = ui
         .painter()

@@ -34,7 +34,7 @@ pub fn start_resource(
 pub(crate) struct HookStart {
     pub(crate) label: String,
     pub(crate) shell_commands: Option<String>,
-    /// The review file the run is for, when a review status's hook fired it.
+    /// The review file the run is for, in runs an older moon's review hooks started.
     pub(crate) for_review: Option<String>,
 }
 

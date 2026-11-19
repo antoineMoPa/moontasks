@@ -316,7 +316,6 @@ fn the_panes_of_a_project_with_a_scene_let_it_show_through() {
             if let Some(which) = request_in_ui.lock().expect("request").take() {
                 let session_id = app.model.root_session_id.clone();
                 let opens = [
-                    Open::Reviews,
                     Open::Project,
                     Open::Settings,
                     Open::Messages,
@@ -357,7 +356,6 @@ fn the_panes_of_a_project_with_a_scene_let_it_show_through() {
     );
 
     for (which, name) in [
-        "reviews",
         "project",
         "settings",
         "messages",

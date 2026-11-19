@@ -4,7 +4,7 @@
 //! A review's commit is the one its `commit:` line names, or - for a review asked for before
 //! anything was committed - the recent commit on its branch made with its subject. That commit
 //! is then written into the file as `commit:`, so the review keeps knowing it once the branch
-//! has moved on, and the lane opens what was committed.
+//! has moved on, and its row opens what was committed.
 //!
 //! `requested/` is never gone back to, and `deployed/` and folders made by hand are never
 //! touched: those are where a person or an agent put the review.
@@ -15,8 +15,7 @@ use anyhow::{Context, Result, bail};
 
 use super::{
     COMMITTED_REVIEW_STATUS, FIRST_REVIEW_STATUS, OLD_REVIEW_STATUSES, PUSHED_REVIEW_STATUS,
-    ReviewFile, locate_review_file_in_status, move_review_file_at, read_review_files,
-    reviews_root,
+    ReviewFile, locate_review_file_in_status, move_review_file_at, read_review_files, reviews_root,
 };
 use crate::moontasks::review_request::{COMMITTED_LOOKBACK, find_working_copy_of_review};
 
@@ -25,13 +24,15 @@ use crate::moontasks::review_request::{COMMITTED_LOOKBACK, find_working_copy_of_
 /// hooks log.
 pub fn move_reviews_to_their_git_stage(repo_path: &Path) -> Vec<String> {
     let mut said = move_files_out_of_old_review_folders(repo_path);
-    for review in read_review_files(repo_path) {
-        match move_review_to_its_git_stage(repo_path, &review) {
+    let reviews = read_review_files(repo_path);
+    for review in &reviews {
+        match move_review_to_its_git_stage(repo_path, review) {
             Ok(Some(to)) => said.push(format!("review {}: {} -> {to}", review.id, review.status)),
             Ok(None) => {}
             Err(error) => said.push(format!("review {}: {error:#}", review.id)),
         }
     }
+    super::pull_request_state::refresh_pull_request_states(repo_path, &reviews);
     said
 }
 
@@ -65,7 +66,7 @@ fn move_review_to_its_git_stage(repo_path: &Path, review: &ReviewFile) -> Result
         false => COMMITTED_REVIEW_STATUS,
     };
     if to == PUSHED_REVIEW_STATUS && review.pr.is_none() {
-        fill_in_pull_request_number(&copy, review, &file);
+        fill_in_pull_request_number(&copy, review, &commit, &file);
     }
     if to == review.status {
         return Ok(None);
@@ -76,36 +77,44 @@ fn move_review_to_its_git_stage(repo_path: &Path, review: &ReviewFile) -> Result
 
 /// How long to wait before asking the forge again about a branch that had no pull request.
 const PULL_REQUEST_LOOKUP_RETRY_SECS: u64 = 300;
+/// The same for a review that names no branch, whose pull request is looked for by its commit.
+const PULL_REQUEST_OF_COMMIT_RETRY_SECS: u64 = 3600;
 
-/// Ask `gh` for the pull request of the review's branch and write it into the file as `pr:`, so
-/// no agent has to. Quiet when `gh` is missing, signed out, or the branch has no pull request
-/// yet - asked again after a few minutes.
-fn fill_in_pull_request_number(copy: &Path, review: &ReviewFile, file: &Path) {
+/// Ask `gh` for the review's pull request - open, merged or closed - and write it into the file
+/// as `pr:`, so no agent has to: the one of its branch, or for a review that names no branch,
+/// the one its commit is in. Quiet when `gh` is missing, signed out, or there is no pull
+/// request yet - asked again after a few minutes for a branch, and after an hour for a commit,
+/// which is mostly one made straight on the main branch and in no pull request at all.
+fn fill_in_pull_request_number(copy: &Path, review: &ReviewFile, commit: &str, file: &Path) {
     use std::{collections::HashMap, sync::Mutex, time::Instant};
     static LAST_ASKED: Mutex<Option<HashMap<String, Instant>>> = Mutex::new(None);
-    let Some(branch) = review.branch.as_deref() else {
-        return;
+    let (asked_of, retry_secs) = match review.branch.as_deref() {
+        Some(branch) => (branch, PULL_REQUEST_LOOKUP_RETRY_SECS),
+        None => (commit, PULL_REQUEST_OF_COMMIT_RETRY_SECS),
     };
-    let key = format!("{}:{}", copy.display(), branch);
+    let key = format!("{}:{asked_of}", copy.display());
     {
         let mut guard = LAST_ASKED.lock().unwrap_or_else(|e| e.into_inner());
         let asked = guard.get_or_insert_with(HashMap::new);
         if asked
             .get(&key)
-            .is_some_and(|at| at.elapsed().as_secs() < PULL_REQUEST_LOOKUP_RETRY_SECS)
+            .is_some_and(|at| at.elapsed().as_secs() < retry_secs)
         {
             return;
         }
         asked.insert(key, Instant::now());
     }
-    let Ok(output) = std::process::Command::new("gh")
-        .args([
+    let mut gh = std::process::Command::new("gh");
+    match review.branch.as_deref() {
+        Some(branch) => gh.args([
             "pr", "list", "--head", branch, "--state", "all", "--limit", "1", "--json", "number",
-            "--jq", ".[0].number",
-        ])
-        .current_dir(copy)
-        .output()
-    else {
+        ]),
+        // The forge's own list of the pull requests a commit is in; `gh` fills in the repo.
+        None => gh
+            .arg("api")
+            .arg(format!("repos/{{owner}}/{{repo}}/commits/{commit}/pulls")),
+    };
+    let Ok(output) = gh.args(["--jq", ".[0].number"]).current_dir(copy).output() else {
         return;
     };
     let number = String::from_utf8_lossy(&output.stdout).trim().to_string();

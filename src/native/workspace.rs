@@ -70,6 +70,18 @@ struct ShellMarks {
     restarts_window: bool,
 }
 
+/// Close the panes of a stored layout whose kind this moon does not have - see [`Pane::Gone`].
+fn close_panes_this_moon_no_longer_has(stored: &mut Layout<Pane>) {
+    let gone: Vec<_> = stored
+        .panes()
+        .filter(|(_, pane)| matches!(pane, Pane::Gone))
+        .map(|(id, _)| id)
+        .collect();
+    for id in gone {
+        stored.close_pane(id);
+    }
+}
+
 /// The arrangement a run starts from: the shape the last one left behind, with this run's
 /// review in the frame whose tab strip is the app header.
 ///
@@ -83,6 +95,7 @@ pub(crate) fn arrangement_for(
 ) -> Layout<Pane> {
     let mut layout = match stored {
         Some(mut stored) if stored.is_coherent() => {
+            close_panes_this_moon_no_longer_has(&mut stored);
             #[cfg(not(target_arch = "wasm32"))]
             stored.take_panes();
             #[cfg(target_arch = "wasm32")]
@@ -429,6 +442,28 @@ mod tests {
         // At the window's minimum width, a column would leave both sides too thin to read.
         assert!(!fits_another_column(720.0));
         assert!(!fits_another_column(900.0));
+    }
+
+    /// A layout saved while the reviews tab existed still opens: the tab is read as a pane
+    /// that is gone, and closed, and the board beside it is left where it was.
+    #[test]
+    fn a_stored_layout_with_the_reviews_tab_opens_without_it() {
+        let mut saved = Layout::with_pane(Pane::Tasks);
+        let frame = saved.primary_frame();
+        saved.add_pane(frame, Pane::Project, None);
+        let encoded = serde_json::to_string(&saved)
+            .expect("layout")
+            .replace(r#"{"kind":"project"}"#, r#"{"kind":"reviews"}"#);
+        assert!(encoded.contains(r#"{"kind":"reviews"}"#));
+
+        let mut stored: Layout<Pane> =
+            serde_json::from_str(&encoded).expect("a layout with a pane this moon lacks");
+        assert_eq!(stored.pane_count(), 2);
+        close_panes_this_moon_no_longer_has(&mut stored);
+
+        assert_eq!(stored.pane_count(), 1);
+        assert!(stored.panes().all(|(_, pane)| matches!(pane, Pane::Tasks)));
+        assert!(stored.is_coherent());
     }
 
     fn shell(id: &str) -> Pane {

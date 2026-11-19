@@ -178,9 +178,10 @@ impl eframe::Storage for StoredLayout {
 }
 
 /// A layout saved while the pane was a bare test page names a kind of pane there is no longer:
-/// the window opens on the default arrangement rather than failing to.
+/// the window opens on what is left of it - that pane read as one that is gone, and closed
+/// before the arrangement is used - rather than failing to open.
 #[test]
-fn a_layout_holding_the_old_test_page_pane_is_set_aside() {
+fn a_layout_holding_the_old_test_page_pane_opens_without_that_pane() {
     let fixture = Fixture::new("visualizations-stale-layout");
     let mut app = app_for(&fixture.root, ThemeMode::Dark);
     let mut layout = egui_frames::Layout::with_pane(Pane::Messages);
@@ -193,7 +194,18 @@ fn a_layout_holding_the_old_test_page_pane_is_set_aside() {
 
     app.restore_layout_from(Some(&StoredLayout(stale)));
 
-    assert!(app.model.restored_layout.is_none());
+    let restored = app.model.restored_layout.take().expect("the layout");
+    assert!(restored.panes().any(|(_, pane)| matches!(pane, Pane::Gone)));
+    let arranged = crate::native::workspace::arrangement_for(
+        Some(restored),
+        "session",
+        crate::cli::Frame::Tasks,
+    );
+    assert!(
+        arranged
+            .panes()
+            .all(|(_, pane)| !matches!(pane, Pane::Gone))
+    );
 }
 
 #[test]

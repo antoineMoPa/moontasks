@@ -27,7 +27,9 @@ pub fn find_pull_request_url(board_repo: &Path, working_copy: &Path, pr: &str) -
     }
     match host.as_str() {
         "github.com" => Some(format!("https://github.com/{repo}/pull/{pr}")),
-        host if host.contains("gitlab") => Some(format!("https://{host}/{repo}/-/merge_requests/{pr}")),
+        host if host.contains("gitlab") => {
+            Some(format!("https://{host}/{repo}/-/merge_requests/{pr}"))
+        }
         _ => None,
     }
 }
@@ -63,11 +65,17 @@ mod tests {
     fn a_remote_is_split_into_its_host_and_its_repo_in_either_form() {
         assert_eq!(
             split_remote("git@github.com:antoineMoPa/moon-dev-tools.git"),
-            Some(("github.com".to_string(), "antoineMoPa/moon-dev-tools".to_string()))
+            Some((
+                "github.com".to_string(),
+                "antoineMoPa/moon-dev-tools".to_string()
+            ))
         );
         assert_eq!(
             split_remote("https://gitlab.example.com/group/sub/name.git"),
-            Some(("gitlab.example.com".to_string(), "group/sub/name".to_string()))
+            Some((
+                "gitlab.example.com".to_string(),
+                "group/sub/name".to_string()
+            ))
         );
         assert_eq!(
             split_remote("ssh://git@github.com:22/o/r.git"),

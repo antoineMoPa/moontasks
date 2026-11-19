@@ -364,8 +364,6 @@ pub(crate) trait Backend: Send + Sync + 'static {
     /// Move the board's reviews to the status git says they are at now - see
     /// [`crate::moontasks::reviews::move_reviews_to_their_git_stage`].
     fn move_reviews_to_their_git_stage(&self, session_id: &str) -> Result<Vec<String>>;
-    /// The board's review statuses, in the lane's order.
-    fn list_review_statuses(&self, session_id: &str) -> Result<Vec<String>>;
 
     /// This server's `settings.json`, which every window on it shares - see [`crate::settings`].
     fn settings(&self) -> Result<Settings>;

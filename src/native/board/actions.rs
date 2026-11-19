@@ -115,8 +115,6 @@ pub(crate) enum BoardAction {
     },
     /// Open the review of what the task has changed.
     OpenReview(String, String),
-    /// Bring the review lane's tab in front, showing this task's reviews alone.
-    ShowReviewsOf(String),
     /// Open a review file's repo: at the commit it names, or its working tree.
     OpenReviewOf(crate::moontasks::ReviewRequestView),
     /// Open every repo the task still has pending reviews in, as one diff.
@@ -124,12 +122,11 @@ pub(crate) enum BoardAction {
         task_id: String,
         title: String,
     },
-    /// Move a review file from the status it is in to another, or dismiss it - take its file
-    /// away - with `None`. See [`super::review_lane`].
-    MoveReview {
+    /// Dismiss a review: take its file away, from the status folder it is in. See
+    /// [`super::review_dismiss`].
+    DismissReview {
         review_id: String,
         from_status: String,
-        to_status: Option<String>,
     },
     /// Write what has been typed into a task's notes on its own pane.
     SaveNotes {
@@ -697,31 +694,22 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 title,
             }));
         }
-        BoardAction::MoveReview {
+        BoardAction::DismissReview {
             review_id,
             from_status,
-            to_status,
         } => {
             let session_id = app.model.root_session_id.clone();
-            // Moved on the rows at once, the way a line crossed off is - see
+            // Taken off the rows at once, the way a line crossed off is - see
             // `App::poll_review_requests`.
-            move_review_in_rows(
-                &mut app.model.review_requests,
-                &from_status,
-                &review_id,
-                to_status.as_deref(),
-            );
+            app.model.review_requests.retain(|request| {
+                !(request.file.id == review_id && request.file.status == from_status)
+            });
             app.model.review_request_amendments += 1;
             app.tasks.spawn(
                 move |backend| {
-                    backend.move_review(
-                        &session_id,
-                        Some(&from_status),
-                        &review_id,
-                        to_status.as_deref(),
-                    )
+                    backend.move_review(&session_id, Some(&from_status), &review_id, None)
                 },
-                |model, result| model.report(result, "could not move the review"),
+                |model, result| model.report(result, "could not dismiss the review"),
             );
         }
         BoardAction::OpenTaskReview { task_id, title } => {
@@ -729,10 +717,6 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 task_id,
                 title,
             }));
-        }
-        BoardAction::ShowReviewsOf(task_id) => {
-            app.model.board.review_focus = Some(task_id);
-            app.pending_action = Some(CommandAction::OpenPane(OpenPaneRequest::Reviews));
         }
         BoardAction::OpenReviewOf(request) => {
             let commit = request.file.commit.clone();
@@ -754,27 +738,6 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
                 commit: None,
                 review_id: None,
             }));
-        }
-    }
-}
-
-/// The rows as the move will leave them: the review in its new status, or gone - only the one
-/// in `from_status`, not a namesake in another folder.
-fn move_review_in_rows(
-    requests: &mut Vec<crate::moontasks::ReviewRequestView>,
-    from_status: &str,
-    review_id: &str,
-    to_status: Option<&str>,
-) {
-    let is_it = |request: &crate::moontasks::ReviewRequestView| {
-        request.file.id == review_id && request.file.status == from_status
-    };
-    match to_status {
-        None => requests.retain(|request| !is_it(request)),
-        Some(status) => {
-            for request in requests.iter_mut().filter(|request| is_it(request)) {
-                request.file.status = status.to_string();
-            }
         }
     }
 }

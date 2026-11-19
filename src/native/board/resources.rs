@@ -57,20 +57,14 @@ pub(crate) fn draw_list(
     // Read once for the whole list: the mark that takes a run off the task asks first, and the
     // row that asked is the one drawn holding the question.
     let removing = app.model.board.pending_resource_delete.clone();
-    // A run a review hook started is drawn on the review's card in the lane instead.
-    for resource in task
-        .resources
-        .iter()
-        .filter(|resource| resource.for_review.is_none())
-    {
+    for resource in task.resources.iter() {
         let pending = removing.as_deref() == Some(resource.id.as_str());
         rows.place(ui, |ui| {
             draw_resource(ui, task, resource, card, pending, palette, actions)
         });
     }
 
-    // Under the runs and the files: one row for all of the task's reviews, which the reviews
-    // tab shows - see [`super::review_lane`].
+    // Under the runs and the files: one row for all of the task's reviews, then one each.
     let requests: Vec<&ReviewRequestView> = app
         .model
         .review_requests
@@ -117,7 +111,7 @@ fn draw_review_row(
 ) {
     let link = choose_review_link(request);
     let hover = match &link {
-        ReviewLink::PullRequest(url) => format!("Open {url}"),
+        ReviewLink::PullRequest(url) => format!("Open {url} - right-click to view in moon"),
         ReviewLink::MoonReview if request.file.commit.is_some() => {
             "Open this commit in moon's review".to_string()
         }
@@ -146,9 +140,9 @@ fn draw_review_row(
             false => reviews_done_mark(ui, palette),
         }
         ui.with_layout(UiLayout::right_to_left(Align::Center), |ui| {
-            let dismiss = super::review_lane::draw_dismiss_mark(ui, &request.file, palette);
+            let dismiss = super::review_dismiss::draw_dismiss_mark(ui, &request.file, palette);
             if card.pressed(&dismiss) {
-                actions.push(super::review_lane::dismiss_review(&request.file));
+                actions.push(super::review_dismiss::dismiss_review(&request.file));
             }
             ui.add(
                 egui::Label::new(
@@ -158,6 +152,17 @@ fn draw_review_row(
                 )
                 .selectable(false),
             );
+            // Its pull request, when it has one: that the row goes there, and how it stands.
+            if let Some(pull_request) = describe_pull_request_on_row(&request.file) {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(pull_request)
+                            .size(SMALL_SIZE - 1.0)
+                            .color(palette.accent_2),
+                    )
+                    .selectable(false),
+                );
+            }
             ui.with_layout(UiLayout::left_to_right(Align::Center), |ui| {
                 ui.add(
                     egui::Label::new(RichText::new(&label).size(SMALL_SIZE).color(palette.ink))
@@ -168,41 +173,61 @@ fn draw_review_row(
         });
     });
     if pressed {
-        match link {
+        match &link {
             ReviewLink::PullRequest(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
             ReviewLink::MoonReview => actions.push(BoardAction::OpenReviewOf((*request).clone())),
         }
     }
+    // A row that goes to its pull request still has moon's own review of it, on its menu.
+    if let ReviewLink::PullRequest(url) = &link {
+        card.keep_right_click_for_menu_of(&row);
+        egui::Popup::context_menu(&row)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                let in_moon = match request.file.commit.is_some() {
+                    true => "Open this commit in moon's review",
+                    false => "Open these changes in moon's review",
+                };
+                if widgets::clickable(ui.button(VIEW_IN_MOON_LABEL))
+                    .on_hover_text(in_moon)
+                    .clicked()
+                {
+                    actions.push(BoardAction::OpenReviewOf((*request).clone()));
+                    ui.close();
+                }
+                if widgets::clickable(ui.button("open pull request"))
+                    .on_hover_text(format!("Open {url}"))
+                    .clicked()
+                {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                    ui.close();
+                }
+            });
+    }
+}
+
+/// The item on a review row's menu that opens moon's review of a review that has a pull
+/// request - which is where a click on the row goes instead.
+pub(crate) const VIEW_IN_MOON_LABEL: &str = "view in moon";
+
+/// What a review's row says of its pull request: `PR 412 open`, `PR 412 merged` - or the number
+/// alone until the forge has said how it stands. `None` for a review with no pull request.
+pub(crate) fn describe_pull_request_on_row(
+    file: &crate::moontasks::reviews::ReviewFileView,
+) -> Option<String> {
+    let pull_request =
+        crate::moontasks::reviews::describe_pull_request(Some(file.pr.as_deref()?), None);
+    Some(match file.pr_state.as_deref() {
+        Some(state) => format!("{pull_request} {state}"),
+        None => pull_request,
+    })
 }
 
 /// How far a review's row sits in from the reviews row it is listed under.
 const REVIEW_ROW_INDENT: f32 = 10.0;
 
-/// The runs a review status's hook started for one review, drawn the way a card draws its
-/// runs - so they stop, resume and come off the task the same way. They are the task's runs,
-/// listed on the review's card in the lane instead of on the task's.
-pub(crate) fn draw_runs_of_review(
-    app: &App,
-    ui: &mut Ui,
-    task: RunsOf<'_>,
-    review_id: &str,
-    card: &mut Controls,
-    palette: &Palette,
-    actions: &mut Vec<BoardAction>,
-) {
-    let removing = app.model.board.pending_resource_delete.clone();
-    for resource in task
-        .resources
-        .iter()
-        .filter(|resource| resource.for_review.as_deref() == Some(review_id))
-    {
-        let pending = removing.as_deref() == Some(resource.id.as_str());
-        draw_resource(ui, task, resource, card, pending, palette, actions);
-    }
-}
-
-/// One row for the task's reviews: how many, and how many are still open. A click shows them in
-/// the reviews tab, alone; its menu opens every repo with work still to commit as one diff.
+/// One row for the task's reviews: how many, and whether any is still open. A click does
+/// nothing; its menu opens every repo with work still to commit as one diff.
 fn draw_reviews_summary(
     ui: &mut Ui,
     task: RunsOf<'_>,
@@ -222,12 +247,16 @@ fn draw_reviews_summary(
     };
     // How many are open is the mark's to say: a yellow dot while any is, a check once none is.
     let label = reviews;
-    let row = draw_row(
-        ui,
-        palette,
-        true,
-        "Show this task's reviews in the reviews tab",
-    );
+    // It senses clicks for its menu's sake, and is drawn as a row that opens nothing.
+    let row = ui
+        .allocate_exact_size(
+            vec2(ui.available_width(), ui.spacing().interact_size.y),
+            Sense::click(),
+        )
+        .1;
+    // The press is the row's, not the card's: a click here marks nothing and opens nothing.
+    card.pressed(&row);
+    card.keep_right_click_for_menu_of(&row);
     draw_in_row(ui, row.rect, |ui| {
         // Yellow while one still wants looking at, a green check once every one is done.
         match open {
@@ -242,9 +271,6 @@ fn draw_reviews_summary(
             .selectable(false),
         );
     });
-    if card.pressed(&row) {
-        actions.push(BoardAction::ShowReviewsOf(task.id.to_string()));
-    }
     egui::Popup::context_menu(&row)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .show(|ui| {
@@ -750,12 +776,35 @@ mod review_link_tests {
                 status: status.to_string(),
                 pr: pr_url.map(|_| "412".to_string()),
                 pr_url: pr_url.map(str::to_string),
+                pr_state: None,
                 deploy: None,
                 commit: None,
                 order: None,
                 repo_path_of_file: String::new(),
             },
         }
+    }
+
+    /// A row names its pull request and, once the forge has said, how it stands - and says
+    /// nothing of one for a review that has none.
+    #[test]
+    fn a_row_names_its_pull_request_and_how_it_stands() {
+        use super::describe_pull_request_on_row;
+
+        let mut review = review_in("pushed", Some("https://github.com/o/r/pull/412"));
+        assert_eq!(
+            describe_pull_request_on_row(&review.file).as_deref(),
+            Some("PR 412")
+        );
+        review.file.pr_state = Some("merged".to_string());
+        assert_eq!(
+            describe_pull_request_on_row(&review.file).as_deref(),
+            Some("PR 412 merged")
+        );
+        assert_eq!(
+            describe_pull_request_on_row(&review_in("requested", None).file),
+            None
+        );
     }
 
     /// A review opens on its pull request whenever it has one, whatever its status - and in

@@ -247,8 +247,8 @@ for a schedule - marked with the hook that started it, and opened like any other
   gone by are not made up for.
 - What each hook did, or why it could not, is a line in `.moontasks/hooks/hooks.log`.
 - `[run now]` in a hook's editor fires it once, as typed (saved or not), and opens its run: a
-  column's on the marked card in it or else its top card, a review status's on the marked review
-  or else the last to arrive, a schedule on the board. It counts nothing toward the 5 in a row.
+  column's on the marked card in it or else its top card, a schedule on the board. It counts
+  nothing toward the 5 in a row.
 
 ## Reviews
 
@@ -272,14 +272,20 @@ add. `committed/` and `pushed/` follow git on their own: once the review's commi
 one its `commit:` names, or a recent commit on its branch with its subject, which is then
 written in as `commit:` - it moves to `committed/`, and once a remote branch has that commit,
 to `pushed/` (back to `committed/` if the remote loses it). moon checks every 10 seconds while
-the board is open. `deployed/` is yours and your agents' to move to. Boards from before have
-their `reviewing/` files moved to `requested/` and their `done/` files to `committed/`. The lane
-under the board has a column per status; drag a card to move its file. Selecting a task lights
-its reviews. A click opens the repo's diff, and its commit pane offers the file's message.
+the board is open. `deployed/` is yours to `mv` a file to. Boards from before have their
+`reviewing/` files moved to `requested/` and their `done/` files to `committed/`.
 
-`.moontasks/hooks/reviews/<status>.md` starts an agent when a review arrives in that status - the
-`+` at the right of the status's heading. Its prompt can say `{title}`, `{repo}`, `{branch}`,
-`{pr}`, `{subject}`, `{file}`, `{from}`, `{folder}` and `{id}`.
+A review is a row on its task's card, under a row that counts them: its subject, its status,
+and a check once its commit is made. A click on it opens its pull request if it has one, else
+the repo's diff, whose commit pane offers the file's message; the × deletes its file.
+
+A row with a pull request names it and how it stands - `PR 412 open`, `PR 412 merged` - as `gh`
+says, and has `view in moon` on its right-click menu, for the diff. A pushed review that gives
+no `pr:` has it found and written in: by its `branch:`, or with no branch, by its commit.
+
+There is no board of reviews: a review that names no task, or a task the board does not have,
+is on no card. Deleting a task puts its reviews away with it, in its folder under
+`.moontasks/.deleted/`.
 
 ## A card from the command line
 

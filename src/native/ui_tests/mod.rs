@@ -17,7 +17,7 @@ mod board_hooks;
 mod board_new_task_pane;
 mod board_offscreen_cards;
 mod board_pending_card;
-mod board_review_lane;
+mod board_scroll_bar;
 mod board_selection;
 mod board_tags;
 mod board_task;

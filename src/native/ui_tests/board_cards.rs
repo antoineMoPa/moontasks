@@ -89,13 +89,16 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
         "the card should say how many reviews the task has, and how many are open"
     );
 
-    // The row says where the review stands, which is the lane's to show: the click brings the
-    // reviews tab in front rather than opening a diff.
+    // The row only counts the task's reviews: each one's own row is what opens it. A click
+    // here leaves the board in front and opens no diff.
     harness.get_by_label(row.as_str()).click();
-    assert!(
-        settle(&mut harness, || *in_front.lock().expect("poisoned")
-            == Some(crate::native::panes::PaneKind::Reviews)),
-        "clicking the row should bring the reviews tab in front"
+    for _ in 0..10 {
+        harness.step();
+    }
+    assert_eq!(
+        *in_front.lock().expect("poisoned"),
+        Some(crate::native::panes::PaneKind::Tasks),
+        "clicking the row should leave the board in front"
     );
 
     assert!(
@@ -105,7 +108,7 @@ fn a_tasks_deploy_list_is_drawn_under_its_card() {
 }
 
 /// Under the reviews row, a card lists each review by its subject, and a click on one goes
-/// straight to moon's review of it - no stop in the reviews tab on the way.
+/// straight to moon's review of it.
 #[test]
 fn each_review_is_listed_on_its_card_and_opens_its_review() {
     use egui_kittest::kittest::Queryable as _;
@@ -168,6 +171,10 @@ fn each_review_is_listed_on_its_card_and_opens_its_review() {
         harness.query_by_label("feat: ship it").is_some(),
         "and so should the deployed one"
     );
+    assert!(
+        harness.query_by_label("PR 412").is_some(),
+        "and the deployed one's row should name its pull request"
+    );
     harness.run_steps(3);
     if let Ok(dir) = std::env::var("MOON_BOARD_CARD_SHOTS") {
         let image = harness.render().expect("the window could not be rendered");
@@ -183,6 +190,87 @@ fn each_review_is_listed_on_its_card_and_opens_its_review() {
             .expect("poisoned")
             .is_empty()),
         "clicking a requested review should open moon's review of it"
+    );
+}
+
+/// A review with a pull request opens on that with a click, so moon's own review of it is on
+/// the row's right-click menu: `view in moon` opens the repo's diff.
+#[test]
+fn a_review_with_a_pull_request_is_viewed_in_moon_from_its_rows_menu() {
+    use egui_kittest::kittest::Queryable as _;
+
+    let fixture = seeded_fixture("board-review-row-menu");
+    fixture.write(
+        ".moontasks/deploy-the-thing-1111/metadata.json",
+        "{\n  \"title\": \"Deploy the thing\",\n  \"status\": \"todo\",\n  \
+         \"created_at_unix\": 1700000000,\n  \"resources\": []\n}\n",
+    );
+    fixture.write_review_file(
+        "requested",
+        "root-ship-it",
+        "task: deploy-the-thing-1111\nrepo: .\npr: https://example.com/o/r/pull/412\n",
+        "feat: ship it\n",
+    );
+
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    app.set_theme(ThemeMode::Dark);
+    let opened = Arc::new(AtomicBool::new(false));
+    let opened_in_ui = Arc::clone(&opened);
+    let in_front = Arc::new(Mutex::new(None::<crate::native::panes::PaneKind>));
+    let in_front_in_ui = Arc::clone(&in_front);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 800.0))
+        .build_ui(move |ui| {
+            if !opened_in_ui.load(Ordering::Relaxed)
+                && matches!(app.model.stage, crate::native::model::Stage::Ready)
+            {
+                app.open_pane(crate::native::panes::OpenPaneRequest::Tasks);
+                opened_in_ui.store(true, Ordering::Relaxed);
+            }
+            app.draw(ui);
+            *in_front_in_ui.lock().expect("poisoned") = app
+                .front_pane
+                .and_then(|id| app.model.layout.pane(id))
+                .map(|pane| pane.kind());
+        });
+
+    let row = "feat: ship it";
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline && harness.query_by_label(row).is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        harness.query_by_label("PR 412").is_some(),
+        "the row should name its pull request"
+    );
+    assert_eq!(
+        *in_front.lock().expect("poisoned"),
+        Some(crate::native::panes::PaneKind::Tasks)
+    );
+
+    harness.get_by_label(row).click_secondary();
+    harness.run_steps(3);
+    let view_in_moon = crate::native::board::resources::VIEW_IN_MOON_LABEL;
+    assert!(
+        harness.query_by_label(view_in_moon).is_some(),
+        "a right-click on a row with a pull request should offer moon's review"
+    );
+    assert!(
+        harness.query_by_label_contains("move to").is_none(),
+        "and the card's own menu should stay shut under the row's"
+    );
+    if let Ok(dir) = std::env::var("MOON_BOARD_CARD_SHOTS") {
+        let image = harness.render().expect("the window could not be rendered");
+        image
+            .save(std::path::Path::new(&dir).join("card-review-row-menu.png"))
+            .expect("the screenshot could not be saved");
+    }
+    harness.get_by_label(view_in_moon).click();
+    assert!(
+        settle(&mut harness, || *in_front.lock().expect("poisoned")
+            == Some(crate::native::panes::PaneKind::Review)),
+        "and choosing it should bring moon's review of the repo in front"
     );
 }
 
@@ -245,7 +333,7 @@ fn a_reviews_dismiss_mark_on_its_card_deletes_it_and_opens_nothing() {
     let reviews_before = *reviews.lock().expect("poisoned");
     let row = harness.get_by_label(dismissed).rect();
     harness
-        .query_all_by_label(crate::native::board::review_lane::DISMISS_MARK_LABEL)
+        .query_all_by_label(crate::native::board::review_dismiss::DISMISS_MARK_LABEL)
         .find(|mark| (mark.rect().center().y - row.center().y).abs() < row.height())
         .expect("the review's row has a dismiss mark")
         .click();
