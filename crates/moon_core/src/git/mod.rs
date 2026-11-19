@@ -496,7 +496,14 @@ pub fn commit_history_page(
     }
 
     let format = "%H%x1f%h%x1f%an%x1f%s";
-    let output = run_git(repo_path, &["log", &format!("--format={format}")])?;
+    // Only as far back as the page reaches, plus one to tell whether there is more: this is
+    // asked on every poll, and the whole history of a repo of thousands of commits is read
+    // for nothing past it.
+    let reaches = offset + limit + excluded_shas.len() + 1;
+    let output = run_git(
+        repo_path,
+        &["log", &format!("--max-count={reaches}"), &format!("--format={format}")],
+    )?;
     let mut skipped = 0usize;
     let mut commits = Vec::new();
     let mut has_more = false;

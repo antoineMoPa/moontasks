@@ -250,6 +250,49 @@ pub(crate) const PENDING_CARD_HEIGHT: f32 = 78.0;
 /// its cross by this so the mark stands where a made card's does.
 const CARD_MARGIN: egui::Margin = egui::Margin::symmetric(8, 7);
 
+/// How far past the column's visible edge a card is still drawn, so one scrolled into view is
+/// already laid out and a sliding card does not pop in at the edge.
+const DRAWN_PAST_VIEW: f32 = 200.0;
+
+/// The width a card was last drawn at and the height it took, kept for when it is off screen.
+fn card_height_id(drag_id: egui::Id) -> egui::Id {
+    drag_id.with("drawn-height")
+}
+
+fn remember_card_height(ui: &Ui, drag_id: egui::Id, card: egui::Rect) {
+    let width = ui.available_width();
+    ui.data_mut(|data| data.insert_temp(card_height_id(drag_id), (width, card.height())));
+}
+
+/// Take the space of a card scrolled out of the column's view without drawing it, and answer
+/// with that space. A column of hundreds of done cards would otherwise lay out every one of
+/// them on every frame, and a frame is what each keystroke in a terminal beside it waits for.
+///
+/// `None` - draw it - for a card never drawn yet, or last drawn at another width, whose height
+/// is not known; and for one that is in view.
+fn hold_place_of_card_out_of_view(
+    ui: &mut Ui,
+    drag_id: egui::Id,
+    origin: f32,
+) -> Option<egui::Rect> {
+    let width = ui.available_width();
+    let (drawn_width, height) =
+        ui.data(|data| data.get_temp::<(f32, f32)>(card_height_id(drag_id)))?;
+    if (drawn_width - width).abs() > 0.5 {
+        return None;
+    }
+    let top = ui.cursor().top();
+    let view = ui.clip_rect().expand2(vec2(0.0, DRAWN_PAST_VIEW));
+    if top + height >= view.top() && top <= view.bottom() {
+        return None;
+    }
+    // Where it is now, so it does not slide in from wherever it was last drawn when it is
+    // scrolled back into view.
+    stamp_place(ui, Axis::Vertical, drag_id, origin);
+    let (rect, _) = ui.allocate_exact_size(vec2(width, height), egui::Sense::hover());
+    Some(rect)
+}
+
 /// One card: what it shows, the press it claims, and the drag that carries it.
 ///
 /// A card claims a press that lands on it and on none of its own buttons - that is the whole
@@ -278,12 +321,22 @@ pub(super) fn draw_card(
         // one that is, so it is drawn where it is going and as faint as the ghost leading it
         // there.
         let carried = carrying.is_some_and(|carrying| carrying.carries(&task.id));
-        return slide_into_place(ui, Axis::Vertical, drag_id, origin, |ui| {
+        let renaming =
+            matches!(&app.model.board.renaming, Some(rename) if rename.task_id == task.id);
+        if !carried
+            && !renaming
+            && let Some(rect) = hold_place_of_card_out_of_view(ui, drag_id, origin)
+        {
+            return rect;
+        }
+        let card = slide_into_place(ui, Axis::Vertical, drag_id, origin, |ui| {
             if carried {
                 ui.multiply_opacity(DRAGGED_CARD_OPACITY);
             }
             draw_card_body(app, ui, task, drag_id, palette, actions)
         });
+        remember_card_height(ui, drag_id, card);
+        return card;
     }
 
     // A card being carried is at the slot it is being held over, as far as anything that
