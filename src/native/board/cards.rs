@@ -481,7 +481,11 @@ fn draw_card_body(
                 actions,
                 resources::Rows::Down,
             );
-            if !task.resources.is_empty() {
+            if task
+                .resources
+                .iter()
+                .any(|resource| !super::past_hook_runs::is_ended_hook_run(resource))
+            {
                 ui.add_space(3.0);
             }
             super::hooks::draw_hooks_stopped_note(ui, task, palette);

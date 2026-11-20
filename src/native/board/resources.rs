@@ -57,10 +57,16 @@ pub(crate) fn draw_list(
     // Read once for the whole list: the mark that takes a run off the task asks first, and the
     // row that asked is the one drawn holding the question.
     let removing = app.model.board.pending_resource_delete.clone();
-    for resource in task.resources.iter() {
+    // A hook's run that has ended is listed in the hook's editor instead - see
+    // [`super::past_hook_runs`].
+    for resource in task
+        .resources
+        .iter()
+        .filter(|resource| !super::past_hook_runs::is_ended_hook_run(resource))
+    {
         let pending = removing.as_deref() == Some(resource.id.as_str());
         rows.place(ui, |ui| {
-            draw_resource(ui, task, resource, card, pending, palette, actions)
+            draw_resource(ui, task, resource, card, pending, None, palette, actions)
         });
     }
 
@@ -347,13 +353,16 @@ fn quiet_text(secs: u64) -> String {
 }
 
 /// One shell, agent run or linked file of a task: what it is, whether it is still going, and
-/// the way back to it.
-fn draw_resource(
+/// the way back to it. `when` stands in for the hook's name in a hook's mark, where the hook's
+/// editor lists its runs - see [`super::past_hook_runs`].
+#[allow(clippy::too_many_arguments)]
+pub(super) fn draw_resource(
     ui: &mut Ui,
     task: RunsOf<'_>,
     resource: &TaskResourceView,
     card: &mut Controls,
     pending_delete: bool,
+    when: Option<&str>,
     palette: &Palette,
     actions: &mut Vec<BoardAction>,
 ) {
@@ -472,7 +481,7 @@ fn draw_resource(
             }
             // Last, in whatever room the name and the marks have left between them - and
             // never while the row holds the question of closing it, which returned above.
-            super::hooks::draw_hook_mark_on_run(ui, resource, palette);
+            super::hooks::draw_hook_mark_on_run(ui, resource, when, palette);
             draw_started_by(ui, resource, palette);
         });
     });

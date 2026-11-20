@@ -255,6 +255,11 @@ fn a_schedule_is_made_from_the_boards_start_menu() {
         "schedule… did not open the editor"
     );
     harness.run_steps(3);
+    // Nothing to run until it is saved.
+    assert!(
+        harness.query_by_label("[run now]").is_none(),
+        "a schedule not saved yet offers [run now]"
+    );
 
     // A new schedule's title has the keyboard.
     for (key, letter) in [
@@ -463,4 +468,65 @@ fn run_now_fires_a_column_hook_on_its_top_card_at_once() {
     );
     let record = std::fs::read_to_string(&record).unwrap();
     assert!(!record.contains("hook_runs_in_a_row"), "{record}");
+}
+
+/// A hook's run that has ended leaves its card - a run started by hand stays - and the hook's
+/// editor lists it under `past sessions`, with the way back to it.
+#[test]
+fn an_ended_hook_run_leaves_its_card_and_is_listed_in_the_hooks_editor() {
+    let fixture = seeded_fixture("hooks-past-runs");
+    fixture.write(QA_HOOK, "---\nstart: claude\n---\nRun the tests.\n");
+    let run = |id: &str, name: &str, hook: Option<&str>| {
+        format!(
+            "{{\"id\": \"{id}\", \"kind\": \"agent\", \"agent\": \"claude\", \"file_path\": null, \
+             \"terminal_id\": null, \"agent_session_id\": \"{id}\", \"name\": \"{name}\", \
+             \"started_at_unix\": 1700000100{}}}",
+            hook.map(|hook| format!(", \"started_by_hook\": \"{hook}\""))
+                .unwrap_or_default()
+        )
+    };
+    fixture.write(
+        ".moontasks/hooked-card-4444/metadata.json",
+        &format!(
+            "{{\n  \"title\": \"Hooked card\",\n  \"status\": \"in_progress\",\n  \
+             \"created_at_unix\": 1700000003,\n  \"resources\": [{}, {}]\n}}\n",
+            run("a1", "hooked by hand", None),
+            run("a2", "hooked by the column", Some("IN PROGRESS")),
+        ),
+    );
+    let HookedBoard { mut harness, seen } =
+        hooked_board(&fixture.root, std::env::var("MOON_HOOKS_SHOTS").is_ok());
+
+    assert!(
+        settle(&mut harness, || {
+            let seen = seen.lock().expect("poisoned");
+            seen.hooks_read && seen.pill.is_some_and(|pill| pill.is_positive())
+        }),
+        "the column's hook never showed as a pill"
+    );
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("hooked by hand").is_some(),
+        "a run started by hand left its card"
+    );
+    assert!(
+        harness.query_by_label("hooked by the column").is_none(),
+        "the hook's ended run is still on its card"
+    );
+
+    let pill = seen.lock().expect("poisoned").pill.expect("drawn");
+    click_at(&mut harness, pill.center());
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").editor_open),
+        "the pill did not open its editor"
+    );
+    harness.run_steps(3);
+    leave_a_screenshot(&mut harness, "hook-editor-past-sessions");
+    assert!(harness.query_by_label("PAST SESSIONS").is_some());
+    assert!(
+        harness.query_by_label("hooked by the column").is_some(),
+        "the editor does not list the hook's run on its card"
+    );
+    // Its own, beside the one of the run on the card started by hand.
+    assert_eq!(harness.query_all_by_label("resume").count(), 2);
 }

@@ -18,7 +18,11 @@ use crate::{
     },
     native::{
         app::App,
-        board::{BoardAction, available_agents, cards::column_cards},
+        board::{
+            BoardAction, available_agents,
+            cards::column_cards,
+            past_hook_runs::{PastHookRun, collect_runs_of_hook, draw_past_sessions},
+        },
         theme::{Palette, SMALL_SIZE},
         widgets,
     },
@@ -158,6 +162,23 @@ pub(super) fn draw(
         None => return,
     };
     let run_on = choose_what_to_run_on(app);
+    // The label its runs are marked with: the column's heading, or the schedule's name. A
+    // schedule not saved yet has run nothing.
+    let hook_label = match app.model.board.hook_editor.as_ref().map(|e| &e.target) {
+        Some(HookEditorTarget::Column(column)) => Some(column_label(column)),
+        Some(HookEditorTarget::Schedule(name)) => name.clone(),
+        None => None,
+    };
+    let past_runs = hook_label
+        .map(|label| collect_runs_of_hook(app, &label))
+        .unwrap_or_default();
+    let removing = app.model.board.pending_resource_delete.clone();
+    let shows_past_runs = app
+        .model
+        .board
+        .hook_editor
+        .as_ref()
+        .is_some_and(|editor| editor.saved_before);
     let frame_nr = ctx.cumulative_frame_nr();
     let Some(editor) = app.model.board.hook_editor.as_mut() else {
         return;
@@ -191,6 +212,15 @@ pub(super) fn draw(
                 .show(ui, |ui| {
                     ui.set_width(WIDTH);
                     close = draw_contents(ui, editor, &title, &agents, &run_on, palette, actions);
+                    if shows_past_runs {
+                        draw_past_runs_section(
+                            ui,
+                            &past_runs,
+                            removing.as_deref(),
+                            palette,
+                            actions,
+                        );
+                    }
                 });
         });
 
@@ -205,6 +235,20 @@ pub(super) fn draw(
     if close || escaped || (clicked_elsewhere && frame_nr != editor.opened_on_frame) {
         app.model.board.hook_editor = None;
     }
+}
+
+/// Under the buttons, apart from what is typed: the hook's runs - see
+/// [`super::past_hook_runs`].
+fn draw_past_runs_section(
+    ui: &mut Ui,
+    runs: &[PastHookRun],
+    removing: Option<&str>,
+    palette: &Palette,
+    actions: &mut Vec<BoardAction>,
+) {
+    ui.add_space(4.0);
+    ui.separator();
+    draw_past_sessions(ui, runs, removing, palette, actions);
 }
 
 /// What `[run now]` runs the open hook on, and how its hover says so.
@@ -374,7 +418,10 @@ fn draw_contents(
                 actions.push(BoardAction::RemoveHook(removal));
                 close = true;
             }
-            draw_run_now_button(ui, editor, run_on, palette, actions);
+            // A hook not saved yet has nothing to run: it is saved first.
+            if editor.saved_before {
+                draw_run_now_button(ui, editor, run_on, palette, actions);
+            }
         });
     });
     close
@@ -436,8 +483,8 @@ fn request_to_save(editor: &HookEditor) -> Result<SaveHookRequest, String> {
     }
 }
 
-/// `[run now]`: fire the hook as typed, once, without saving it. Greyed out for a column with
-/// no card to run on.
+/// `[run now]`: fire a saved hook as typed, once, without saving the edits. Greyed out for a
+/// column with no card to run on, and not offered at all for a hook not saved yet.
 fn draw_run_now_button(
     ui: &mut Ui,
     editor: &mut HookEditor,

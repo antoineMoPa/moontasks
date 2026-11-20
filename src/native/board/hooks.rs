@@ -41,6 +41,8 @@ enum Icon {
 
 const PILL_PADDING: egui::Vec2 = egui::vec2(7.0, 2.0);
 const ICON_GAP: f32 = 4.0;
+/// The dot a pill wears while one of its hook's runs is going.
+const LIVE_DOT: f32 = 6.0;
 
 /// The color schedules are drawn in: amber, apart from the teal of a column's hook.
 fn schedule_ink(palette: &Palette) -> Color32 {
@@ -59,20 +61,24 @@ fn ink_of(kind: PillKind, palette: &Palette) -> Color32 {
 }
 
 /// A pill: an icon and a word on a rounded ground of the pill's own color, ringed in the
-/// accent while its editor is open. Answers the press.
+/// accent while its editor is open, with a green dot before the word while one of its runs is
+/// going. Answers the press.
 pub(super) fn draw_hook_pill(
     ui: &mut Ui,
     id: egui::Id,
     kind: PillKind,
     text: &str,
     editing: bool,
+    live: bool,
     palette: &Palette,
 ) -> Response {
     let ink = ink_of(kind, palette);
     let font = egui::FontId::proportional(SMALL_SIZE - 1.0);
     let word = ui.painter().layout_no_wrap(text.to_string(), font, ink);
     let icon_size = word.size().y.max(10.0);
-    let size = vec2(icon_size + ICON_GAP + word.size().x, icon_size) + PILL_PADDING * 2.0;
+    let dot_room = if live { LIVE_DOT + ICON_GAP } else { 0.0 };
+    let size =
+        vec2(icon_size + ICON_GAP + dot_room + word.size().x, icon_size) + PILL_PADDING * 2.0;
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let response = ui
         .interact(rect, id, Sense::click())
@@ -107,8 +113,21 @@ pub(super) fn draw_hook_pill(
         PillKind::Column | PillKind::Ghost => Icon::FishingHook,
     };
     paint_icon(painter, icon, icon_rect, ink);
+    if live {
+        painter.circle_filled(
+            egui::pos2(
+                icon_rect.right() + ICON_GAP + LIVE_DOT / 2.0,
+                icon_rect.center().y,
+            ),
+            LIVE_DOT / 2.0,
+            palette.added,
+        );
+    }
     painter.galley(
-        egui::pos2(icon_rect.right() + ICON_GAP, rect.top() + PILL_PADDING.y),
+        egui::pos2(
+            icon_rect.right() + ICON_GAP + dot_room,
+            rect.top() + PILL_PADDING.y,
+        ),
         word,
         ink,
     );
@@ -150,6 +169,7 @@ pub(super) fn draw_column_hook_pill(
             PillKind::Column,
             start_word(hook.start),
             editing,
+            super::past_hook_runs::is_hook_running(app, &column.label),
             palette,
         )
         .on_hover_text(format!(
@@ -158,10 +178,12 @@ pub(super) fn draw_column_hook_pill(
             start_word(hook.start)
         )),
         None if heading_hovered || editing => {
-            draw_hook_pill(ui, id, PillKind::Ghost, "+", editing, palette).on_hover_text(format!(
-                "Start an agent on every card that arrives in {}",
-                column.label
-            ))
+            draw_hook_pill(ui, id, PillKind::Ghost, "+", editing, false, palette).on_hover_text(
+                format!(
+                    "Start an agent on every card that arrives in {}",
+                    column.label
+                ),
+            )
         }
         None => {
             // The faint pill's room, drawn as nothing.
@@ -204,6 +226,7 @@ pub(super) fn draw_schedule_pills(app: &mut App, ui: &mut Ui, palette: &Palette)
             PillKind::Schedule,
             &schedule.pill_text(),
             editing,
+            super::past_hook_runs::is_hook_running(app, &schedule.name),
             palette,
         )
         .on_hover_text(format!(
@@ -222,15 +245,20 @@ pub(super) fn draw_schedule_pills(app: &mut App, ui: &mut Ui, palette: &Palette)
     }
 }
 
-/// On a run's row, when a hook started it: the hook's icon and the column or schedule it was.
-pub(super) fn draw_hook_mark_on_run(ui: &mut Ui, resource: &TaskResourceView, palette: &Palette) {
+/// On a run's row, when a hook started it: the hook's icon and the column or schedule it was -
+/// or, in the hook's own editor, which needs no telling which hook, when it started.
+pub(super) fn draw_hook_mark_on_run(
+    ui: &mut Ui,
+    resource: &TaskResourceView,
+    when: Option<&str>,
+    palette: &Palette,
+) {
     let Some(label) = resource.started_by_hook.as_deref() else {
         return;
     };
+    let text = when.unwrap_or(label).to_string();
     let font = egui::FontId::proportional(SMALL_SIZE - 1.0);
-    let word = ui
-        .painter()
-        .layout_no_wrap(label.to_string(), font, palette.accent_2);
+    let word = ui.painter().layout_no_wrap(text, font, palette.accent_2);
     let icon_size = word.size().y.max(10.0);
     let size = vec2(icon_size + 3.0 + word.size().x, icon_size);
     // Only in the room the run's name has left: drawn anyway, it would lie over the name.

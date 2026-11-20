@@ -246,9 +246,12 @@ for a schedule - marked with the hook that started it, and opened like any other
 - A schedule missed while moon was closed runs when moon opens later in its day (or hour); days
   gone by are not made up for.
 - What each hook did, or why it could not, is a line in `.moontasks/hooks/hooks.log`.
-- `[run now]` in a hook's editor fires it once, as typed (saved or not), and opens its run: a
+- `[run now]` in a hook's editor fires a saved hook once, as typed, and opens its run: a
   column's on the marked card in it or else its top card, a schedule on the board. It counts
   nothing toward the 5 in a row.
+- A hook run that has ended leaves the board, so an hourly schedule does not fill it up. Its
+  hook's editor lists every run under `past sessions`, newest first, in the same rows a card
+  draws its runs in, each marked with when it started. The pill shows a green dot while one of its runs is going.
 
 ## Reviews
 

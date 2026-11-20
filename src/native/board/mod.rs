@@ -21,6 +21,7 @@ pub(crate) mod hook_editor;
 pub(crate) mod hooks;
 pub(crate) mod marks;
 pub(crate) mod motion;
+pub(crate) mod past_hook_runs;
 pub(crate) mod placing;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod quick_task;
