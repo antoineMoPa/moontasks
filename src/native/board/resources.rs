@@ -416,7 +416,7 @@ pub(super) fn draw_resource(
                 if let Some(pid) = resource.going_elsewhere_in {
                     name.on_hover_text(format!(
                         "Going in process {pid}, which is no shell of this window: another \
-                         moon has it, or its agent was started outside one. It is opened \
+                         moon owns it, or its agent was started outside one. It is opened \
                          where it was started"
                     ));
                 }

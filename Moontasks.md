@@ -177,7 +177,7 @@ Closing an agent's tab does not end it. A task's shells belong to the task and k
 with nothing attached until the card reaches DONE, so you can close a noisy agent and come
 back to it. `stop` ends one on purpose, and `resume` starts it again where it left off.
 
-A run can be going with no shell of this window behind it: another moon on the machine has its
+A run can be going with no shell of this window behind it: another moon on the machine owns its
 shell - the window beside a `moon serve` - or its agent was started in a terminal of yours and
 put itself on the task. Its row says it is going and offers neither `stop` nor `resume`, since
 it is opened and ended where it was started; resting the pointer on it names the process. An
