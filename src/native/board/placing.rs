@@ -54,6 +54,7 @@ pub(super) fn column_index_of(
 /// where it was put, which is the server having caught up.
 pub(crate) fn accept_board(model: &mut Model, mut tasks: Vec<TaskView>) {
     close_the_pages_of_deleted_tasks(model, &tasks);
+    close_the_reviews_of_tasks_moved_to_done(model, &tasks);
     let Some(pending) = &model.board.pending_place else {
         model.board.tasks = tasks;
         return;
@@ -133,6 +134,26 @@ fn close_the_pages_of_deleted_tasks(model: &mut Model, tasks: &[TaskView]) {
     // taken while the window is being drawn, and a pane is never closed while the tree that
     // holds it is being drawn.
     model.board.pages_to_close.extend(deleted);
+}
+
+/// A card that arrived in the done column since the last answer - moved by an agent, the CLI
+/// or by hand in `.moontasks` - has its review put away, the way a card dropped there here
+/// does. A card the board has not seen before arrived nowhere: the first answer closes nothing.
+fn close_the_reviews_of_tasks_moved_to_done(model: &mut Model, tasks: &[TaskView]) {
+    let done = ColumnId::new(crate::moontasks::store::MENU_FINISHES_IN);
+    let arrived: Vec<String> = tasks
+        .iter()
+        .filter(|task| task.status == done)
+        .filter(|task| {
+            model
+                .board
+                .tasks
+                .iter()
+                .any(|was| was.id == task.id && was.status != done)
+        })
+        .map(|task| task.id.clone())
+        .collect();
+    model.board.reviews_to_close.extend(arrived);
 }
 
 /// Make the move on the board being drawn, ahead of the server being told about it.

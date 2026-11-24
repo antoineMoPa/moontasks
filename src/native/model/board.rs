@@ -91,6 +91,9 @@ pub(crate) struct BoardState {
     /// go. Drained once the window has drawn - a pane is never closed while the tree that
     /// holds it is being drawn.
     pub(crate) pages_to_close: Vec<String>,
+    /// The tasks whose review tabs are to be put away, because their cards went to the done
+    /// column - here or elsewhere. Drained once the window has drawn, like the pages above.
+    pub(crate) reviews_to_close: Vec<String>,
     /// Whether the cross on the empty card standing for a task being written has been pressed:
     /// the pane it is being written on is to be put away, and put away it is once the window
     /// has drawn, for the same reason the pages above are.

@@ -337,6 +337,13 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
             );
         }
         BoardAction::Place(task_ids, status, position, parent) => {
+            // A card sent to done is finished with, and so is its review.
+            if status.as_str() == crate::moontasks::store::MENU_FINISHES_IN {
+                app.model
+                    .board
+                    .reviews_to_close
+                    .extend(task_ids.iter().cloned());
+            }
             app.tasks.spawn(
                 move |backend| {
                     backend.place_tasks(

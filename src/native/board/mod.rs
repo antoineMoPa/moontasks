@@ -210,6 +210,23 @@ pub(crate) fn close_pages_let_go_of(app: &mut App) {
     }
 }
 
+/// Put away the review tabs of the tasks whose cards went to the done column: a finished task
+/// has nothing left to review. Called after the window has drawn, like the pages above.
+pub(crate) fn close_reviews_of_finished_tasks(app: &mut App) {
+    for task_id in std::mem::take(&mut app.model.board.reviews_to_close) {
+        let review = app
+            .model
+            .layout
+            .find_pane(
+                |pane| matches!(pane, Pane::TaskReview { task_id: on, .. } if *on == task_id),
+            )
+            .map(|(pane, _)| pane);
+        if let Some(review) = review {
+            app.close_pane(review);
+        }
+    }
+}
+
 /// Put away the pane a new task was being written on, when the cross on the empty card
 /// standing for it says no to the task.
 ///

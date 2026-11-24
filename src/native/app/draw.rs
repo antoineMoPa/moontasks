@@ -595,6 +595,8 @@ impl App {
         // A task's page is open while its card is marked, so a card let go of by a click on
         // the board takes its page with it - here, where the tree is no longer being drawn.
         crate::native::board::close_pages_let_go_of(self);
+        // A card gone to done takes its review tab with it.
+        crate::native::board::close_reviews_of_finished_tasks(self);
         // And the cross on the empty card of a task being written puts its pane away, here for
         // the same reason.
         crate::native::board::close_the_new_task_page(self);
