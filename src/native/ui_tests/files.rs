@@ -151,6 +151,8 @@ fn a_markdown_file_opens_rendered() {
     app.set_theme(ThemeMode::Dark);
     let ready = Arc::new(AtomicBool::new(false));
     let ready_in_ui = Arc::clone(&ready);
+    let page_room = Arc::new(std::sync::Mutex::new(None::<egui::Rect>));
+    let page_room_in_ui = Arc::clone(&page_room);
     let opened = Arc::new(AtomicBool::new(false));
     let opened_in_ui = Arc::clone(&opened);
     let mut harness = Harness::builder()
@@ -166,6 +168,11 @@ fn a_markdown_file_opens_rendered() {
                 opened_in_ui.store(true, Ordering::Relaxed);
             }
             app.draw(ui);
+            if let Some(pane_id) = app.model.file_editors.keys().next().copied()
+                && let Some(room) = app.webviews.read_room_reserved_for_test(pane_id)
+            {
+                *page_room_in_ui.lock().unwrap() = Some(room);
+            }
             ready_in_ui.store(
                 app.model
                     .file_editors
@@ -189,6 +196,19 @@ fn a_markdown_file_opens_rendered() {
         harness.query_by_label("[edit]").is_some(),
         "a rendered markdown file should offer the way back to the text"
     );
+    // The page is a native view drawn over whatever egui paints under it, so the room kept
+    // for it has to start under the header: over it, `[edit]` is there and cannot be seen.
+    if cfg!(target_os = "macos") {
+        let page_room = page_room
+            .lock()
+            .unwrap()
+            .expect("a rendered markdown file keeps room for its page");
+        let edit = harness.get_by_label("[edit]").rect();
+        assert!(
+            page_room.top() >= edit.bottom(),
+            "the page ({page_room:?}) should be under the header's [edit] ({edit:?})"
+        );
+    }
 
     harness.get_by_label("[edit]").click();
     harness

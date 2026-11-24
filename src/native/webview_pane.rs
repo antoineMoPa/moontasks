@@ -64,6 +64,14 @@ impl Webviews {
     }
 }
 
+#[cfg(test)]
+impl Webviews {
+    /// Where a pane's webview was last given room, for the test that it leaves the header be.
+    pub(crate) fn read_room_reserved_for_test(&self, pane_id: PaneId) -> Option<Rect> {
+        self.drawn.get(&pane_id).copied()
+    }
+}
+
 pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId) {
     let waiting = if cfg!(target_os = "macos") {
         "loading the visualization"
@@ -76,8 +84,10 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId) {
 /// Keep the rest of `ui` for the pane's webview, saying `waiting` under it until its page
 /// covers the words.
 pub(crate) fn reserve_room(app: &mut App, ui: &mut Ui, pane_id: PaneId, waiting: &str) {
-    // Only what can be seen of the pane: a webview is not clipped by the frame around it.
-    let rect = ui.max_rect().intersect(ui.clip_rect());
+    // What is left under whatever the pane has already drawn - a file tab's header, with the
+    // `[edit]` that leads back to the text - and only what can be seen of it: a webview is
+    // not clipped by the frame around it, and is drawn over anything egui paints under it.
+    let rect = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.allocate_rect(rect, Sense::hover());
     if cfg!(target_os = "macos") {
         app.webviews.drawn.insert(pane_id, rect);
