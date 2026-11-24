@@ -127,6 +127,12 @@ impl Frame {
         format!("{PROGRAM} {}", self.subcommand())
     }
 
+    /// What the window calls itself in its title bar and on its launch screen: the launcher's
+    /// name in one lowercase word, `moontasks`, where [`Self::command`] is what is typed.
+    pub(crate) fn name_window(self) -> String {
+        format!("{PROGRAM}{}", self.subcommand())
+    }
+
     /// The single token this frame's files and identifiers are named with - see the field.
     pub(crate) fn slug(self) -> &'static str {
         self.entry().slug

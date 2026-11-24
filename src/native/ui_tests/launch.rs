@@ -178,8 +178,8 @@ fn the_launch_screen_of_the_board_does_not_offer_a_review() {
     harness.run_steps(3);
 
     assert!(
-        harness.query_by_label_contains("moon tasks").is_some(),
-        "expected the board's launch screen to name the command that opens the board"
+        harness.query_by_label_contains("moontasks").is_some(),
+        "expected the board's launch screen to name the window in one word"
     );
     assert!(
         harness.query_by_label_contains("review").is_none(),
@@ -399,7 +399,7 @@ fn the_window_is_titled_after_the_project_it_is_open_on() {
         "expected the title to name the project, got {titled:?} for {project:?}"
     );
     assert!(
-        titled.starts_with("🌚 moon review | "),
+        titled.starts_with("🌚 moonreview | "),
         "expected the title to keep naming the window, got {titled:?}"
     );
 }
@@ -414,7 +414,7 @@ fn a_project_under_the_home_directory_is_titled_with_a_tilde() {
         Some(&format!("{home}/prog/moon")),
     );
 
-    assert_eq!(titled, "🌚 moon tasks | ~/prog/moon");
+    assert_eq!(titled, "🌚 moontasks | ~/prog/moon");
 }
 
 /// The three executables are the same window opened on three different things, which is the

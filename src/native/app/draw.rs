@@ -51,7 +51,7 @@ impl App {
                     .fit_to_exact_size(vec2(LOGO_POINTS, LOGO_POINTS)),
             );
             ui.add_space(LOGO_GAP);
-            ui.label(RichText::new(frame.command()).size(22.0).strong());
+            ui.label(RichText::new(frame.name_window()).size(22.0).strong());
             ui.add_space(4.0);
             ui.label(
                 RichText::new(format!("connected to {}", self.model.connection))
@@ -154,7 +154,7 @@ impl App {
                     .fit_to_exact_size(vec2(LOGO_POINTS, LOGO_POINTS)),
             );
             ui.add_space(LOGO_GAP);
-            ui.label(RichText::new(frame.command()).size(20.0).strong());
+            ui.label(RichText::new(frame.name_window()).size(20.0).strong());
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 ui.add_space((ui.available_width() - 140.0).max(0.0) / 2.0);
@@ -624,14 +624,14 @@ impl App {
 /// project's path has room beside its name.
 const RECENT_COLUMN_WIDTH: f32 = 260.0;
 
-/// What the window is called: the executable, and the project it is open on once there is
+/// What the window is called: its name in one word (`moontasks`), and the project it is open on once there is
 /// one. Several windows on several projects is the ordinary way to work, and the title bar is
 /// the only place that says which is which.
 ///
 /// The home directory is written as `~`, which is how a path is read at a glance.
 pub(crate) fn window_title(frame: crate::cli::Frame, project: Option<&str>) -> String {
     let Some(project) = project else {
-        return format!("🌚 {}", frame.command());
+        return format!("🌚 {}", frame.name_window());
     };
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
@@ -646,7 +646,7 @@ pub(crate) fn window_title(frame: crate::cli::Frame, project: Option<&str>) -> S
         })
         .unwrap_or_else(|| project.to_string());
 
-    format!("🌚 {} | {shortened}", frame.command())
+    format!("🌚 {} | {shortened}", frame.name_window())
 }
 
 /// The projects opened before, under the picker on the launch screen. Clicking one opens it,
