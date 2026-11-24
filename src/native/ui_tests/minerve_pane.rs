@@ -220,7 +220,7 @@ fn a_quick_task_started_with_minerve_is_told_its_title() {
                 crate::native::board::quick_task::start(
                     &mut app,
                     TITLE.to_string(),
-                    AgentKind::Minerve,
+                    crate::native::board::quick_task::QuickStart::Agent(AgentKind::Minerve),
                 );
                 *started = true;
             }

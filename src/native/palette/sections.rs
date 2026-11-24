@@ -353,7 +353,7 @@ fn task_agent_at(
     choice: usize,
 ) -> (
     crate::native::board::quick_task::QuickTask,
-    crate::api::AgentKind,
+    crate::native::board::quick_task::QuickStart,
 ) {
     let section = listed
         .iter()
@@ -367,8 +367,8 @@ fn task_agent_at(
     );
     let task = crate::native::board::quick_task::offered(app, app.model.palette.query())
         .expect("the task row was listed for what is typed");
-    let agent = task.agents[choice];
-    (task, agent)
+    let start = task.starts[choice].clone();
+    (task, start)
 }
 
 /// What a click on a chip of the task row runs: the task, started with that chip's agent.
@@ -379,8 +379,8 @@ pub(super) fn task_started_from_chip(
     row: usize,
     choice: usize,
 ) -> super::CommandAction {
-    let (task, agent) = task_agent_at(app, listed, row, choice);
-    task.started_with(agent)
+    let (task, start) = task_agent_at(app, listed, row, choice);
+    task.started_with(start)
 }
 
 /// A section that shows every one of its rows, none of them still to come. None without

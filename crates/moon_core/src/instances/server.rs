@@ -344,6 +344,7 @@ impl AgentAsks for AskedBy<'_> {
                 opens_in: StartFolder::Repo,
                 unattended: true,
                 moves_to_in_progress: false,
+                harness: None,
             },
         )?;
         state

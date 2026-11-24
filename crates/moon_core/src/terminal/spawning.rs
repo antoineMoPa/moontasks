@@ -54,6 +54,16 @@ impl TerminalRegistry {
                 };
                 (shell, vec!["-l".to_string()])
             }
+            TerminalProgram::Command { line, .. } => {
+                let shell = match runs_as {
+                    Some(user) => user.shell.clone(),
+                    None => crate::shell_path::login_shell(),
+                };
+                (
+                    shell,
+                    vec!["-l".to_string(), "-c".to_string(), line.clone()],
+                )
+            }
             TerminalProgram::Agent(AgentKind::None) => {
                 unreachable!("no agent picked is the login shell, see TerminalProgram::of_agent")
             }
@@ -312,9 +322,11 @@ impl TerminalRegistry {
 /// A plain login shell is never kept: it exits with whatever its last command returned, so a
 /// nonzero status there is everyday use rather than the program falling over.
 fn failure_notice(session: &TerminalSession) -> Option<String> {
-    let program = match session.program.agent() {
-        None => return None,
-        Some(agent) => agent.label().to_lowercase(),
+    // A harness's command that fell over is kept the way an agent is: it was started to do
+    // something, and what it printed is the account of why it did not.
+    let program = match &session.program {
+        TerminalProgram::LoginShell => return None,
+        program => program.label(),
     };
     let status = session.child.lock().unwrap().wait().ok()?;
     if status.success() {

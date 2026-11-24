@@ -62,6 +62,10 @@ pub(crate) enum HistoryThing {
         task_id: String,
         title: String,
         agent: AgentKind,
+        /// The harness of the person's it was started with instead of `agent` - see
+        /// [`crate::harnesses`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        harness: Option<String>,
     },
 }
 

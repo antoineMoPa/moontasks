@@ -491,11 +491,12 @@ fn reach_of(app: &App, commands: &[Command], palette: &Palette, thing: &HistoryT
             task_id,
             title,
             agent,
+            harness,
         } => quick_task_reach(
             app.model.palette.history.cards.as_deref(),
             task_id,
             title,
-            *agent,
+            &crate::native::board::quick_task::QuickStart::of_history(*agent, harness.as_deref()),
             palette,
         ),
         // A browser's window starts no process and tells no shell a line.
@@ -540,7 +541,7 @@ fn quick_task_reach(
     cards: Option<&[TaskView]>,
     task_id: &str,
     title: &str,
-    agent: crate::api::AgentKind,
+    start: &crate::native::board::quick_task::QuickStart,
     palette: &Palette,
 ) -> Reach {
     let Some(cards) = cards else {
@@ -568,7 +569,7 @@ fn quick_task_reach(
         .iter()
         .find(|(of, _, _)| *of == activity)
         .expect("every activity has a state to say");
-    let mut row = super::drawing::quick_task_entry_row(title, agent);
+    let mut row = super::drawing::quick_task_entry_row(title, start);
     row.asides.push(Aside {
         text: state.to_string(),
         ink: Some(ink(palette)),

@@ -3426,6 +3426,7 @@ dependencies = [
  "serde_json",
  "sha1 0.10.6",
  "sha2 0.10.9",
+ "shlex",
  "time",
  "tokio",
  "toml 1.1.4+spec-1.1.0",

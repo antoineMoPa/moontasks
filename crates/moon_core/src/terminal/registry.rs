@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 
 use crate::{agent_sessions::AgentHome, api::TerminalAttentionView};
 
-use super::{OwnedShell, TerminalProgram, TerminalRegistry, TerminalSession};
+use super::{OwnedShell, TerminalRegistry, TerminalSession};
 
 impl TerminalRegistry {
     pub fn new(last_activity: Arc<Mutex<Instant>>) -> Self {
@@ -325,8 +325,9 @@ impl TerminalRegistry {
             .unwrap()
             .iter()
             .filter(|(_, session)| {
-                session.owner.as_deref() == Some(owner)
-                    && session.program == TerminalProgram::LoginShell
+                // A harness's own command is listed with them: like a shell, its pty is the
+                // whole of it.
+                session.owner.as_deref() == Some(owner) && session.program.agent().is_none()
             })
             .map(|(terminal_id, session)| OwnedShell {
                 terminal_id: terminal_id.clone(),

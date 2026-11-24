@@ -19,6 +19,7 @@ fn standup() -> Schedule {
             minute: 30,
         },
         start: AgentKind::Claude,
+        harness: None,
         prompt: "Read the board.\nSay what moved since yesterday.".to_string(),
     }
 }
@@ -37,6 +38,7 @@ fn a_hook_saved_from_the_board_reads_back_the_same() {
     let hook = ColumnHook {
         column: ColumnId::new("qa"),
         start: AgentKind::None,
+        harness: None,
         prompt: "cargo test\nmoon tasks move done".to_string(),
     };
     write_column_hook(&repo.root, &hook).unwrap();
@@ -49,6 +51,29 @@ fn a_hook_saved_from_the_board_reads_back_the_same() {
     assert_eq!(
         std::fs::read_to_string(repo.root.join(schedule_repo_path("standup"))).unwrap(),
         "---\nevery: weekdays\nat: 08:30\nstart: claude\n---\nRead the board.\nSay what moved since yesterday.\n"
+    );
+}
+
+/// A word after `start:` that is none of moon's own names a harness of the person's.
+#[test]
+fn a_hook_that_starts_a_harness_names_it_in_its_file() {
+    let repo = Fixture::new("hooks-harness");
+    let hook = ColumnHook {
+        column: ColumnId::new("qa"),
+        start: AgentKind::None,
+        harness: Some("opus-plan".to_string()),
+        prompt: "Plan the work.".to_string(),
+    };
+    write_column_hook(&repo.root, &hook).unwrap();
+
+    assert_eq!(read_board_hooks(&repo.root).columns, [hook]);
+    assert_eq!(
+        std::fs::read_to_string(repo.root.join(".moontasks/hooks/columns/qa.md")).unwrap(),
+        "---\nstart: opus-plan\n---\nPlan the work.\n"
+    );
+    assert!(
+        parse_column_hook(&ColumnId::new("qa"), "---\nstart: Not A Name\n---\nx\n").is_err(),
+        "a start that could name nothing should not be read"
     );
 }
 
@@ -231,6 +256,7 @@ fn hooks_stop_on_a_card_they_have_run_on_too_many_times_in_a_row() {
     let hook = ColumnHook {
         column: ColumnId::new("todo"),
         start: AgentKind::Claude,
+        harness: None,
         prompt: "again".to_string(),
     };
     let fired = fire_column_hook(

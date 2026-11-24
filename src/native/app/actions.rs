@@ -524,8 +524,8 @@ impl App {
             #[cfg(not(target_arch = "wasm32"))]
             CommandAction::GeneratePassKey => self.generate_pass_key(ctx),
             #[cfg(not(target_arch = "wasm32"))]
-            CommandAction::StartQuickTask { title, agent } => {
-                crate::native::board::quick_task::start(self, title, agent)
+            CommandAction::StartQuickTask { title, start } => {
+                crate::native::board::quick_task::start(self, title, start)
             }
             CommandAction::ApplyCodeAction(index) => {
                 crate::native::code_actions::apply(self, index)

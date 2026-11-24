@@ -12,11 +12,12 @@ use egui::Ui;
 
 use crate::{
     api::AgentKind,
+    harnesses::HarnessStart,
     moontasks::{RunsOf, StartFolder, StartResourceRequest, TaskResourceKind},
     native::{
         agent_logins::{NOT_LOGGED_IN, log_in_commands},
         app::App,
-        board::{BoardAction, agent_label, available_agents, gesture::Controls},
+        board::{BoardAction, agent_label, available_agents, gesture::Controls, harnesses_of},
         widgets,
     },
 };
@@ -33,8 +34,8 @@ struct StartOffer {
 
 /// What this task can start, in the order it is offered: a review of the repo, a shell in the
 /// task and a file of the repo linked to the card; then an agent, one per kind the review
-/// knows; then a session one of those agents already has. The last two are not offered when
-/// there are no agents, since a session is an agent's.
+/// knows; then the person's own harnesses; then a session one of those agents already has -
+/// which is not offered when there are no agents, since a session is an agent's.
 ///
 /// Answered in groups, which the menu separates with a rule and the list with a gap.
 fn offers(app: &App, task: RunsOf<'_>) -> Vec<Vec<StartOffer>> {
@@ -60,6 +61,7 @@ fn offers(app: &App, task: RunsOf<'_>) -> Vec<Vec<StartOffer>> {
                     opens_in: StartFolder::Repo,
                     unattended: false,
                     moves_to_in_progress: false,
+                    harness: None,
                 },
             ),
         },
@@ -85,33 +87,62 @@ fn offers(app: &App, task: RunsOf<'_>) -> Vec<Vec<StartOffer>> {
         }]);
     }
 
-    if agents.is_empty() {
-        return groups;
+    // A session is an agent's, so a machine with none of them has none to attach.
+    let has_agents = !agents.is_empty();
+    if has_agents {
+        let log_in_commands = log_in_commands(app);
+        groups.push(
+            agents
+                .into_iter()
+                .flat_map(|agent| {
+                    let log_in_command = log_in_commands
+                        .iter()
+                        .find(|(of, _)| *of == agent)
+                        .map(|(_, command)| command.clone());
+                    agent_offers(task, agent, log_in_command)
+                })
+                .collect(),
+        );
     }
-    let log_in_commands = log_in_commands(app);
-    groups.push(
-        agents
-            .into_iter()
-            .flat_map(|agent| {
-                let log_in_command = log_in_commands
-                    .iter()
-                    .find(|(of, _)| *of == agent)
-                    .map(|(_, command)| command.clone());
-                agent_offers(task, agent, log_in_command)
-            })
-            .collect(),
-    );
-    // The way back when a run's recorded session id stopped pointing anywhere: pick one
-    // straight off the agents' own records instead.
-    groups.push(vec![StartOffer {
-        label: "attach a session…".to_string(),
-        hover: Some("Pick a past session of one of the agents and put it on this task"),
-        action: BoardAction::OpenAttachPicker {
-            task_id: task.id.to_string(),
-            task_title: task.title.to_string(),
-        },
-    }]);
+    let harnesses = harness_offers(app, task);
+    if !harnesses.is_empty() {
+        groups.push(harnesses);
+    }
+    if has_agents {
+        // The way back when a run's recorded session id stopped pointing anywhere: pick one
+        // straight off the agents' own records instead.
+        groups.push(vec![StartOffer {
+            label: "attach a session…".to_string(),
+            hover: Some("Pick a past session of one of the agents and put it on this task"),
+            action: BoardAction::OpenAttachPicker {
+                task_id: task.id.to_string(),
+                task_title: task.title.to_string(),
+            },
+        }]);
+    }
     groups
+}
+
+/// The person's harnesses - see [`crate::harnesses`] - each started on the task by its name.
+fn harness_offers(app: &App, task: RunsOf<'_>) -> Vec<StartOffer> {
+    harnesses_of(app)
+        .iter()
+        .map(|harness| StartOffer {
+            label: harness.name.clone(),
+            hover: Some("One of your harnesses - see the settings pane"),
+            action: BoardAction::Start(
+                task.id.to_string(),
+                StartResourceRequest {
+                    kind: TaskResourceKind::Agent,
+                    agent: AgentKind::None,
+                    opens_in: StartFolder::Repo,
+                    unattended: false,
+                    moves_to_in_progress: false,
+                    harness: Some(HarnessStart::named(&harness.name)),
+                },
+            ),
+        })
+        .collect()
 }
 
 /// An agent as a task offers it. One the person is not logged in to - which
@@ -131,6 +162,7 @@ fn agent_offers(
             opens_in: StartFolder::Repo,
             unattended: false,
             moves_to_in_progress: false,
+            harness: None,
         },
     );
     let Some(log_in_command) = log_in_command else {

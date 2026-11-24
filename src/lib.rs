@@ -18,7 +18,7 @@ pub(crate) use moon_core::MINERVE_SUBCOMMAND;
 pub(crate) use moon_core::{agent, git, gpg, moved_hunks, shell_locale, shell_path, unix_users};
 pub(crate) use moon_core::{
     agent_conversation, agent_sessions, attention, comments, commit_suggestion, committing,
-    moontasks, settings, shell_quoting,
+    harnesses, moontasks, settings, shell_quoting,
 };
 
 mod api;

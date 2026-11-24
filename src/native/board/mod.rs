@@ -477,3 +477,22 @@ pub(crate) fn is_open(app: &App) -> bool {
         .find_pane(|pane| matches!(pane.kind(), PaneKind::Tasks | PaneKind::Start))
         .is_some()
 }
+
+/// The person's harnesses - see [`crate::harnesses`] - in the order their settings list them:
+/// what `[start]`, a hook's editor and the palette's quick task offer after the agents. None
+/// until the settings have been read.
+pub(crate) fn harnesses_of(app: &App) -> &[crate::harnesses::Harness] {
+    app.model
+        .settings
+        .as_ref()
+        .map_or(&[], |settings| settings.harnesses.as_slice())
+}
+
+/// Whether the settings have been read and hold no harness of this name, which is a hook
+/// that will not fire on this machine.
+pub(crate) fn is_harness_missing(app: &App, name: &str) -> bool {
+    app.model
+        .settings
+        .as_ref()
+        .is_some_and(|settings| settings.harness(name).is_none())
+}

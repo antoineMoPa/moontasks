@@ -229,7 +229,7 @@ schedule. Each one is a file, written from the board or by hand:
 ---
 every: weekdays
 at: 08:30
-start: claude        # codex, opencode, pi, minerve, or shell
+start: claude        # codex, opencode, pi, minerve, shell, or a harness of yours
 ---
 Read the board and say what moved since yesterday.
 ```
@@ -252,6 +252,40 @@ for a schedule - marked with the hook that started it, and opened like any other
 - A hook run that has ended leaves the board, so an hourly schedule does not fill it up. Its
   hook's editor lists every run under `past sessions`, newest first, in the same rows a card
   draws its runs in, each marked with when it started. The pill shows a green dot while one of its runs is going.
+
+## Harnesses
+
+A harness is something of your own to start on a task: a name and the command it runs. Add one
+in the settings pane (`[+ harness]`), or in `~/.moontasks/settings.json`:
+
+```json
+"harnesses": [
+  { "name": "opus-plan", "command": "claude --model opus --permission-mode plan" },
+  { "name": "aider", "command": "aider --message-file {brief_file}" }
+]
+```
+
+It is then offered wherever an agent is: a card's `[start]`, a hook's editor (`start: aider` in
+its file), and the palette's quick task.
+
+| the command | what runs | on the card |
+| --- | --- | --- |
+| starts with `claude`, `codex`, `opencode`, `pi` or `minerve` | that agent, started as moon starts it, with your arguments after moon's | an agent's run: recorded, resumed, sent comments |
+| anything else | a line of your login shell, in the repo | listed with the task's shells while it runs; kept on screen if it fails |
+
+| in the command | becomes |
+| --- | --- |
+| `{prompt}` | what it was started to do: a hook's prompt, a quick task's title, nothing from `[start]`. Also in `$MOONTASKS_PROMPT` |
+| `{title}` | the card's title |
+| `{brief}`, `{brief_file}` | the task's brief, and the file it is in |
+| `{task}`, `{repo}` | the task's folder, and the repo |
+
+- In a line of shell each value is quoted as one word, so write `{title}`, not `"{title}"`.
+- An agent whose command has no `{prompt}` is told the prompt once it is up, as a hook's agent
+  is. Any other command only gets it from `{prompt}` or `$MOONTASKS_PROMPT`.
+- A name is lower case letters, digits and dashes, and none of moon's own (`claude`, `shell`…).
+- Harnesses are yours, not the board's: a hook naming one this machine's settings lack does
+  not start here, and its pill and `hooks.log` say so.
 
 ## Reviews
 

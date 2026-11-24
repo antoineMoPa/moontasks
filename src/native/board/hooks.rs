@@ -13,7 +13,7 @@ use egui::{
 use crate::{
     moontasks::{
         BoardColumn, TaskResourceView, TaskView,
-        hooks::{HOOK_RUNS_IN_A_ROW_CAP, Schedule, start_word},
+        hooks::{HOOK_RUNS_IN_A_ROW_CAP, Schedule},
     },
     native::{
         app::App,
@@ -167,15 +167,16 @@ pub(super) fn draw_column_hook_pill(
             ui,
             id,
             PillKind::Column,
-            start_word(hook.start),
+            hook.start_word(),
             editing,
             super::past_hook_runs::is_hook_running(app, &column.label),
             palette,
         )
         .on_hover_text(format!(
-            "When a card arrives in {}, start {} on it. Click to change",
+            "When a card arrives in {}, start {} on it. Click to change{}",
             column.label,
-            start_word(hook.start)
+            hook.start_word(),
+            say_harness_is_missing(app, hook.harness.as_deref())
         )),
         None if heading_hovered || editing => {
             draw_hook_pill(ui, id, PillKind::Ghost, "+", editing, false, palette).on_hover_text(
@@ -230,18 +231,30 @@ pub(super) fn draw_schedule_pills(app: &mut App, ui: &mut Ui, palette: &Palette)
             palette,
         )
         .on_hover_text(format!(
-            "Starts {} on the board {}. Click to change",
-            start_word(schedule.start),
+            "Starts {} on the board {}. Click to change{}",
+            schedule.start_word(),
             match schedule.every {
                 crate::moontasks::hooks::ScheduleEvery::Minute => "every minute",
                 crate::moontasks::hooks::ScheduleEvery::Hour => "every hour",
                 crate::moontasks::hooks::ScheduleEvery::Day => "every day",
                 crate::moontasks::hooks::ScheduleEvery::Weekdays => "every weekday",
-            }
+            },
+            say_harness_is_missing(app, schedule.harness.as_deref())
         ));
         if pill.clicked() {
             open_hook_editor(app, target, pill.rect);
         }
+    }
+}
+
+/// What a hook's pill adds to its hover when the harness it starts is not one of this
+/// machine's: the hook does not fire here, and this is the only place that says why.
+fn say_harness_is_missing(app: &App, harness: Option<&str>) -> String {
+    match harness {
+        Some(name) if super::is_harness_missing(app, name) => {
+            format!(".\nYour settings have no harness called {name}, so it does not start here")
+        }
+        _ => String::new(),
     }
 }
 

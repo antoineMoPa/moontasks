@@ -75,7 +75,20 @@ pub struct ColumnHook {
     /// The agent started on the card, or [`AgentKind::None`] for a shell the prompt is typed
     /// into as commands.
     pub start: AgentKind,
+    /// The harness of the person's started instead of `start` - see [`crate::harnesses`]. A
+    /// machine whose settings have none of this name does not fire the hook.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<String>,
     pub prompt: String,
+}
+
+impl ColumnHook {
+    /// The word its file and its pill name what it starts by.
+    pub fn start_word(&self) -> &str {
+        self.harness
+            .as_deref()
+            .unwrap_or_else(|| start_word(self.start))
+    }
 }
 
 /// How often a schedule runs.
@@ -195,10 +208,20 @@ pub struct Schedule {
     pub every: ScheduleEvery,
     pub at: TimeOfDay,
     pub start: AgentKind,
+    /// The harness started instead of `start` - see [`ColumnHook::harness`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<String>,
     pub prompt: String,
 }
 
 impl Schedule {
+    /// The word its file names what it starts by.
+    pub fn start_word(&self) -> &str {
+        self.harness
+            .as_deref()
+            .unwrap_or_else(|| start_word(self.start))
+    }
+
     /// `standup · 08:30`, `triage · weekdays 23:00`, `sync · hourly :15`, `ping · every
     /// minute` - what its pill on the board reads.
     pub fn pill_text(&self) -> String {

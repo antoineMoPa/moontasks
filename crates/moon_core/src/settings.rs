@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::api::AgentKind;
+use crate::{api::AgentKind, harnesses::Harness};
 
 #[cfg(not(target_arch = "wasm32"))]
 const SETTINGS_DIR_NAME: &str = ".moontasks";
@@ -78,6 +78,10 @@ pub struct Settings {
     /// `None` until a quick task has been started.
     #[serde(default)]
     pub quick_task_agent: AgentKind,
+    /// The person's own things to start on a task, in the order they are offered - see
+    /// [`crate::harnesses`]. Left out of the file while there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub harnesses: Vec<Harness>,
     /// The projects the window's spaces were on when they last changed, so the next launch
     /// opens them again - see `App::restore_workspace`.
     #[serde(default)]
@@ -145,6 +149,15 @@ pub enum SettingsChange {
     },
     /// Light or dark, picked by the person.
     PickTheme(Theme),
+    /// A harness added, or written over the one called `was` - which is how one is renamed.
+    /// One that [`crate::harnesses::check_harness`] refuses, or whose name another already
+    /// has, changes nothing.
+    SaveHarness {
+        was: Option<String>,
+        harness: Harness,
+    },
+    /// The harness of this name taken off the list.
+    RemoveHarness(String),
 }
 
 impl Settings {
@@ -198,10 +211,51 @@ impl Settings {
                 self.theme = Some(theme);
                 changed
             }
+            SettingsChange::SaveHarness { was, harness } => self.save_harness(was, harness),
+            SettingsChange::RemoveHarness(name) => {
+                let before = self.harnesses.len();
+                self.harnesses.retain(|harness| harness.name != name);
+                self.harnesses.len() != before
+            }
             SettingsChange::SaveWorkspaceProjects(projects) => {
                 let changed = self.workspace_projects != projects;
                 self.workspace_projects = projects;
                 changed
+            }
+        }
+    }
+
+    /// The harness called `name`, if the person has one.
+    pub fn harness(&self, name: &str) -> Option<&Harness> {
+        self.harnesses.iter().find(|harness| harness.name == name)
+    }
+
+    /// Keep `harness` where the one called `was` is, or at the end of the list when there is
+    /// none. Answers whether anything changed.
+    fn save_harness(&mut self, was: Option<String>, harness: Harness) -> bool {
+        if crate::harnesses::check_harness(&harness).is_err() {
+            return false;
+        }
+        let kept_at = was
+            .as_deref()
+            .and_then(|was| self.harnesses.iter().position(|kept| kept.name == was));
+        let name_taken = self
+            .harnesses
+            .iter()
+            .enumerate()
+            .any(|(index, kept)| kept.name == harness.name && Some(index) != kept_at);
+        if name_taken {
+            return false;
+        }
+        match kept_at {
+            Some(index) if self.harnesses[index] == harness => false,
+            Some(index) => {
+                self.harnesses[index] = harness;
+                true
+            }
+            None => {
+                self.harnesses.push(harness);
+                true
             }
         }
     }
@@ -633,6 +687,44 @@ mod tests {
     }
 
     #[test]
+    fn a_harness_is_added_renamed_in_place_and_removed() {
+        let harness = |name: &str, command: &str| Harness {
+            name: name.to_string(),
+            command: command.to_string(),
+        };
+        let save = |was: Option<&str>, harness: Harness| SettingsChange::SaveHarness {
+            was: was.map(str::to_string),
+            harness,
+        };
+        let mut settings = Settings::default();
+        assert!(settings.apply(save(None, harness("aider", "aider"))));
+        assert!(settings.apply(save(None, harness("triage", "~/bin/triage.sh {task}"))));
+        // A name moon has, a name already taken and no command change nothing.
+        assert!(!settings.apply(save(None, harness("claude", "claude --model opus"))));
+        assert!(!settings.apply(save(Some("triage"), harness("aider", "x"))));
+        assert!(!settings.apply(save(None, harness("empty", " "))));
+
+        assert!(settings.apply(save(Some("aider"), harness("pair", "aider --yes"))));
+        assert_eq!(
+            settings.harnesses,
+            [
+                harness("pair", "aider --yes"),
+                harness("triage", "~/bin/triage.sh {task}")
+            ]
+        );
+        assert_eq!(
+            settings
+                .harness("pair")
+                .map(|harness| harness.command.as_str()),
+            Some("aider --yes")
+        );
+
+        assert!(settings.apply(SettingsChange::RemoveHarness("pair".to_string())));
+        assert!(!settings.apply(SettingsChange::RemoveHarness("pair".to_string())));
+        assert_eq!(settings.harnesses.len(), 1);
+    }
+
+    #[test]
     fn the_file_names_the_agent_in_words() {
         let encoded = serde_json::to_string(&Settings {
             selected_agent: AgentKind::Claude,
@@ -641,6 +733,7 @@ mod tests {
             applications: Vec::new(),
             agent_models: BTreeMap::new(),
             quick_task_agent: AgentKind::Codex,
+            harnesses: Vec::new(),
             workspace_projects: WorkspaceProjects::default(),
             backgrounds: BTreeMap::new(),
             theme: None,

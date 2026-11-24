@@ -23,6 +23,7 @@ pub mod committing;
 pub mod git;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod gpg;
+pub mod harnesses;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod instances;
 pub mod moontasks;

@@ -137,6 +137,12 @@ pub struct TerminalList {
 pub enum TerminalProgram {
     LoginShell,
     Agent(AgentKind),
+    /// A harness's own command - see [`crate::harnesses`]: a line the login shell runs and
+    /// ends with, under the harness's name.
+    Command {
+        name: String,
+        line: String,
+    },
 }
 
 impl TerminalProgram {
@@ -162,6 +168,7 @@ impl TerminalProgram {
         match self {
             Self::LoginShell => "shell".to_string(),
             Self::Agent(agent) => agent.label().to_lowercase(),
+            Self::Command { name, .. } => name.clone(),
         }
     }
 }

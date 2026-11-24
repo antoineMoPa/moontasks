@@ -254,7 +254,7 @@ impl ReviewRequestView {
 }
 
 /// What starting a task's resource asked for.
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StartResourceRequest {
     pub kind: TaskResourceKind,
     /// Which agent to run, for an agent resource.
@@ -273,6 +273,10 @@ pub struct StartResourceRequest {
     /// where the person put it.
     #[serde(default)]
     pub moves_to_in_progress: bool,
+    /// The harness of the person's to start instead of `agent` - see [`crate::harnesses`].
+    /// Asked for as an agent resource: what it turns out to run is read off its command.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<crate::harnesses::HarnessStart>,
 }
 
 /// Which folder a task's shell or agent comes up in.

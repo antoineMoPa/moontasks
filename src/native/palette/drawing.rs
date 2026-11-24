@@ -116,14 +116,23 @@ const AGENT_INKS: &[(crate::api::AgentKind, Color32)] = &[
     ),
 ];
 
-/// An agent's colour.
+/// The colour every harness of the person's is written in - see [`crate::harnesses`]: one
+/// for all of them, apart from each agent's.
 #[cfg(not(target_arch = "wasm32"))]
-fn ink_of(agent: crate::api::AgentKind) -> Color32 {
-    AGENT_INKS
-        .iter()
-        .find(|(of, _)| *of == agent)
-        .map(|(_, ink)| *ink)
-        .expect("every agent a quick task is offered for has an ink")
+const HARNESS_INK: Color32 = Color32::from_rgb(0x8f, 0xc9, 0xb4);
+
+/// The colour of what a quick task starts with.
+#[cfg(not(target_arch = "wasm32"))]
+fn ink_of(start: &crate::native::board::quick_task::QuickStart) -> Color32 {
+    use crate::native::board::quick_task::QuickStart;
+    match start {
+        QuickStart::Harness(_) => HARNESS_INK,
+        QuickStart::Agent(agent) => AGENT_INKS
+            .iter()
+            .find(|(of, _)| of == agent)
+            .map(|(_, ink)| *ink)
+            .expect("every agent a quick task is offered for has an ink"),
+    }
 }
 
 /// The row of a quick task made out of what was typed - see
@@ -135,20 +144,20 @@ pub(super) fn quick_task_row(
     command: &Command,
 ) -> Row {
     Row {
-        inked: vec![(task.agent_in_title(&command.title), ink_of(task.agent))],
+        inked: vec![(task.start_in_title(&command.title), ink_of(&task.start))],
         choices: task
-            .agents
+            .starts
             .iter()
-            .map(|agent| Choice {
-                label: crate::native::board::agent_label(*agent),
-                ink: ink_of(*agent),
+            .map(|start| Choice {
+                label: start.label(),
+                ink: ink_of(start),
             })
             .collect(),
         picked: task
-            .agents
+            .starts
             .iter()
-            .position(|agent| *agent == task.agent)
-            .expect("the agent a quick task starts with is one of its agents"),
+            .position(|start| *start == task.start)
+            .expect("what a quick task starts with is one of its starts"),
         // An agent started by Enter on a title with no command matching it is a surprise.
         needs_reaching: true,
         ..row_of(command)
@@ -158,12 +167,15 @@ pub(super) fn quick_task_row(
 /// A quick task's row in the palette's history - see [`super::history`]: the agent's dot, the
 /// title, and the agent named in its colour.
 #[cfg(not(target_arch = "wasm32"))]
-pub(super) fn quick_task_entry_row(title: &str, agent: crate::api::AgentKind) -> Row {
-    let label = crate::native::board::agent_label(agent);
+pub(super) fn quick_task_entry_row(
+    title: &str,
+    start: &crate::native::board::quick_task::QuickStart,
+) -> Row {
+    let label = start.label();
     let title = format!("\"{title}\" · {label}");
     Row {
-        dot: Some(ink_of(agent)),
-        inked: vec![(title.len() - label.len()..title.len(), ink_of(agent))],
+        dot: Some(ink_of(start)),
+        inked: vec![(title.len() - label.len()..title.len(), ink_of(start))],
         title,
         ..Row::default()
     }

@@ -367,9 +367,20 @@ pub(crate) fn apply(app: &mut App, action: BoardAction) {
         BoardAction::Start(task_id, request) => {
             // The shell it starts in is what the user wants to look at, so it opens with it.
             let for_pane = task_id.clone();
-            let command = (request.agent != AgentKind::None).then_some(request.agent);
+            // A harness of one of moon's agents opens as that agent.
+            let agent = match &request.harness {
+                Some(start) => app
+                    .model
+                    .settings
+                    .as_ref()
+                    .and_then(|settings| settings.harness(&start.name))
+                    .and_then(crate::harnesses::find_agent_of_harness)
+                    .unwrap_or(AgentKind::None),
+                None => request.agent,
+            };
+            let command = (agent != AgentKind::None).then_some(agent);
             app.tasks.spawn(
-                move |backend| backend.start_task_resource(&session_id, &task_id, request),
+                move |backend| backend.start_task_resource(&session_id, &task_id, request.clone()),
                 move |model, result| {
                     model.board.refresh_requested = true;
                     match result {

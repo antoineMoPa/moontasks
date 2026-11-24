@@ -13,29 +13,57 @@ use anyhow::Context;
 
 use crate::{
     api::AgentKind,
+    harnesses::HarnessStart,
     moontasks::{
         ColumnEnd, CreateTaskRequest, StartFolder, StartResourceRequest, TaskResourceKind,
     },
     native::{
         app::App,
-        board::{agent_label, available_agents},
+        board::{agent_label, available_agents, harnesses_of},
         palette::{Command, CommandAction},
     },
     palette_history::{HistoryEntry, HistoryRecord, HistoryThing},
 };
 
-/// The quick task the palette offers for what is typed: its title, the agents that can be
-/// started on it, and the one Enter starts.
+/// What a quick task is started with: one of moon's agents, or a harness of the person's -
+/// see [`crate::harnesses`].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum QuickStart {
+    Agent(AgentKind),
+    Harness(String),
+}
+
+impl QuickStart {
+    /// What its chip and the row's title call it.
+    pub(crate) fn label(&self) -> String {
+        match self {
+            Self::Agent(agent) => agent_label(*agent),
+            Self::Harness(name) => name.clone(),
+        }
+    }
+
+    /// The two a history entry keeps it as - see [`HistoryThing::QuickTask`].
+    pub(crate) fn of_history(agent: AgentKind, harness: Option<&str>) -> Self {
+        match harness {
+            Some(name) => Self::Harness(name.to_string()),
+            None => Self::Agent(agent),
+        }
+    }
+}
+
+/// The quick task the palette offers for what is typed: its title, what can be started on it,
+/// and the one Enter starts.
 pub(crate) struct QuickTask {
     pub(crate) title: String,
-    /// In the order the server lists them, which the row's chips keep whichever is picked.
-    pub(crate) agents: Vec<AgentKind>,
-    pub(crate) agent: AgentKind,
+    /// The agents in the order the server lists them, then the person's harnesses in the
+    /// order their settings do - which the row's chips keep whichever is picked.
+    pub(crate) starts: Vec<QuickStart>,
+    pub(crate) start: QuickStart,
 }
 
 /// The quick task for `query` as a title, with the agent the last quick task was started
 /// with, or else the window's selected agent, or else the first of them. None for an empty
-/// query, which is no title, or a machine without an agent to start.
+/// query, which is no title, or a machine with neither an agent nor a harness to start.
 pub(crate) fn offered(app: &App, query: &str) -> Option<QuickTask> {
     let title = query.trim();
     if title.is_empty() {
@@ -55,49 +83,58 @@ pub(crate) fn offered(app: &App, query: &str) -> Option<QuickTask> {
         .into_iter()
         .filter(|agent| *agent != AgentKind::None)
         .collect();
-    let first = *agents.first()?;
-    let agent = [last_started, selected]
+    let remembered = [last_started, selected]
         .into_iter()
         .flatten()
         .find(|agent| agents.contains(agent))
-        .unwrap_or(first);
+        .map(QuickStart::Agent);
+    let starts: Vec<QuickStart> = agents
+        .into_iter()
+        .map(QuickStart::Agent)
+        .chain(
+            harnesses_of(app)
+                .iter()
+                .map(|harness| QuickStart::Harness(harness.name.clone())),
+        )
+        .collect();
+    let start = remembered.or_else(|| starts.first().cloned())?;
     Some(QuickTask {
         title: title.to_string(),
-        agents,
-        agent,
+        starts,
+        start,
     })
 }
 
 impl QuickTask {
-    /// The palette's row for it: the title, and the agent it starts with.
+    /// The palette's row for it: the title, and what it starts with.
     pub(crate) fn command(&self) -> Command {
         Command {
             title: format!(
                 "\"{}\" → start with {}",
                 cut_title(&self.title),
-                agent_label(self.agent)
+                self.start.label()
             ),
             description: String::new(),
-            action: self.started_with(self.agent),
+            action: self.started_with(self.start.clone()),
             shortcut: None,
         }
     }
 
-    /// Where in the row's title the agent's name is, to write it in the agent's colour.
-    pub(crate) fn agent_in_title(&self, title: &str) -> std::ops::Range<usize> {
-        let label = agent_label(self.agent);
+    /// Where in the row's title the name of what it starts with is, to write it in its colour.
+    pub(crate) fn start_in_title(&self, title: &str) -> std::ops::Range<usize> {
+        let label = self.start.label();
         assert!(
             title.ends_with(&label),
-            "a quick task's title ends with its agent"
+            "a quick task's title ends with what it starts"
         );
         title.len() - label.len()..title.len()
     }
 
-    /// What starting it with `agent` does.
-    pub(crate) fn started_with(&self, agent: AgentKind) -> CommandAction {
+    /// What starting it with `start` does.
+    pub(crate) fn started_with(&self, start: QuickStart) -> CommandAction {
         CommandAction::StartQuickTask {
             title: self.title.clone(),
-            agent,
+            start,
         }
     }
 }
@@ -115,10 +152,18 @@ fn cut_title(title: &str) -> String {
     format!("{kept}…")
 }
 
-/// Make the card, start `agent` on it and tell it `title`, and keep it in the palette's history
-/// by the card - see [`crate::native::palette::history`].
-pub(crate) fn start(app: &mut App, title: String, agent: AgentKind) {
-    app.remember_quick_task_agent(agent);
+/// Make the card, start `start` on it and tell it `title`, and keep it in the palette's history
+/// by the card - see [`crate::native::palette::history`]. A harness is handed the title as its
+/// prompt as it starts, rather than told it after.
+pub(crate) fn start(app: &mut App, title: String, start: QuickStart) {
+    let (agent, harness) = match &start {
+        QuickStart::Agent(agent) => {
+            // Only an agent is offered again by the next quick task.
+            app.remember_quick_task_agent(*agent);
+            (*agent, None)
+        }
+        QuickStart::Harness(name) => (AgentKind::None, Some(name.clone())),
+    };
     let session_id = app.model.root_session_id.clone();
     let gone = crate::native::palette::history::gone_things(app);
     // The filter goes, so the new card is on the board rather than behind a query that was
@@ -149,17 +194,24 @@ pub(crate) fn start(app: &mut App, title: String, agent: AgentKind) {
                     opens_in: StartFolder::Repo,
                     unattended: false,
                     moves_to_in_progress: true,
+                    harness: harness.as_ref().map(|name| HarnessStart {
+                        name: name.clone(),
+                        prompt: title.clone(),
+                    }),
                 },
             )?;
             // Waits in the shell until the agent has a box to take it - see `told` in
             // `crate::terminal`.
-            backend.tell_terminal(&terminal_id, &title)?;
+            if harness.is_none() {
+                backend.tell_terminal(&terminal_id, &title)?;
+            }
             let record = HistoryRecord {
                 entry: HistoryEntry {
                     thing: HistoryThing::QuickTask {
                         task_id: task.id,
                         title: title.clone(),
                         agent,
+                        harness: harness.clone(),
                     },
                     ran_at_unix: crate::native::messages::now_unix(),
                 },

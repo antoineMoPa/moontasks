@@ -9,6 +9,7 @@ use crate::{
     agent::agent_is_available,
     agent_sessions::{AgentHome, OpenSessions},
     api::{AgentKind, AppState},
+    harnesses::HarnessStart,
     moontasks::{
         AttachResourceRequest, StartFolder, StartResourceRequest, agent_launch,
         store::{self, ColumnId, TaskMetadata, TaskResource, TaskResourceKind},
@@ -46,10 +47,11 @@ pub(crate) fn start_hook_run(
     session_id: &str,
     task_id: &str,
     agent: AgentKind,
+    harness: Option<HarnessStart>,
     hook: HookStart,
 ) -> Result<String> {
     let kind = match agent {
-        AgentKind::None => TaskResourceKind::Shell,
+        AgentKind::None if harness.is_none() => TaskResourceKind::Shell,
         _ => TaskResourceKind::Agent,
     };
     let request = StartResourceRequest {
@@ -58,6 +60,7 @@ pub(crate) fn start_hook_run(
         opens_in: StartFolder::Repo,
         unattended: true,
         moves_to_in_progress: false,
+        harness,
     };
     start_run(state, session_id, task_id, request, Some(hook))
 }
@@ -74,26 +77,56 @@ fn start_run(
     let mut metadata = store::read_task(&repo_path, task_id)?;
     let person = crate::api::person_of(state, session_id)?;
 
-    let agent = match request.kind {
-        TaskResourceKind::Shell => AgentKind::None,
-        TaskResourceKind::Agent => {
+    // A harness is read off the person's settings as it starts, so one changed there is the
+    // one the next start runs.
+    let harness = match &request.harness {
+        Some(asked) => {
+            let settings = crate::settings::served(state);
+            let harness = settings.harness(&asked.name).with_context(|| {
+                format!(
+                    "no harness called {} in this machine's settings",
+                    asked.name
+                )
+            })?;
+            Some((harness.clone(), asked.prompt.clone()))
+        }
+        None => None,
+    };
+    let harness_agent = harness
+        .as_ref()
+        .and_then(|(harness, _)| crate::harnesses::find_agent_of_harness(harness));
+
+    let agent = match (request.kind, &harness) {
+        // One of moon's agents with flags of the person's is that agent.
+        (_, Some(_)) => match harness_agent {
+            Some(agent) => {
+                ensure_installed_for(state, person.as_ref(), agent)?;
+                agent
+            }
+            None => AgentKind::None,
+        },
+        (TaskResourceKind::Shell, None) => AgentKind::None,
+        (TaskResourceKind::Agent, None) => {
             ensure_installed_for(state, person.as_ref(), request.agent)?;
             request.agent
         }
-        TaskResourceKind::File => bail!("a file is linked to a task, not started"),
-        TaskResourceKind::Visualization => {
+        (TaskResourceKind::File, None) => bail!("a file is linked to a task, not started"),
+        (TaskResourceKind::Visualization, None) => {
             bail!("a visualization is kept on a task by the run that showed it, not started")
         }
     };
+    // Only an agent's run is written down - see below.
+    let is_an_agent_run = agent != AgentKind::None;
     let launch = agent_launch(agent);
     // Only an agent whose start args name a session id has a run that can be resumed exactly.
     let agent_session_id = launch
         .filter(|launch| launch.start.iter().any(|arg| arg.contains("{session}")))
         .map(|_| store::new_uuid());
 
+    let task_dir = store::task_dir(&repo_path, task_id)?;
     let fillings =
         write_task_files(task_id, &repo_path, &metadata)?.with_session(agent_session_id.as_deref());
-    let args = match launch {
+    let mut args = match launch {
         Some(launch) => fillings.fill_all(launch.start.iter()),
         None => Vec::new(),
     };
@@ -101,10 +134,40 @@ fn start_run(
     if let Some(launch) = launch {
         env.extend(fillings.fill_env(launch.env));
     }
-    let program = TerminalProgram::of_agent(Some(agent));
+    let mut program = TerminalProgram::of_agent(Some(agent));
+    // What an agent started by a harness is told once it is up: a prompt its command line
+    // did not take.
+    let mut told_once_up = None;
+    if let Some((harness, prompt)) = &harness {
+        let run = crate::harnesses::plan_harness_run(
+            harness,
+            &crate::harnesses::HarnessFillings {
+                prompt: prompt.clone(),
+                title: metadata.title.clone(),
+                brief: fillings.value_of("{brief}").to_string(),
+                brief_file: fillings.value_of("{brief_file}").to_string(),
+                task: task_dir.display().to_string(),
+                repo: works_in.display().to_string(),
+            },
+        );
+        env.push((crate::harnesses::PROMPT_ENV_VAR.to_string(), prompt.clone()));
+        match run.program {
+            crate::harnesses::HarnessProgram::Agent { extra_args, .. } => {
+                args.extend(extra_args);
+                if !run.takes_prompt && !prompt.trim().is_empty() {
+                    told_once_up = Some(prompt.clone());
+                }
+            }
+            crate::harnesses::HarnessProgram::ShellLine(line) => {
+                program = TerminalProgram::Command {
+                    name: harness.name.clone(),
+                    line,
+                };
+            }
+        }
+    }
     let name =
         crate::terminal::name_for_new_shell(state, &repo_path, Some(&metadata.title), &program)?;
-    let task_dir = store::task_dir(&repo_path, task_id)?;
     // The repo is the folder the session is open on: a person in a work tree of their own
     // starts their runs there, on a task whose folder is in the checkout everybody has.
     let cwd = match request.opens_in {
@@ -134,10 +197,10 @@ fn start_run(
     // A shell is not written down: nothing survives its pty, so a record of one from a run of
     // moon that has ended is a card entry with nowhere to go. The registry lists the
     // ones that are open, and that is the whole life of a shell.
-    if request.kind == TaskResourceKind::Agent {
+    if is_an_agent_run {
         metadata.resources.push(TaskResource {
             id: store::new_uuid(),
-            kind: request.kind,
+            kind: TaskResourceKind::Agent,
             agent,
             file_path: None,
             terminal_id: Some(terminal_id.clone()),
@@ -151,11 +214,17 @@ fn start_run(
             for_review: hook.as_ref().and_then(|hook| hook.for_review.clone()),
         });
         store::write_task(&repo_path, task_id, &metadata)?;
-        if hook.is_none() && request.moves_to_in_progress {
-            move_to_in_progress(state, &repo_path, task_id, &metadata)?;
-        }
     } else if let Some(hook) = &hook {
         note_the_hook_of_a_shell(&terminal_id, hook);
+    }
+    if hook.is_none() && request.moves_to_in_progress {
+        move_to_in_progress(state, &repo_path, task_id, &metadata)?;
+    }
+    if let Some(prompt) = told_once_up {
+        state
+            .terminals
+            .tell_paste(&terminal_id, &prompt, Default::default(), Box::new(|_| {}))
+            .context("telling the harness's agent its prompt")?;
     }
 
     Ok(terminal_id)
@@ -556,6 +625,14 @@ impl Fillings {
             self.values.push(("{session}", session.to_string()));
         }
         self
+    }
+
+    /// What one placeholder stands for in this run, or nothing.
+    fn value_of(&self, placeholder: &str) -> &str {
+        self.values
+            .iter()
+            .find(|(name, _)| *name == placeholder)
+            .map_or("", |(_, value)| value)
     }
 
     /// Fill one template string in. `None` means a placeholder in it had nothing to fill it.

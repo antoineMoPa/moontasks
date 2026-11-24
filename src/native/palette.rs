@@ -25,7 +25,7 @@ use rows::{code_action_rows, content_rows, file_rows, place_rows, rename_rows};
 use egui_frames::DropSide;
 
 use crate::{
-    api::{AgentKind, SearchScope},
+    api::SearchScope,
     native::{app::App, bindings, panes::OpenPaneRequest},
     project::ProjectCommand,
 };
@@ -223,7 +223,7 @@ pub(crate) enum CommandAction {
     #[cfg(not(target_arch = "wasm32"))]
     StartQuickTask {
         title: String,
-        agent: AgentKind,
+        start: crate::native::board::quick_task::QuickStart,
     },
 }
 
@@ -317,6 +317,7 @@ fn rows_for(app: &App) -> Vec<Command> {
 mod tests {
     use super::commands::work_log_commands;
     use super::*;
+    use crate::api::AgentKind;
 
     fn command(title: &str, description: &str) -> Command {
         Command {

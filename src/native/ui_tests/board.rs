@@ -179,6 +179,7 @@ fn the_moontasks_board_draws_what_is_in_the_repo() {
                             opens_in: crate::moontasks::StartFolder::Repo,
                             unattended: false,
                             moves_to_in_progress: false,
+                            harness: None,
                         },
                     ),
                 );

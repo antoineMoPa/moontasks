@@ -21,7 +21,7 @@ use anyhow::{Context, Result, anyhow, bail};
 
 use super::{
     BoardHooks, COLUMN_HOOKS_DIR_NAME, ColumnHook, HOOKS_DIR_NAME, SCHEDULES_DIR_NAME, Schedule,
-    ScheduleEvery, TimeOfDay, start_from_word, start_word,
+    ScheduleEvery, TimeOfDay, start_from_word,
 };
 use crate::moontasks::{ColumnId, store};
 
@@ -124,7 +124,7 @@ pub(super) fn write_column_hook(repo_path: &Path, hook: &ColumnHook) -> Result<(
     let path = column_hook_path(repo_path, &hook.column)?;
     write_file(
         &path,
-        &[("start", start_word(hook.start).to_string())],
+        &[("start", hook.start_word().to_string())],
         &hook.prompt,
     )
 }
@@ -136,7 +136,7 @@ pub(super) fn write_schedule(repo_path: &Path, schedule: &Schedule) -> Result<()
         &[
             ("every", schedule.every.word().to_string()),
             ("at", schedule.at.written_for(schedule.every)),
-            ("start", start_word(schedule.start).to_string()),
+            ("start", schedule.start_word().to_string()),
         ]
         .into_iter()
         // Every minute has no time to say.
@@ -170,11 +170,12 @@ pub(super) fn remove_file(path: &Path) -> Result<()> {
 
 pub(super) fn parse_column_hook(column: &ColumnId, text: &str) -> Result<ColumnHook> {
     let (mut keys, prompt) = split_front_matter(text)?;
-    let start = take_start(&mut keys)?;
+    let (start, harness) = take_start(&mut keys)?;
     refuse_leftover_keys(keys)?;
     Ok(ColumnHook {
         column: column.clone(),
         start,
+        harness,
         prompt,
     })
 }
@@ -195,23 +196,36 @@ pub(super) fn parse_schedule(name: &str, text: &str) -> Result<Schedule> {
             _ => anyhow!("at: {at:?} is not a time such as 08:30"),
         })?,
     };
-    let start = take_start(&mut keys)?;
+    let (start, harness) = take_start(&mut keys)?;
     refuse_leftover_keys(keys)?;
     Ok(Schedule {
         name: name.to_string(),
         every,
         at,
         start,
+        harness,
         prompt,
     })
 }
 
-fn take_start(keys: &mut BTreeMap<String, String>) -> Result<crate::api::AgentKind> {
+/// What `start:` names: one of moon's own, or else a harness of the person's - see
+/// [`crate::harnesses`] - which is any other word that could name one. Whether this machine
+/// has a harness of that name is found out when the hook fires.
+fn take_start(
+    keys: &mut BTreeMap<String, String>,
+) -> Result<(crate::api::AgentKind, Option<String>)> {
     let start = keys.remove("start").unwrap_or_else(|| "claude".to_string());
-    start_from_word(&start).ok_or_else(|| {
-        let words: Vec<&str> = super::HOOK_STARTS.iter().map(|(word, _)| *word).collect();
-        anyhow!("start: {start:?} is not one of {}", words.join(", "))
-    })
+    if let Some(agent) = start_from_word(&start) {
+        return Ok((agent, None));
+    }
+    if crate::harnesses::check_harness_name(&start).is_ok() {
+        return Ok((crate::api::AgentKind::None, Some(start)));
+    }
+    let words: Vec<&str> = super::HOOK_STARTS.iter().map(|(word, _)| *word).collect();
+    Err(anyhow!(
+        "start: {start:?} is not one of {}, nor the name of a harness",
+        words.join(", ")
+    ))
 }
 
 fn refuse_leftover_keys(keys: BTreeMap<String, String>) -> Result<()> {

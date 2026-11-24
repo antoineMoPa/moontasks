@@ -7,6 +7,7 @@ use std::sync::{
 
 use egui_kittest::Harness;
 
+use crate::native::board::quick_task::QuickStart;
 use crate::{
     api::{AgentKind, AgentOption, ContentMatch, SessionPayload},
     native::{
@@ -169,7 +170,10 @@ fn arrows_leave_the_task_rows_agent_and_enter_starts_it_once_reached() {
             frame += 1;
             crate::native::palette::draw(&mut app, ui.ctx());
             match app.pending_action.take() {
-                Some(CommandAction::StartQuickTask { title, agent }) => {
+                Some(CommandAction::StartQuickTask {
+                    title,
+                    start: QuickStart::Agent(agent),
+                }) => {
                     assert_eq!(title, "zqx fix the login");
                     *started_in_ui.lock().expect("poisoned") = Some(agent);
                 }
@@ -194,4 +198,69 @@ fn arrows_leave_the_task_rows_agent_and_enter_starts_it_once_reached() {
         Some(AgentKind::Codex),
         "the arrows should have moved the caret, not the agent"
     );
+}
+
+/// A harness of the person's is a chip of the task row after the agents', and its chip
+/// starts the task with it. A machine with no agent is still offered its harnesses.
+#[test]
+fn the_task_row_offers_a_harness_after_the_agents_and_its_chip_starts_it() {
+    let fixture = seeded_fixture("palette-task-harness");
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    offer_agents(
+        &mut app,
+        &[AgentKind::Claude, AgentKind::Codex],
+        AgentKind::Claude,
+    );
+    app.model.settings = Some(crate::settings::Settings {
+        harnesses: vec![crate::harnesses::Harness {
+            name: "opus-plan".to_string(),
+            command: "claude --model opus".to_string(),
+        }],
+        ..Default::default()
+    });
+
+    let task = crate::native::board::quick_task::offered(&app, "fix the login")
+        .expect("a title should be offered as a quick task");
+    assert_eq!(
+        task.starts,
+        [
+            QuickStart::Agent(AgentKind::Claude),
+            QuickStart::Agent(AgentKind::Codex),
+            QuickStart::Harness("opus-plan".to_string()),
+        ]
+    );
+    assert_eq!(task.start, QuickStart::Agent(AgentKind::Claude));
+    match task.started_with(task.starts[2].clone()) {
+        CommandAction::StartQuickTask { title, start } => {
+            assert_eq!(title, "fix the login");
+            assert_eq!(start, QuickStart::Harness("opus-plan".to_string()));
+        }
+        _ => panic!("a chip should start the quick task"),
+    }
+
+    offer_agents(&mut app, &[], AgentKind::None);
+    let task = crate::native::board::quick_task::offered(&app, "fix the login")
+        .expect("a harness alone should still make a quick task");
+    assert_eq!(task.start, QuickStart::Harness("opus-plan".to_string()));
+
+    // The row draws, the harness's chip among the agents'.
+    let mut frame = 0;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1200.0, 760.0))
+        .build_ui(move |ui| {
+            if frame == 0 {
+                app.model.palette.show_commands(String::new());
+                app.model.palette.input.open_on("fix the login");
+            }
+            frame += 1;
+            crate::native::palette::draw(&mut app, ui.ctx());
+        });
+    harness.run_steps(3);
+    if let Ok(dir) = std::env::var("MOON_HOOKS_SHOTS") {
+        harness
+            .render()
+            .expect("the palette could not be rendered")
+            .save(std::path::Path::new(&dir).join("harness-palette.png"))
+            .expect("the screenshot could not be saved");
+    }
 }

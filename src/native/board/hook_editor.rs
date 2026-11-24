@@ -47,6 +47,8 @@ pub(crate) struct HookEditor {
     every: ScheduleEvery,
     at: String,
     start: AgentKind,
+    /// The harness it starts instead of `start` - see [`crate::harnesses`].
+    harness: Option<String>,
     prompt: String,
     /// Whether the hook is saved already, which is what has a file to remove.
     saved_before: bool,
@@ -86,6 +88,7 @@ pub(crate) fn open_hook_editor(app: &mut App, target: HookEditorTarget, anchor: 
         every: ScheduleEvery::Day,
         at: "09:00".to_string(),
         start: default_start,
+        harness: None,
         prompt: String::new(),
         saved_before: false,
         anchor,
@@ -99,6 +102,7 @@ pub(crate) fn open_hook_editor(app: &mut App, target: HookEditorTarget, anchor: 
             if let Some(hook) = hooks.of_column(column) {
                 editor.saved_before = true;
                 editor.start = hook.start;
+                editor.harness = hook.harness.clone();
                 editor.prompt = hook.prompt.clone();
             }
         }
@@ -109,6 +113,7 @@ pub(crate) fn open_hook_editor(app: &mut App, target: HookEditorTarget, anchor: 
                 editor.every = schedule.every;
                 editor.at = schedule.at.written_for(schedule.every);
                 editor.start = schedule.start;
+                editor.harness = schedule.harness.clone();
                 editor.prompt = schedule.prompt.clone();
             }
         }
@@ -127,7 +132,7 @@ pub(super) fn draw(
     palette: &Palette,
     actions: &mut Vec<BoardAction>,
 ) {
-    let mut agents = offered_starts(app);
+    let mut starts = offered_starts(app);
     // What the hook starts is offered whether or not this machine has it: it is what the file
     // says, and a hook written elsewhere may name an agent this one lacks.
     if let Some(start) = app
@@ -136,9 +141,9 @@ pub(super) fn draw(
         .hook_editor
         .as_ref()
         .map(|editor| editor.start)
-        && !agents.contains(&start)
+        && !starts.agents.contains(&start)
     {
-        agents.insert(0, start);
+        starts.agents.insert(0, start);
     }
     let column_label = |column: &ColumnId| {
         app.model
@@ -211,7 +216,7 @@ pub(super) fn draw(
                 .inner_margin(12)
                 .show(ui, |ui| {
                     ui.set_width(WIDTH);
-                    close = draw_contents(ui, editor, &title, &agents, &run_on, palette, actions);
+                    close = draw_contents(ui, editor, &title, &starts, &run_on, palette, actions);
                     if shows_past_runs {
                         draw_past_runs_section(
                             ui,
@@ -282,14 +287,27 @@ fn choose_what_to_run_on(app: &App) -> RunOn {
     }
 }
 
-/// What a hook can start here: the agents installed, then a shell.
-fn offered_starts(app: &App) -> Vec<AgentKind> {
+/// What a hook can start here.
+struct OfferedStarts {
+    /// The agents installed, then a shell.
+    agents: Vec<AgentKind>,
+    /// The person's harnesses, by name - see [`crate::harnesses`].
+    harnesses: Vec<String>,
+}
+
+fn offered_starts(app: &App) -> OfferedStarts {
     let mut agents: Vec<AgentKind> = available_agents(app)
         .into_iter()
         .filter(|agent| *agent != AgentKind::None)
         .collect();
     agents.push(AgentKind::None);
-    agents
+    OfferedStarts {
+        agents,
+        harnesses: crate::native::board::harnesses_of(app)
+            .iter()
+            .map(|harness| harness.name.clone())
+            .collect(),
+    }
 }
 
 /// Answers whether the editor is to be put away.
@@ -297,7 +315,7 @@ fn draw_contents(
     ui: &mut Ui,
     editor: &mut HookEditor,
     title: &str,
-    agents: &[AgentKind],
+    starts: &OfferedStarts,
     run_on: &RunOn,
     palette: &Palette,
     actions: &mut Vec<BoardAction>,
@@ -358,17 +376,35 @@ fn draw_contents(
 
     ui.horizontal_wrapped(|ui| {
         muted(ui, "start", palette);
-        for agent in agents {
-            if widgets::clickable(ui.selectable_label(editor.start == *agent, start_word(*agent)))
+        for agent in &starts.agents {
+            let picked = editor.harness.is_none() && editor.start == *agent;
+            if widgets::clickable(ui.selectable_label(picked, start_word(*agent))).clicked() {
+                editor.start = *agent;
+                editor.harness = None;
+            }
+        }
+        let harnesses = &starts.harnesses;
+        // The person's harnesses, and the one the hook names if this machine has none of
+        // that name - so opening the editor does not quietly change what the hook starts.
+        let named_elsewhere = editor
+            .harness
+            .clone()
+            .filter(|name| !harnesses.contains(name));
+        for name in harnesses.iter().chain(named_elsewhere.iter()) {
+            let picked = editor.harness.as_ref() == Some(name);
+            if widgets::clickable(ui.selectable_label(picked, name))
+                .on_hover_text("One of your harnesses - see the settings pane")
                 .clicked()
             {
-                editor.start = *agent;
+                editor.start = AgentKind::None;
+                editor.harness = Some(name.clone());
             }
         }
     });
 
-    let hint = match editor.start {
-        AgentKind::None => "Commands",
+    let hint = match (&editor.harness, editor.start) {
+        (Some(_), _) => "Prompt - what its command reads as {prompt}",
+        (None, AgentKind::None) => "Commands",
         _ => "Prompt",
     };
     let placeholders = match editor.target {
@@ -453,6 +489,7 @@ fn request_to_save(editor: &HookEditor) -> Result<SaveHookRequest, String> {
             hook: ColumnHook {
                 column: column.clone(),
                 start: editor.start,
+                harness: editor.harness.clone(),
                 prompt: editor.prompt.clone(),
             },
         }),
@@ -475,6 +512,7 @@ fn request_to_save(editor: &HookEditor) -> Result<SaveHookRequest, String> {
                     every: editor.every,
                     at,
                     start: editor.start,
+                    harness: editor.harness.clone(),
                     prompt: editor.prompt.clone(),
                 },
                 renamed_from: renamed_from.clone(),

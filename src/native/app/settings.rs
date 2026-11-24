@@ -70,6 +70,17 @@ impl App {
         });
     }
 
+    /// Keep a harness of the person's - see [`crate::harnesses`] - over the one called `was`,
+    /// or as a new one.
+    pub(crate) fn save_harness(&mut self, was: Option<String>, harness: crate::harnesses::Harness) {
+        self.change_settings(SettingsChange::SaveHarness { was, harness });
+    }
+
+    /// Take the harness of this name off the person's list.
+    pub(crate) fn remove_harness(&mut self, name: String) {
+        self.change_settings(SettingsChange::RemoveHarness(name));
+    }
+
     /// Pick the model `agent` runs with, or `None` for its own default - see
     /// [`crate::settings::Settings::agent_models`].
     pub(crate) fn select_agent_model(

@@ -147,6 +147,7 @@ fn opencode_is_started_with_a_config_naming_this_task_s_brief() {
                 opens_in: StartFolder::Repo,
                 unattended: false,
                 moves_to_in_progress: false,
+                harness: None,
             },
         )
         .expect("expected OpenCode to start");
@@ -198,4 +199,108 @@ fn fake_claude(script: &str) -> std::path::PathBuf {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
         .expect("failed to make the fake agent executable");
     dir
+}
+
+/// A harness of the person's whose command is none of moon's agents is a line of shell: it
+/// runs in the repo with its placeholders filled in - each as one word, whatever is in it -
+/// and the prompt in its environment, under the harness's name, listed with the task's shells.
+#[cfg(unix)]
+#[test]
+fn a_harness_of_a_command_runs_it_as_a_line_of_shell_with_its_placeholders_filled() {
+    use crate::{
+        backend::Backend,
+        harnesses::{Harness, HarnessStart},
+        moontasks::{
+            ColumnEnd, ColumnId, CreateTaskRequest, StartFolder, StartResourceRequest,
+            TaskResourceKind,
+        },
+        settings::SettingsChange,
+    };
+
+    let fixture = crate::native::ui_tests::seeded_fixture("harness-shell-line");
+    let state = crate::server::build_state(Arc::new(Mutex::new(Instant::now())));
+    let registry = Arc::clone(&state.terminals);
+    let backend = crate::backend::local::LocalBackend::new(state.clone());
+    let opened = backend
+        .open_session(crate::api::OpenSessionRequest {
+            repo_path: fixture.root.display().to_string(),
+            diff_target: None,
+            active_commit: None,
+        })
+        .expect("expected the session to open");
+    let task = backend
+        .create_task(
+            &opened.session_id,
+            &CreateTaskRequest {
+                title: "Write the parser".to_string(),
+                status: ColumnId::new("todo"),
+                joins: ColumnEnd::Top,
+            },
+        )
+        .expect("expected the task to be created");
+    backend
+        .change_settings(SettingsChange::SaveHarness {
+            was: None,
+            harness: Harness {
+                name: "noter".to_string(),
+                // It waits to be read, so the run is still there to be listed.
+                command:
+                    "printf '%s|%s|%s' {prompt} {title} \"$MOONTASKS_PROMPT\" > {task}/ran.txt; \
+                          sleep 30"
+                        .to_string(),
+            },
+        })
+        .expect("expected the harness to be saved");
+    let start = |name: &str| {
+        backend.start_task_resource(
+            &opened.session_id,
+            &task.id,
+            StartResourceRequest {
+                kind: TaskResourceKind::Agent,
+                agent: AgentKind::None,
+                opens_in: StartFolder::Repo,
+                unattended: true,
+                moves_to_in_progress: false,
+                harness: Some(HarnessStart {
+                    name: name.to_string(),
+                    prompt: "it's a prompt".to_string(),
+                }),
+            },
+        )
+    };
+
+    let refused = start("nobody").expect_err("a harness the settings lack should not start");
+    assert!(
+        format!("{refused:#}").contains("no harness called nobody"),
+        "got {refused:#}"
+    );
+
+    let terminal_id = start("noter").expect("expected the harness to start");
+    let ran = std::path::Path::new(&task.dir_path).join("ran.txt");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !ran.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    // The file is made before it is written.
+    std::thread::sleep(Duration::from_millis(200));
+    let name = registry.name(&terminal_id);
+    let owner = registry
+        .owner(&terminal_id)
+        .expect("a task's run has an owner");
+    let listed = registry.owned_shells(&owner);
+    registry.remove(&terminal_id);
+
+    assert_eq!(
+        std::fs::read_to_string(&ran).expect("the harness's command did not run"),
+        "it's a prompt|Write the parser|it's a prompt"
+    );
+    assert!(
+        name.as_deref().is_some_and(|name| name.contains("noter")),
+        "the run should be called after its harness, got {name:?}"
+    );
+    assert_eq!(
+        listed.len(),
+        1,
+        "the run should be listed with the task's shells"
+    );
 }

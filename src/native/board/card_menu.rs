@@ -104,6 +104,7 @@ fn items(ui: &mut egui::Ui, task_id: &str, dir_path: &str, actions: &mut Vec<Boa
                 opens_in: StartFolder::TaskFolder,
                 unattended: false,
                 moves_to_in_progress: false,
+                harness: None,
             },
         ));
         ui.close();

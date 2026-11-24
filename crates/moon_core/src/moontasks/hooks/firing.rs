@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use super::{ColumnHook, HOOK_RUNS_IN_A_ROW_CAP, Schedule};
 use crate::{
     api::{AgentKind, AppState},
+    harnesses::HarnessStart,
     moontasks::{
         service::{HookStart, start_hook_run},
         store,
@@ -85,6 +86,7 @@ pub(super) fn start_column_hook_run(
         session_id,
         arrival.task_id,
         hook.start,
+        hook.harness.as_deref(),
         arrival.column_label,
         &prompt,
         None,
@@ -106,6 +108,7 @@ pub(super) fn fire_schedule(
         session_id,
         store::BOARD_TASK_ID,
         schedule.start,
+        schedule.harness.as_deref(),
         &schedule.name,
         &prompt,
         None,
@@ -121,23 +124,30 @@ fn ensure_board_task(repo_path: &Path) -> Result<()> {
 
 /// Start the run, and hand it the prompt: typed into a shell as its commands, or pasted into
 /// an agent once it is up and reading - see [`crate::terminal::TerminalRegistry::tell_paste`].
-/// Answers the run's terminal.
+/// A harness is handed it as it starts - see [`crate::harnesses`]. Answers the run's terminal.
+#[allow(clippy::too_many_arguments)]
 fn start_with_prompt(
     state: &AppState,
     session_id: &str,
     task_id: &str,
     start: AgentKind,
+    harness: Option<&str>,
     label: &str,
     prompt: &str,
     for_review: Option<&str>,
 ) -> Result<String> {
     let shell_commands =
-        (start == AgentKind::None && !prompt.trim().is_empty()).then(|| prompt.to_string());
+        (harness.is_none() && start == AgentKind::None && !prompt.trim().is_empty())
+            .then(|| prompt.to_string());
     let terminal_id = start_hook_run(
         state,
         session_id,
         task_id,
         start,
+        harness.map(|name| HarnessStart {
+            name: name.to_string(),
+            prompt: prompt.to_string(),
+        }),
         HookStart {
             label: label.to_string(),
             shell_commands,
@@ -145,7 +155,7 @@ fn start_with_prompt(
         },
     )
     .with_context(|| format!("starting {label}'s run"))?;
-    if start != AgentKind::None && !prompt.trim().is_empty() {
+    if harness.is_none() && start != AgentKind::None && !prompt.trim().is_empty() {
         state
             .terminals
             .tell_paste(&terminal_id, prompt, Default::default(), Box::new(|_| {}))

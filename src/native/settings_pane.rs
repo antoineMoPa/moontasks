@@ -10,6 +10,10 @@
 //! made there. The model is kept per agent, and picked from a dropdown: `opencode` lists its
 //! models, so for it the dropdown filters that list; the other agents have no such command,
 //! and the dropdown takes what is typed as the model.
+//!
+//! Under them, the person's harnesses - see [`harnesses`].
+
+mod harnesses;
 
 use egui::{RichText, Ui};
 
@@ -42,6 +46,8 @@ pub(crate) struct SettingsPage {
     /// Whether the dropdown was open on the last frame, so the one it opens on empties the
     /// filter and gives it the keyboard.
     model_picker_was_open: bool,
+    /// The harnesses as they are being typed - see [`harnesses`].
+    harness_rows: Vec<harnesses::HarnessRow>,
 }
 
 pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
@@ -72,24 +78,32 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui) {
                 return;
             }
 
-            let Some(agent) = draw_agent_row(app, ui, &palette) else {
-                return;
-            };
-            if agent == AgentKind::None {
-                return;
-            }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("model").size(SMALL_SIZE).color(palette.muted));
-                draw_model_picker(app, ui, &palette, agent);
-            });
-            ui.add_space(4.0);
-            ui.label(
-                RichText::new("used for comments sent from a review and for commit messages")
-                    .size(SMALL_SIZE)
-                    .color(palette.muted),
-            );
+            draw_agent_and_model(app, ui, &palette);
+            ui.add_space(18.0);
+            harnesses::draw(app, ui, &palette);
         });
+}
+
+/// The agent moon hands its AI jobs to and the model it runs with. Nothing to pick a model
+/// for until a project is open and an agent is picked.
+fn draw_agent_and_model(app: &mut App, ui: &mut Ui, palette: &Palette) {
+    let Some(agent) = draw_agent_row(app, ui, palette) else {
+        return;
+    };
+    if agent == AgentKind::None {
+        return;
+    }
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("model").size(SMALL_SIZE).color(palette.muted));
+        draw_model_picker(app, ui, palette, agent);
+    });
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new("used for comments sent from a review and for commit messages")
+            .size(SMALL_SIZE)
+            .color(palette.muted),
+    );
 }
 
 /// The agent row, which is the review's own selector, answering the agent it is set to -

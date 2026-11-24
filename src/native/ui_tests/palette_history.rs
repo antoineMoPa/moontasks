@@ -110,6 +110,7 @@ fn up_from_the_first_row_runs_an_earlier_quick_task_again() {
                     task_id: "task-1".to_string(),
                     title: "uber palette".to_string(),
                     agent: AgentKind::Claude,
+                    harness: None,
                 },
                 20,
             ),

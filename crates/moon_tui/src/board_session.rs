@@ -217,6 +217,7 @@ impl BoardSession {
                 opens_in: StartFolder::Repo,
                 unattended: false,
                 moves_to_in_progress: false,
+                harness: None,
             },
         )
     }
@@ -233,6 +234,7 @@ impl BoardSession {
                 opens_in,
                 unattended: false,
                 moves_to_in_progress: false,
+                harness: None,
             },
         )
     }

@@ -530,3 +530,90 @@ fn an_ended_hook_run_leaves_its_card_and_is_listed_in_the_hooks_editor() {
     // Its own, beside the one of the run on the card started by hand.
     assert_eq!(harness.query_all_by_label("resume").count(), 2);
 }
+
+/// A harness of the person's - see `crate::harnesses` - is one more thing a hook starts: picked
+/// in the hook's editor it is what the file names, a card arriving runs its command with the
+/// hook's prompt filled in, and a card's `[start]` offers it by name.
+#[test]
+fn a_harness_is_picked_in_a_hooks_editor_run_as_the_hook_fires_and_offered_by_start() {
+    let fixture = seeded_fixture("hooks-harness");
+    fixture.write(QA_HOOK, "---\nstart: claude\n---\nSay {title}.\n");
+    crate::settings::store(&crate::settings::Settings {
+        harnesses: vec![crate::harnesses::Harness {
+            name: "noter".to_string(),
+            command: "printf '%s' {prompt} > {repo}/harness-fired.txt".to_string(),
+        }],
+        ..Default::default()
+    })
+    .expect("the settings could not be written");
+    let render = std::env::var("MOON_HOOKS_SHOTS").is_ok();
+    let HookedBoard { mut harness, seen } = hooked_board(&fixture.root, render);
+    assert!(
+        settle(&mut harness, || {
+            let seen = seen.lock().expect("poisoned");
+            seen.hooks_read && seen.pill.is_some_and(|pill| pill.is_positive())
+        }),
+        "the column's hook never showed as a pill"
+    );
+    harness.run_steps(3);
+
+    let pill = seen.lock().expect("poisoned").pill.expect("drawn");
+    click_at(&mut harness, pill.center());
+    assert!(
+        settle(&mut harness, || seen.lock().expect("poisoned").editor_open),
+        "the pill did not open its editor"
+    );
+    harness.run_steps(3);
+    harness.get_by_label("noter").click();
+    harness.run_steps(3);
+    leave_a_screenshot(&mut harness, "harness-hook-editor");
+    harness.get_by_label("[save]").click();
+    assert!(
+        settle(&mut harness, || !seen.lock().expect("poisoned").editor_open),
+        "saving did not put the editor away"
+    );
+    assert_eq!(
+        std::fs::read_to_string(fixture.root.join(QA_HOOK)).unwrap(),
+        "---\nstart: noter\n---\nSay {title}.\n"
+    );
+
+    // Long enough for the runner to have taken its first look, which only notes where cards are.
+    let first_look = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < first_look {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let (task_id, title, _) = CARDS[1];
+    let record = fixture
+        .root
+        .join(format!(".moontasks/{task_id}/metadata.json"));
+    let moved = std::fs::read_to_string(&record)
+        .unwrap()
+        .replace("\"status\": \"todo\"", "\"status\": \"in_progress\"");
+    std::fs::write(&record, moved).unwrap();
+
+    let fired = fixture.root.join("harness-fired.txt");
+    let said = || std::fs::read_to_string(&fired).unwrap_or_default();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline && said().is_empty() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let log = std::fs::read_to_string(fixture.root.join(".moontasks/hooks/hooks.log"))
+        .unwrap_or_default();
+    assert_eq!(said(), format!("Say {title}."), "log: {log}");
+
+    // A card still in the first column offers the harness under its `[start]`.
+    harness.run_steps(3);
+    harness
+        .get_all_by_label("[start]")
+        .nth(1)
+        .expect("a card's [start]")
+        .click();
+    harness.run_steps(4);
+    leave_a_screenshot(&mut harness, "harness-start-menu");
+    assert!(
+        harness.query_by_label("noter").is_some(),
+        "a card's [start] should offer the harness"
+    );
+}
