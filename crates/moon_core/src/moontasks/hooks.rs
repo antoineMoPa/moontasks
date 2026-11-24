@@ -23,6 +23,8 @@ mod clock;
 #[cfg(not(target_arch = "wasm32"))]
 mod editing;
 #[cfg(not(target_arch = "wasm32"))]
+mod ending;
+#[cfg(not(target_arch = "wasm32"))]
 mod files;
 #[cfg(not(target_arch = "wasm32"))]
 mod firing;
@@ -37,6 +39,8 @@ mod tests;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use editing::{list_hooks, remove_hook, save_hook};
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use ending::note_hook_agent_run;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use files::split_front_matter;
 #[cfg(not(target_arch = "wasm32"))]

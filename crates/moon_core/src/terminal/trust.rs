@@ -88,7 +88,8 @@ impl TerminalRegistry {
 /// Every key is pressed for what the screen shows at that moment, never for what the key
 /// before it should have done: the choice is only taken once it is the one that trusts that
 /// is seen highlighted, so a key the agent dropped cannot turn the answer into a refusal. A
-/// key counts as a person's - see [`TerminalSession::write_input`] - so a line the shell is
+/// key holds back what the shell is told as a person's does - see
+/// [`TerminalSession::write_key_of_moons_own`] - so a line the shell is
 /// told next waits a moment behind the last one, by which time the agent has put its box up.
 fn answer_as_it_comes_up(session: &TerminalSession, question: &TrustQuestion) {
     while !session.has_ended() && session.started.elapsed() < COMES_UP_WITHIN {
@@ -112,7 +113,7 @@ fn answer_as_it_comes_up(session: &TerminalSession, question: &TrustQuestion) {
                 return;
             };
             // A write that fails is a shell that ended a moment ago.
-            if session.write_input(pressed).is_err() || pressed == question.takes_it {
+            if session.write_key_of_moons_own(pressed).is_err() || pressed == question.takes_it {
                 return;
             }
         }

@@ -214,6 +214,15 @@ fn start_run(
             for_review: hook.as_ref().and_then(|hook| hook.for_review.clone()),
         });
         store::write_task(&repo_path, task_id, &metadata)?;
+        // Closed once its agent is done - see [`crate::moontasks::hooks`].
+        if let Some(hook) = &hook {
+            crate::moontasks::hooks::note_hook_agent_run(
+                &terminal_id,
+                repo_path.clone(),
+                &hook.label,
+                task_id,
+            );
+        }
     } else if let Some(hook) = &hook {
         note_the_hook_of_a_shell(&terminal_id, hook);
     }

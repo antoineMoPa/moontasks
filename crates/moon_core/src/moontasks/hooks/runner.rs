@@ -30,6 +30,7 @@ use anyhow::Result;
 
 use super::{
     clock::{LocalNow, due_slot_of},
+    ending::close_hook_runs_that_are_done,
     files::{board_has_column_hooks, board_has_schedules, hooks_dir, read_board_hooks},
     firing::{Arrival, Fired, fire_column_hook, fire_schedule},
     network::NetworkCheck,
@@ -95,6 +96,7 @@ struct Watch {
 }
 
 fn look_at_open_boards(state: &AppState, watch: &mut Watch) {
+    close_hook_runs_that_are_done(state);
     for (repo_path, session_id) in open_boards(state) {
         if let Err(error) = look_at_board(state, &session_id, &repo_path, watch) {
             write_log_line(

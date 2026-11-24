@@ -186,6 +186,30 @@ impl TerminalRegistry {
     }
 }
 
+impl TerminalRegistry {
+    /// Whether the agent in this shell has finished its turn and is waiting to be typed at,
+    /// with nothing it was told still on its way and nobody having typed into it - which is a
+    /// run nobody is at, there to be closed. See `ending` in [`crate::moontasks::hooks`].
+    pub fn has_agent_finished_untouched(&self, terminal_id: &str) -> bool {
+        let Some(session) = self.get(terminal_id) else {
+            return false;
+        };
+        let told = session.told.lock().unwrap();
+        if told.being_typed
+            || !told.waiting.is_empty()
+            || session.typed_into_by_a_person.load(Ordering::Relaxed)
+        {
+            return false;
+        }
+        session
+            .attention
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|standing| session.is_a_wait_to_be_typed_at(&standing.asked))
+    }
+}
+
 impl TerminalSession {
     /// Whether the program is gone: the shell has exited, or it is an agent that fell over
     /// and is only kept for its error to be read.

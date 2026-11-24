@@ -249,6 +249,10 @@ for a schedule - marked with the hook that started it, and opened like any other
 - `[run now]` in a hook's editor fires a saved hook once, as typed, and opens its run: a
   column's on the marked card in it or else its top card, a schedule on the board. It counts
   nothing toward the 5 in a row.
+- A hook's agent run is closed once the agent has finished its turn (Claude says so after a
+  minute at its box), and can be resumed from `past sessions`. A run asking a question or a
+  permission stays open, and so does one you typed into: it is yours to close. Codex never says
+  it has finished, and a hook's shell would lose its output: those stay open until closed.
 - A hook run that has ended leaves the board, so an hourly schedule does not fill it up. Its
   hook's editor lists every run under `past sessions`, newest first, in the same rows a card
   draws its runs in, each marked with when it started. The pill shows a green dot while one of its runs is going.

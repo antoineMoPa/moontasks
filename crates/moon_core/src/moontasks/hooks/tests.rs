@@ -335,3 +335,87 @@ fn run_now_without_a_card_named_takes_the_top_card_of_the_column() {
         Some(top)
     );
 }
+
+/// Stands in for an agent that has finished its turn: it says what Claude Code says once it is
+/// waiting at its box, and stays open as an agent does.
+#[cfg(unix)]
+const FINISHES_AND_WAITS: &str = "#!/bin/sh\n/bin/stty -icanon\nprintf 'done\\033]9;Claude is waiting for your input\\007'\n/bin/sleep 60\n";
+
+/// Stands in for an agent stopped on a permission.
+#[cfg(unix)]
+const ASKS_A_PERMISSION: &str = "#!/bin/sh\n/bin/stty -icanon\nprintf 'working\\033]9;Claude needs your permission to use Bash\\007'\n/bin/sleep 60\n";
+
+/// Stands in for an agent somebody answered, which then finished.
+#[cfg(unix)]
+const FINISHES_ONCE_TYPED_AT: &str = "#!/bin/sh\n/bin/stty -icanon\nIFS= read -r line\nprintf 'done\\033]9;Claude is waiting for your input\\007'\n/bin/sleep 60\n";
+
+/// Start a script as a hook's agent run, and wait until it asks for a person - after
+/// `typed`, if anything is, has been typed into it by one.
+#[cfg(unix)]
+fn start_fake_hook_run(
+    state: &crate::api::AppState,
+    repo: &Fixture,
+    script: &str,
+    typed: Option<&[u8]>,
+) -> String {
+    let terminal_id = crate::terminal::tests::spawn_fake_claude(&state.terminals, script);
+    super::ending::note_hook_agent_run(&terminal_id, repo.root.clone(), "QA", "a-card");
+    if let Some(typed) = typed {
+        state
+            .terminals
+            .get(&terminal_id)
+            .unwrap()
+            .write_input(typed)
+            .unwrap();
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while std::time::Instant::now() < deadline && state.terminals.attention(&terminal_id).is_none()
+    {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(
+        state.terminals.attention(&terminal_id).is_some(),
+        "expected the run to ask for a person"
+    );
+    terminal_id
+}
+
+#[cfg(unix)]
+#[test]
+fn a_hooks_agent_run_is_closed_once_it_has_finished() {
+    let repo = Fixture::new("hooks-run-closed-when-done");
+    let state = crate::api::AppState::for_a_test(Arc::new(Mutex::new(std::time::Instant::now())));
+    let terminal_id = start_fake_hook_run(&state, &repo, FINISHES_AND_WAITS, None);
+
+    super::ending::close_hook_runs_that_are_done(&state);
+
+    assert!(
+        !state.terminals.is_live(&terminal_id),
+        "a finished run should be closed"
+    );
+    let log = std::fs::read_to_string(repo.root.join(".moontasks/hooks/hooks.log")).unwrap();
+    assert!(
+        log.contains("QA: done on a-card"),
+        "the log should say it was closed: {log}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_hooks_agent_run_asking_a_question_or_taken_up_by_a_person_stays_open() {
+    let repo = Fixture::new("hooks-run-kept-open");
+    let state = crate::api::AppState::for_a_test(Arc::new(Mutex::new(std::time::Instant::now())));
+    let asking = start_fake_hook_run(&state, &repo, ASKS_A_PERMISSION, None);
+    let taken_up = start_fake_hook_run(&state, &repo, FINISHES_ONCE_TYPED_AT, Some(b"go on\n"));
+
+    super::ending::close_hook_runs_that_are_done(&state);
+
+    assert!(
+        state.terminals.is_live(&asking),
+        "a run waiting on a permission is not done"
+    );
+    assert!(
+        state.terminals.is_live(&taken_up),
+        "a run somebody typed into is theirs to close"
+    );
+}

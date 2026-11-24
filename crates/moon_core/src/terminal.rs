@@ -275,6 +275,9 @@ pub struct TerminalSession {
     /// in the middle of their sentence. A line the shell is told waits out a moment after the
     /// last keystroke for the same reason - see [`told`].
     last_typed_into: Mutex<Option<Instant>>,
+    /// Whether a person has typed into this shell, rather than moon alone - a run somebody
+    /// has taken up is not closed for them, see `ending` in [`crate::moontasks::hooks`].
+    typed_into_by_a_person: std::sync::atomic::AtomicBool,
     /// The lines this shell has been told and not yet had typed into it - see [`told`].
     told: Mutex<told::Told>,
     /// Whether this shell's screen is still to be looked at for the question its agent asks
@@ -327,8 +330,24 @@ impl TerminalSession {
     /// Somebody typed into the shell: the type-ahead is off, and whatever the shell was
     /// asking for, it has been seen to.
     pub fn typed_into(&self) {
+        self.typed_into_by_a_person
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.a_key_was_pressed();
+    }
+
+    /// A key reached the shell, whoever pressed it: what it is told waits a moment, and
+    /// whatever it was asking for has been seen to.
+    fn a_key_was_pressed(&self) {
         *self.last_typed_into.lock().unwrap() = Some(Instant::now());
         *self.attention.lock().unwrap() = None;
+    }
+
+    /// A key moon presses by itself - the answer to an agent's question about its folder, see
+    /// [`trust`]. All a person's key is, except that nobody is at the shell for it.
+    fn write_key_of_moons_own(&self, data: &[u8]) -> anyhow::Result<()> {
+        crate::api::mark_activity(&self.last_activity);
+        self.a_key_was_pressed();
+        self.write_to_child(data)
     }
 
     /// Whether a person has typed into this shell at all.

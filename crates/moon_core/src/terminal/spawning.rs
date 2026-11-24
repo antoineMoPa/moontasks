@@ -224,6 +224,7 @@ impl TerminalRegistry {
             scrollback: Mutex::new(Scrollback::default()),
             last_output: Mutex::new(None),
             last_typed_into: Mutex::new(None),
+            typed_into_by_a_person: std::sync::atomic::AtomicBool::new(false),
             told: Mutex::new(Default::default()),
             trust_unanswered: std::sync::atomic::AtomicBool::new(false),
             attention: Mutex::new(None),
