@@ -4,7 +4,6 @@
 //! What comes back is text an agent reads, short: a task is said by its handle, which is
 //! what every other tool takes.
 
-
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
@@ -17,7 +16,6 @@ use crate::{
         wire::{direct, handles},
     },
 };
-
 
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]

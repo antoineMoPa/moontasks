@@ -502,7 +502,11 @@ pub fn commit_history_page(
     let reaches = offset + limit + excluded_shas.len() + 1;
     let output = run_git(
         repo_path,
-        &["log", &format!("--max-count={reaches}"), &format!("--format={format}")],
+        &[
+            "log",
+            &format!("--max-count={reaches}"),
+            &format!("--format={format}"),
+        ],
     )?;
     let mut skipped = 0usize;
     let mut commits = Vec::new();

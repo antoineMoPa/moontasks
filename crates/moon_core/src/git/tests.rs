@@ -969,8 +969,14 @@ fn a_moved_file_is_listed_staged_and_in_its_commit() {
         seen
     };
     let expected = vec![
-        ("new/parser.rs".to_string(), crate::api::FileChangeKind::Added),
-        ("old/parser.rs".to_string(), crate::api::FileChangeKind::Deleted),
+        (
+            "new/parser.rs".to_string(),
+            crate::api::FileChangeKind::Added,
+        ),
+        (
+            "old/parser.rs".to_string(),
+            crate::api::FileChangeKind::Deleted,
+        ),
     ];
 
     let staged = collect_hunks(&repo_root, &DiffTarget::default()).expect("failed to collect");

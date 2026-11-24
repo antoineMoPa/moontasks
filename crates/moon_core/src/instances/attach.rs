@@ -302,7 +302,10 @@ fn size_in(bytes: &[u8]) -> Option<(u16, u16)> {
     let [c0, c1, r0, r1] = bytes else {
         return None;
     };
-    Some((u16::from_be_bytes([*c0, *c1]), u16::from_be_bytes([*r0, *r1])))
+    Some((
+        u16::from_be_bytes([*c0, *c1]),
+        u16::from_be_bytes([*r0, *r1]),
+    ))
 }
 
 #[cfg(test)]
@@ -373,7 +376,10 @@ mod tests {
             Answer::Attached
         );
         let (kind, bytes) = read_frame(&mut reader).unwrap();
-        assert_eq!((kind, bytes.as_slice()), (PRINTED, &b"what it printed before\r\n"[..]));
+        assert_eq!(
+            (kind, bytes.as_slice()),
+            (PRINTED, &b"what it printed before\r\n"[..])
+        );
         prints.send(b"more".to_vec()).unwrap();
         assert_eq!(read_frame(&mut reader).unwrap().1, b"more");
 

@@ -189,9 +189,10 @@ impl Settings {
                 self.quick_task_agent = agent;
                 changed
             }
-            SettingsChange::SetBackground { project_path, scene } => {
-                self.set_background(&project_path, scene)
-            }
+            SettingsChange::SetBackground {
+                project_path,
+                scene,
+            } => self.set_background(&project_path, scene),
             SettingsChange::PickTheme(theme) => {
                 let changed = self.theme != Some(theme);
                 self.theme = Some(theme);
@@ -545,7 +546,10 @@ mod tests {
         );
 
         let text = serde_json::to_string(&settings).expect("expected settings to serialize");
-        assert!(text.contains(r#""backgrounds":{"/repos/one":"trains"}"#), "{text}");
+        assert!(
+            text.contains(r#""backgrounds":{"/repos/one":"trains"}"#),
+            "{text}"
+        );
         let read: Settings = serde_json::from_str(&text).expect("expected settings to parse");
         assert_eq!(read.background("/repos/one"), Some(BackgroundScene::Trains));
 
@@ -573,13 +577,15 @@ mod tests {
 
     #[test]
     fn a_scene_this_build_no_longer_has_is_the_plain_board_and_the_file_still_reads() {
-        let settings: Settings = serde_json::from_str(
-            r#"{"backgrounds":{"/repos/one":"snow","/repos/two":"moon"}}"#,
-        )
-        .expect("expected the file to parse");
+        let settings: Settings =
+            serde_json::from_str(r#"{"backgrounds":{"/repos/one":"snow","/repos/two":"moon"}}"#)
+                .expect("expected the file to parse");
 
         assert_eq!(settings.background("/repos/one"), None);
-        assert_eq!(settings.background("/repos/two"), Some(BackgroundScene::Moon));
+        assert_eq!(
+            settings.background("/repos/two"),
+            Some(BackgroundScene::Moon)
+        );
     }
 
     #[test]
