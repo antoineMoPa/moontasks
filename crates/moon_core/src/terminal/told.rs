@@ -19,6 +19,10 @@
 //! - Somebody typed into the shell a moment ago. The line would land in the sentence they are
 //!   in the middle of, and the Enter would send both.
 //!
+//! A Minerve drawn in a window with its own view - see [`super::agent_control`] - has no box
+//! on its pty at all: what it is told is sent as a prompt over its control socket, once it is
+//! waiting for one, and none of the three above is looked at.
+//!
 //! A held line is not dropped: it waits, and the lines told after it wait behind it, so a
 //! shell reads what it is told in the order it was told. What is still waiting when the shell
 //! ends goes with it.
@@ -35,7 +39,10 @@ use std::{
     time::Duration,
 };
 
-use super::{TYPE_AHEAD_DEADLINE, TYPE_AHEAD_QUIET, TerminalRegistry, TerminalSession};
+use super::{
+    TYPE_AHEAD_DEADLINE, TYPE_AHEAD_QUIET, TerminalRegistry, TerminalSession,
+    agent_control::{AgentControl, PromptBox},
+};
 use crate::{api::CancelToken, attention::Asked};
 
 /// How long after the last keystroke in a shell a line it is told still waits. Long enough to
@@ -297,13 +304,7 @@ fn type_the_next_line(session: &TerminalSession) -> Looked {
     let mut told = session.told.lock().unwrap();
     // A shell that has ended reads nothing, and its pty refuses writes or blocks on them.
     if session.has_ended() {
-        for waiting in told.waiting.drain(..) {
-            if let Waiting::Paste(paste) = waiting {
-                (paste.on_ended)(PasteEnded::Failed(
-                    "the agent ended before it could be told".to_string(),
-                ));
-            }
-        }
+        fail_what_is_waiting(&mut told, "the agent ended before it could be told");
     }
     if told.waiting.is_empty() {
         // Said under the lock a line is added under, so one added from here on starts a
@@ -317,11 +318,31 @@ fn type_the_next_line(session: &TerminalSession) -> Looked {
         told.waiting.front(),
         Some(Waiting::Paste(paste)) if paste.canceled.load(Ordering::SeqCst)
     );
-    if !taken_back && session.holds_back_what_it_is_told() {
+    let minerve_view = session
+        .agent_control
+        .as_deref()
+        .filter(|control| control.serves_a_view());
+    let held = match minerve_view.map(AgentControl::prompt_box) {
+        Some(PromptBox::Waiting) => false,
+        Some(PromptBox::Busy) => true,
+        Some(PromptBox::Gone) => {
+            fail_what_is_waiting(&mut told, "Minerve hung up before it could be told");
+            told.being_typed = false;
+            return Looked::Finished;
+        }
+        None => session.holds_back_what_it_is_told(),
+    };
+    if !taken_back && held {
         return Looked::Held;
     }
     let waiting = told.waiting.pop_front().expect("something is waiting");
     drop(told);
+
+    if let Some(control) = minerve_view {
+        drop(writer);
+        submit_to_minerve_view(session, control, waiting, taken_back);
+        return Looked::Typed;
+    }
 
     match waiting {
         Waiting::Line(line) => type_a_line(session, &mut *writer, &line),
@@ -332,6 +353,45 @@ fn type_the_next_line(session: &TerminalSession) -> Looked {
         }
     }
     Looked::Typed
+}
+
+/// Drop everything still waiting, telling each paste's sender why.
+fn fail_what_is_waiting(told: &mut Told, why: &str) {
+    for waiting in told.waiting.drain(..) {
+        if let Waiting::Paste(paste) = waiting {
+            (paste.on_ended)(PasteEnded::Failed(why.to_string()));
+        }
+    }
+}
+
+/// Send what a Minerve drawn in a window is told as a prompt over its control socket: its
+/// pty has no box to type into.
+fn submit_to_minerve_view(
+    session: &TerminalSession,
+    control: &AgentControl,
+    waiting: Waiting,
+    taken_back: bool,
+) {
+    match waiting {
+        // A prompt that is refused is a turn that started a moment ago: there is nobody to say
+        // it to, as with a line whose write to a pty fails.
+        Waiting::Line(line) => {
+            if control.submit(&line).is_ok() {
+                session.a_told_line_was_sent();
+            }
+        }
+        Waiting::Paste(paste) if taken_back => (paste.on_ended)(PasteEnded::Canceled),
+        Waiting::Paste(paste) => {
+            let ended = match control.submit(&paste.text) {
+                Ok(()) => {
+                    session.a_told_line_was_sent();
+                    PasteEnded::Sent
+                }
+                Err(error) => PasteEnded::Failed(error.to_string()),
+            };
+            (paste.on_ended)(ended);
+        }
+    }
 }
 
 fn type_a_line(session: &TerminalSession, writer: &mut dyn Write, line: &str) {

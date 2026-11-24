@@ -177,3 +177,34 @@ fn a_terminal_minerve_has_nothing_to_tap() {
     let (control, _agent) = connected_agent();
     assert!(control.tap().is_none());
 }
+
+#[test]
+fn a_prompt_box_waits_only_once_minerve_says_it_does_and_is_gone_when_it_hangs_up() {
+    let (control, mut agent) = connected_agent_serving(true);
+    assert_eq!(control.prompt_box(), PromptBox::Busy, "nothing said yet");
+
+    write_lines(
+        &mut agent,
+        &[
+            r#"{"type":"hello","version":1}"#,
+            r#"{"type":"state","state":"waiting_for_input"}"#,
+        ],
+    );
+    wait_for(&control, |conversation| {
+        conversation.state == Some(AgentState::WaitingForInput)
+    });
+    assert_eq!(control.prompt_box(), PromptBox::Waiting);
+
+    write_lines(&mut agent, &[r#"{"type":"state","state":"working"}"#]);
+    wait_for(&control, |conversation| {
+        conversation.state == Some(AgentState::Working)
+    });
+    assert_eq!(control.prompt_box(), PromptBox::Busy, "a turn is running");
+
+    drop(agent);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while control.prompt_box() != PromptBox::Gone {
+        assert!(Instant::now() < deadline, "never heard the agent hang up");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}

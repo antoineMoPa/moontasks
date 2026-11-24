@@ -170,3 +170,73 @@ fn a_minerve_shell_is_drawn_with_minerves_view_and_ends_with_its_shell() {
         "the view should hear minerve go when its shell is ended"
     );
 }
+
+/// What the quick task's Minerve was told, if it has been: the first thing a person said in
+/// its conversation.
+fn prompt_the_quick_task_minerve_got(app: &App, title: &str) -> Option<String> {
+    let session_id = app.model.root_session_id.clone();
+    let tasks = app.backend().list_tasks(&session_id).ok()?;
+    let terminal_id = tasks
+        .iter()
+        .find(|task| task.title == title)?
+        .resources
+        .iter()
+        .find_map(|resource| resource.terminal_id.clone())?;
+    let conversation = app
+        .backend()
+        .terminal_conversation(&session_id, &terminal_id)
+        .ok()?;
+    conversation
+        .messages
+        .iter()
+        .find(|message| message.role == crate::agent_conversation::AgentMessageRole::User)
+        .and_then(|message| message.content.clone())
+}
+
+/// A quick task started with Minerve from the palette tells it the title, which starts it on
+/// the work - over its control socket, since a Minerve drawn in a window has no box on its pty.
+///
+/// Sends a prompt with the keys of the person running the tests, so it only runs when asked
+/// to: `MOON_MINERVE_SENDS_A_PROMPT=1`.
+#[test]
+fn a_quick_task_started_with_minerve_is_told_its_title() {
+    if std::env::var_os("MOON_MINERVE_SENDS_A_PROMPT").is_none() {
+        return;
+    }
+    const TITLE: &str = "reply with the single word pong and do nothing else";
+    let fixture = seeded_fixture("minerve-quick-task");
+    let mut app = app_for(&fixture.root, ThemeMode::Dark);
+    let started = Arc::new(Mutex::new(false));
+    let started_in_ui = Arc::clone(&started);
+    let got = Arc::new(Mutex::new(None));
+    let got_in_ui = Arc::clone(&got);
+
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1200.0, 800.0))
+        .wgpu()
+        .build_ui(move |ui| {
+            let mut started = started_in_ui.lock().unwrap();
+            if !*started && app.model.root_repo_path().is_some() {
+                crate::native::board::quick_task::start(
+                    &mut app,
+                    TITLE.to_string(),
+                    AgentKind::Minerve,
+                );
+                *started = true;
+            }
+            drop(started);
+            app.draw(ui);
+            *got_in_ui.lock().unwrap() = prompt_the_quick_task_minerve_got(&app, TITLE);
+        });
+
+    let deadline = Instant::now() + Duration::from_secs(40);
+    while Instant::now() < deadline && got.lock().unwrap().is_none() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let got = got.lock().unwrap().clone();
+    assert!(
+        got.as_deref().is_some_and(|prompt| prompt.contains(TITLE)),
+        "minerve should have been told the card's title, and got {got:?}"
+    );
+}

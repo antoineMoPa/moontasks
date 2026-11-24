@@ -115,6 +115,17 @@ enum ParentCommand {
     Submit { text: String },
 }
 
+/// Whether a Minerve drawn in a window can be sent a prompt - see [`AgentControl::prompt_box`].
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(super) enum PromptBox {
+    /// It is waiting for one.
+    Waiting,
+    /// It has not connected yet, or a turn is running.
+    Busy,
+    /// It hung up, or never connected: nothing will reach it.
+    Gone,
+}
+
 pub struct AgentControl {
     socket_path: PathBuf,
     conversation: Mutex<AgentConversation>,
@@ -308,6 +319,24 @@ impl AgentControl {
     pub fn send_line(&self, line: &str) {
         if let Some(writer) = self.writer.lock().unwrap().as_mut() {
             let _ = writer.write_all(format!("{line}\n").as_bytes());
+        }
+    }
+
+    /// Whether this is a Minerve started with `--serve`: its pty is drawn by nobody and read
+    /// by nothing, so what moon has to say to it goes over this socket.
+    pub(super) fn serves_a_view(&self) -> bool {
+        self.serves_a_view
+    }
+
+    /// Whether a prompt sent now would be taken - see [`Self::submit`].
+    pub(super) fn prompt_box(&self) -> PromptBox {
+        if self.taps.lock().unwrap().ended {
+            return PromptBox::Gone;
+        }
+        let waits = self.conversation.lock().unwrap().state == Some(AgentState::WaitingForInput);
+        match waits && self.writer.lock().unwrap().is_some() {
+            true => PromptBox::Waiting,
+            false => PromptBox::Busy,
         }
     }
 
