@@ -25,7 +25,8 @@ use super::sections::{
     Listed, SectionKind, command_sections, keep_shown_matches, opened_by_header,
     refresh_section_searches, remember_highlight, restore_highlight, section_to_open,
 };
-use super::{Command, PaletteMode, history, rows_for};
+use super::{Command, CommandAction, PaletteMode, history, rows_for};
+use crate::native::panes::OpenPaneRequest;
 
 /// The gap between the query line's edge and what is typed in it.
 const LINE_PADDING: i8 = 7;
@@ -78,6 +79,30 @@ fn thicken_palette_panel(panel: Color32) -> Color32 {
         return panel;
     }
     panel.to_opaque().gamma_multiply(PALETTE_PANEL_OPACITY)
+}
+
+/// Give every row that opens a file - one found by name, a matching line, a place the
+/// language server named - where that file is on disk as its hover: the row says the path
+/// inside the repo, cut at its start when it is long.
+fn tell_file_paths_on_hover(app: &App, listed: &mut [Listed]) {
+    for part in listed {
+        for (command, row) in part.commands.iter().zip(&mut part.rows) {
+            let (session_id, file_path) = match &command.action {
+                CommandAction::OpenPane(OpenPaneRequest::File {
+                    session_id,
+                    file_path,
+                    ..
+                }) => (session_id.as_str(), file_path),
+                CommandAction::LinkTaskFile { file_path, .. } => {
+                    (app.model.palette.search_session_id.as_str(), file_path)
+                }
+                _ => continue,
+            };
+            row.hover = app
+                .model
+                .resolve_absolute_path_of_session_file(session_id, file_path);
+        }
+    }
 }
 
 /// The row of the list a command is.
@@ -271,10 +296,11 @@ pub(crate) fn draw(app: &mut App, ctx: &egui::Context) {
     }
     let palette = app.palette_of();
     *app.model.palette.input.style_mut() = style_of(&palette);
-    let listed = match app.model.palette.mode {
+    let mut listed = match app.model.palette.mode {
         PaletteMode::Commands => command_sections(app),
         _ => vec![Listed::bare(rows_for(app))],
     };
+    tell_file_paths_on_hover(app, &mut listed);
     let row_count: usize = listed.iter().map(|part| part.commands.len()).sum();
     let hint = hint_of(app);
     let empty = empty_message(app);

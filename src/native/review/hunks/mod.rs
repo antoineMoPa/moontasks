@@ -422,8 +422,12 @@ fn draw_file_heading(
         // copied - which is most of what one wants a file's name for while reading a diff.
         // The arrow beside it is what folds the file away, and right-clicking it opens the
         // file the diff is of.
-        let heading =
-            ui.add(egui::Label::new(RichText::new(file_path).color(palette.ink)).selectable(true));
+        let heading = ui
+            .add(egui::Label::new(RichText::new(file_path).color(palette.ink)).selectable(true))
+            .on_hover_text(
+                app.model
+                    .resolve_absolute_path_of_session_file(session_id, file_path),
+            );
         crate::native::review::opens_the_file_on_its_own(
             app,
             ui,

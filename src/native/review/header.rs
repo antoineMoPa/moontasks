@@ -100,7 +100,10 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, session_id: &str, beside: bool, p
 
             if let Some(path) = full_file_path
                 && widgets::quiet_button(ui, "view file")
-                    .on_hover_text(format!("show all of {path}"))
+                    .on_hover_text(format!(
+                        "show all of {}",
+                        widgets::resolve_absolute_path(repo_path, path)
+                    ))
                     .clicked()
             {
                 app.open_file_pane(session_id, path);

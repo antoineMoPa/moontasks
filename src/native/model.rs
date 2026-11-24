@@ -417,6 +417,29 @@ impl Model {
         Some(std::path::PathBuf::from(&payload.repo_path))
     }
 
+    /// The repo a session reads, as a path on whichever machine the backend reads - and
+    /// nothing until the session's review has answered.
+    pub(crate) fn read_repo_path_of_session(&self, session_id: &str) -> &str {
+        self.review_ref(session_id)
+            .and_then(|review| review.payload.as_ref())
+            .map_or("", |payload| payload.repo_path.as_str())
+    }
+
+    /// Where a file of a session is on disk, which is what its path's hover says. A file
+    /// placed in a session of its own is under the project it was placed from, and every
+    /// other one under the session's repo.
+    pub(crate) fn resolve_absolute_path_of_session_file(
+        &self,
+        session_id: &str,
+        file_path: &str,
+    ) -> String {
+        let root = match self.projects_of_placed_files.get(session_id) {
+            Some(project) => project.as_str(),
+            None => self.read_repo_path_of_session(session_id),
+        };
+        crate::native::widgets::resolve_absolute_path(root, file_path)
+    }
+
     pub(crate) fn review(&mut self, session_id: &str) -> &mut ReviewState {
         self.reviews
             .entry(session_id.to_string())

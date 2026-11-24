@@ -65,10 +65,12 @@ struct Row {
     /// The repo's own directory name, which is all a row says: the folder it sits in is the
     /// heading above it.
     name: String,
-    /// The same with its folder in front, which is what the row's hover offers to review.
+    /// The same with its folder in front, which is what the filter matches and the highlight
+    /// is kept by.
     path_under_repo: String,
     opens: OpenPaneRequest,
-    /// Where the row's shell button opens a shell.
+    /// Where the repo is on disk: where the row's shell button opens a shell, and what the
+    /// row's hovers name.
     repo_path: String,
     changes: String,
     changed: bool,
@@ -399,6 +401,8 @@ fn draw_row(
     // clicked are the same target rather than two ids that happen to look alike.
     let id = ui.id().with(&row.path_under_repo);
     let shell_id = id.with("shell");
+    // Where the repo is on disk, for the hovers: the row has its name alone, under a folder.
+    let absolute_path = &row.repo_path;
     // Where the name was drawn, which the shell button beside the row is levelled with.
     let mut name_rect = egui::Rect::NOTHING;
     let response = ui.allocate_ui(vec2(row_width, 0.0), |ui| {
@@ -464,7 +468,7 @@ fn draw_row(
     });
 
     let clicked = widgets::clickable(ui.interact(response.response.rect, id, Sense::click()))
-        .on_hover_text(format!("Review {}", row.path_under_repo))
+        .on_hover_text(format!("Review {absolute_path}"))
         .clicked();
     // Deferred: the arrangement is lent out while its panes draw, this one included, so a
     // request made here would find no panes to bring forward. The app acts on it after.
@@ -484,7 +488,7 @@ fn draw_row(
         ),
         vec2(SHELL_BUTTON_SIZE, SHELL_BUTTON_SIZE),
     );
-    let shell_hint = format!("Open a shell in {}", row.path_under_repo);
+    let shell_hint = format!("Open a shell in {absolute_path}");
     if draw_shell_button(ui, shell_id, shell_rect, &shell_hint, palette)
         .on_hover_text(&shell_hint)
         .clicked()

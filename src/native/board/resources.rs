@@ -605,7 +605,10 @@ fn draw_file_resource(
         file_mark(ui, palette);
 
         let path = widgets::quiet_button(ui, &widgets::elide_path(file_path, FILE_PATH_CHARS))
-            .on_hover_text(format!("Open {file_path} in a pane"));
+            .on_hover_text(format!(
+                "Open {} in a pane",
+                widgets::resolve_absolute_path(task.repo_path, file_path)
+            ));
         if card.pressed(&path) || row_pressed {
             actions.push(BoardAction::OpenFile {
                 task_id: task.id.to_string(),
@@ -646,8 +649,10 @@ fn draw_visualization_resource(
     draw_in_row(ui, row.rect, |ui| {
         chart_mark(ui, palette);
 
-        let name = widgets::quiet_button(ui, &resource.label)
-            .on_hover_text(format!("Open {file_path} in a pane"));
+        let name = widgets::quiet_button(ui, &resource.label).on_hover_text(format!(
+            "Open {} in a pane",
+            widgets::resolve_absolute_path(task.repo_path, file_path)
+        ));
         if card.pressed(&name) || row_pressed {
             actions.push(BoardAction::OpenVisualization {
                 fragment_path: std::path::Path::new(&task.repo_path)

@@ -343,6 +343,25 @@ pub(crate) fn elide_end(text: &str, max_chars: usize) -> String {
     format!("{kept}…")
 }
 
+/// Where `path` is on the disk of the machine that has it: itself when it already starts at
+/// the disk's root, and under `root` - the repo it is a path of - when it does not. A `root`
+/// nobody knows yet leaves the path as it was given, which is all there is to say of it.
+///
+/// What a path's hover says: a row has room for a name or a path cut short, and which file
+/// that is on disk - to paste in a shell, or to tell two repos' `README.md` apart - is what
+/// the row leaves out.
+pub(crate) fn resolve_absolute_path(root: &str, path: &str) -> String {
+    if path.starts_with('/') || root.is_empty() {
+        return path.to_string();
+    }
+    let root = root.trim_end_matches('/');
+    let path = path.trim_start_matches("./");
+    if path.is_empty() || path == "." {
+        return root.to_string();
+    }
+    format!("{root}/{path}")
+}
+
 /// The name at the end of a path - `main.rs` of `src/main.rs`.
 pub(crate) fn file_name_of(file_path: &str) -> &str {
     match file_path.rsplit_once('/') {
@@ -414,6 +433,29 @@ pub(crate) fn grouped(value: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_path_inside_a_repo_is_resolved_under_the_repo() {
+        assert_eq!(
+            resolve_absolute_path("/home/me/repo", "src/main.rs"),
+            "/home/me/repo/src/main.rs"
+        );
+        assert_eq!(
+            resolve_absolute_path("/home/me/repo/", "./a.rs"),
+            "/home/me/repo/a.rs"
+        );
+        // The heading over the files at the top of the repo is the repo itself.
+        assert_eq!(resolve_absolute_path("/home/me/repo", "."), "/home/me/repo");
+    }
+
+    #[test]
+    fn an_absolute_path_and_a_path_of_an_unknown_repo_are_left_alone() {
+        assert_eq!(
+            resolve_absolute_path("/home/me/repo", "/etc/hostname"),
+            "/etc/hostname"
+        );
+        assert_eq!(resolve_absolute_path("", "src/main.rs"), "src/main.rs");
+    }
 
     #[test]
     fn short_paths_are_left_alone() {

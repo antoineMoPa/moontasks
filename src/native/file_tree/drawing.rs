@@ -176,6 +176,7 @@ impl App {
         let show_ignored = self.model.file_tree.show_ignored;
         let filtering = !self.model.file_tree.filter.trim().is_empty();
         let mut to_ask = Vec::new();
+        let repo_path = self.model.read_repo_path_of_session(session_id).to_string();
         let repo = self
             .model
             .file_tree
@@ -244,9 +245,9 @@ impl App {
                             _ => {}
                         }
                     }
-                    if matches!(row.kind, RowKind::File) {
-                        response.on_hover_text(&row.path);
-                    }
+                    // A folder's as much as a file's: where it is on disk is not on a row
+                    // that has room for a name alone.
+                    response.on_hover_text(widgets::resolve_absolute_path(&repo_path, &row.path));
                 }
                 if let Some(note) = &note {
                     ui.add_space(4.0);

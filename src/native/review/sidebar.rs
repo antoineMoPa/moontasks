@@ -130,6 +130,7 @@ fn draw_files_section(
     // The directory once, over the names in it: a review is usually a handful of files in two
     // or three places, and the same prefix on every row buries the names under it. The rows
     // themselves already read as names alone.
+    let repo_path = app.model.read_repo_path_of_session(session_id).to_string();
     for (directory, files) in widgets::by_directory(files, |file| file.file_path.as_str()) {
         ui.add_space(2.0);
         ui.horizontal(|ui| {
@@ -142,7 +143,7 @@ fn draw_files_section(
                 )
                 .selectable(false),
             )
-            .on_hover_text(&directory);
+            .on_hover_text(widgets::resolve_absolute_path(&repo_path, &directory));
         });
         for file in files {
             draw_file_row(
@@ -342,18 +343,27 @@ fn draw_file_row(
         );
     }
 
+    // The row reads as the file's name alone, under its directory: where that is on disk
+    // is said first.
+    let repo_path = app.model.read_repo_path_of_session(session_id);
     let mut hover_text = format!(
         "{}\n{} hunk{}, {} staged\n⌘-click to open the file",
-        file.file_path,
+        widgets::resolve_absolute_path(repo_path, &file.file_path),
         file.hunk_count,
         if file.hunk_count == 1 { "" } else { "s" },
         file.staged_hunk_count
     );
     // The row has no second line for it any more, so where a file came from is said here.
     if let Some(from) = &file.moved_from_file_path {
-        hover_text.push_str(&format!("\nmoved from {from}"));
+        hover_text.push_str(&format!(
+            "\nmoved from {}",
+            widgets::resolve_absolute_path(repo_path, from)
+        ));
     } else if let Some(to) = &file.moved_to_file_path {
-        hover_text.push_str(&format!("\nmoved to {to}"));
+        hover_text.push_str(&format!(
+            "\nmoved to {}",
+            widgets::resolve_absolute_path(repo_path, to)
+        ));
     }
     let response = response.on_hover_text(hover_text);
 

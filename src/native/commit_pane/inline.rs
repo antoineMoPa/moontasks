@@ -168,6 +168,7 @@ pub(crate) fn draw_box(app: &mut App, ui: &mut Ui, session_id: &str, palette: &P
     let mut message = pane.message.clone();
     let error = pane.error.clone();
     let state = pane.state.clone();
+    let repo_path = app.model.read_repo_path_of_session(session_id).to_string();
     // The run's terminal takes the keyboard the first frame it is drawn: that is where pinentry
     // asks for the passphrase. After that it is the person's to click away from.
     let run = pane
@@ -223,7 +224,7 @@ pub(crate) fn draw_box(app: &mut App, ui: &mut Ui, session_id: &str, palette: &P
                     }
                 }
                 None => {
-                    ui.vertical(|ui| draw_what_runs(ui, state.as_ref(), palette));
+                    ui.vertical(|ui| draw_what_runs(ui, &repo_path, state.as_ref(), palette));
                 }
             }
         });
@@ -297,7 +298,7 @@ pub(crate) fn draw_committed_line(
 
 /// What the box's right half says before any run: what a commit would take in and what it
 /// would leave, so the box reads the same shape before and during a run.
-fn draw_what_runs(ui: &mut Ui, state: Option<&CommitState>, palette: &Palette) {
+fn draw_what_runs(ui: &mut Ui, repo_path: &str, state: Option<&CommitState>, palette: &Palette) {
     egui::Frame::new()
         .fill(palette.code_bg)
         .inner_margin(egui::Margin::symmetric(8, 6))
@@ -331,7 +332,8 @@ fn draw_what_runs(ui: &mut Ui, state: Option<&CommitState>, palette: &Palette) {
                             .color(palette.ink),
                     )
                     .truncate(),
-                );
+                )
+                .on_hover_text(widgets::resolve_absolute_path(repo_path, &file.file_path));
             }
             if state.unstaged_count > 0 {
                 ui.add_space(4.0);

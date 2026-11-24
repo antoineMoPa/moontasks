@@ -140,6 +140,11 @@ pub(crate) fn draw_image_diff(
 /// cannot both sweep a selection and act on a click, so opening it is its own button.
 fn draw_file_link(app: &mut App, ui: &mut Ui, file_path: &str, palette: &Palette) {
     let full_path = app.repo_file_path(file_path).filter(|path| path.exists());
+    let absolute_path = widgets::resolve_absolute_path(
+        app.model
+            .read_repo_path_of_session(&app.model.root_session_id),
+        file_path,
+    );
 
     ui.horizontal(|ui| {
         ui.add(
@@ -151,7 +156,8 @@ fn draw_file_link(app: &mut App, ui: &mut Ui, file_path: &str, palette: &Palette
                 },
             ))
             .selectable(true),
-        );
+        )
+        .on_hover_text(absolute_path);
 
         // A review served from somewhere else has no local file to open.
         let Some(full_path) = full_path else {

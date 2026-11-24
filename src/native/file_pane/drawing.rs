@@ -121,6 +121,9 @@ impl App {
                 .to_string(),
             None => file_path.to_string(),
         };
+        let absolute_path = self
+            .model
+            .resolve_absolute_path_of_session_file(session_id, file_path);
         // The find bar selects matches in the laid-out text, so while it is on this pane the
         // text is what is shown, whatever the toggle says.
         let find_is_here = self
@@ -328,9 +331,9 @@ impl App {
                                     .truncate()
                                     .selectable(true),
                             )
-                            // The whole of it, since the pane may only have room for the
-                            // start.
-                            .on_hover_text(&shown_path);
+                            // The whole of it from the disk's root, since the pane may only
+                            // have room for the start, and shows a path inside the repo.
+                            .on_hover_text(&absolute_path);
                         });
                     });
                 });

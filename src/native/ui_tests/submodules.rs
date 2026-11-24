@@ -348,7 +348,16 @@ fn the_submodule_hub_marks_an_unpushed_submodule_and_opens_a_shell_in_it() {
     );
 
     // Act: the shell button of the submodule's row opens a shell, not its review.
-    harness.get_by_label("Open a shell in crates/ahead").click();
+    // Named by where it is on disk, as the repo names itself - on a Mac not how its temporary
+    // folder was asked for.
+    let ahead_on_disk = fixture
+        .root
+        .canonicalize()
+        .expect("the fixture's repo is on disk")
+        .join("crates/ahead");
+    harness
+        .get_by_label(&format!("Open a shell in {}", ahead_on_disk.display()))
+        .click();
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
         harness.step();

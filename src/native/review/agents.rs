@@ -174,7 +174,10 @@ fn draw_row(app: &mut App, ui: &mut Ui, entry: &Watched, palette: &Palette) {
                         )
                         .selectable(true),
                     )
-                    .on_hover_text(&comment.file_path);
+                    .on_hover_text(app.model.resolve_absolute_path_of_session_file(
+                        &entry.session_id,
+                        &comment.file_path,
+                    ));
                 // The row is a comment on a file, so the file is a ⌘-click away from it -
                 // at the hunk the comment is on, for as long as the review still has it.
                 let changed_line = app

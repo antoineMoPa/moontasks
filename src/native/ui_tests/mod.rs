@@ -51,6 +51,7 @@ pub(crate) mod palette_history;
 mod palette_long_rows;
 mod palette_search_switch;
 pub(crate) mod palette_sections;
+mod path_hover;
 mod project;
 mod review_header;
 mod review_large_images;

@@ -341,7 +341,15 @@ fn draw_row(
 ) -> egui::Response {
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, ROW_HEIGHT), egui::Sense::click());
-    let response = widgets::clickable(response);
+    // Where the row leads from the disk's root: the row says a name, and the line above the
+    // list says its folder from `~`.
+    let response = widgets::clickable(response).on_hover_text(match row.kind {
+        RowKind::Up => rows::parent_line(folder).unwrap_or_else(|| folder.to_string()),
+        RowKind::ThisFolder => folder.to_string(),
+        RowKind::Folder | RowKind::File | RowKind::NewName { .. } | RowKind::NewFolder => {
+            rows::join(folder, &row.name)
+        }
+    });
     if !ui.is_rect_visible(rect) {
         return response;
     }

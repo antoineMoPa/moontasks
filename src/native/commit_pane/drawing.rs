@@ -314,7 +314,13 @@ pub(crate) fn draw(app: &mut App, ui: &mut Ui, pane_id: PaneId, session_id: &str
             ui.add_space(8.0);
             widgets::divider(ui, &palette);
             ui.add_space(6.0);
-            draw_staged_files(ui, session_id, state.as_ref(), &palette);
+            draw_staged_files(
+                ui,
+                session_id,
+                app.model.read_repo_path_of_session(session_id),
+                state.as_ref(),
+                &palette,
+            );
         });
 
     let pane = app.commit_pane(session_id);
@@ -478,6 +484,7 @@ fn draw_branch_line(
 fn draw_staged_files(
     ui: &mut Ui,
     session_id: &str,
+    repo_path: &str,
     state: Option<&CommitState>,
     palette: &Palette,
 ) {
@@ -518,7 +525,7 @@ fn draw_staged_files(
                     )
                     .truncate(),
                 )
-                .on_hover_text(&directory);
+                .on_hover_text(widgets::resolve_absolute_path(repo_path, &directory));
 
                 for file in files {
                     ui.horizontal(|ui| {
@@ -537,7 +544,7 @@ fn draw_staged_files(
                             )
                             .truncate(),
                         )
-                        .on_hover_text(&file.file_path);
+                        .on_hover_text(widgets::resolve_absolute_path(repo_path, &file.file_path));
                     });
                 }
             }

@@ -550,15 +550,23 @@ impl PaneView<Pane> for App {
         let unsaved = matches!(pane, Pane::File { .. }) && self.file_pane_is_dirty(pane_id);
         let hover = match pane {
             Pane::File {
+                session_id,
                 file_path,
                 revision: None,
                 ..
-            } => file_path.clone(),
+            } => self
+                .model
+                .resolve_absolute_path_of_session_file(session_id, file_path),
             Pane::File {
+                session_id,
                 file_path,
                 revision: Some(revision),
                 ..
-            } => format!("{file_path} as of {revision}"),
+            } => format!(
+                "{} as of {revision}",
+                self.model
+                    .resolve_absolute_path_of_session_file(session_id, file_path)
+            ),
             Pane::Start { title, .. } => format!("Start something in {title}"),
             Pane::NewTask { .. } => "Name this task to make its card".to_string(),
             Pane::Visualization { fragment_path } => fragment_path.clone(),
