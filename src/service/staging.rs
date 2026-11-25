@@ -52,8 +52,8 @@ pub(crate) fn stage_file(state: &AppState, session_id: &str, file_path: &str) ->
     Ok(())
 }
 
-/// Stage the whole working tree, untracked files included - the one sweep the commit pane
-/// offers.
+/// Stage every change the review shows - the one sweep the commit pane offers. Not a plain
+/// `git add -A`: see [`moon_core::committing::stage_every_unstaged_path`].
 pub(crate) fn stage_all(state: &AppState, session_id: &str) -> Result<()> {
     crate::api::ensure_session_is_writable(state, session_id)?;
     let (repo_path, pathspec) = crate::api::with_session(state, session_id, |session| {
@@ -63,10 +63,7 @@ pub(crate) fn stage_all(state: &AppState, session_id: &str) -> Result<()> {
         ))
     })?;
     // Only what the review is pointed at, when it is pointed at part of the repo.
-    let mut args = vec!["add", "-A"];
-    crate::git::append_pathspec(&mut args, pathspec.as_deref());
-    run_git_no_output(&repo_path, &args)?;
-    Ok(())
+    moon_core::committing::stage_every_unstaged_path(&repo_path, pathspec.as_deref())
 }
 
 pub(crate) fn unstage_file(state: &AppState, session_id: &str, file_path: &str) -> Result<()> {

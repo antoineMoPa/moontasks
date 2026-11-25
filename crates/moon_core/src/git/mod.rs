@@ -37,7 +37,7 @@ use crate::api::{CommitView, DiffTarget};
 /// It runs as this thread's current user - see [`crate::unix_users::command`]. On a
 /// server that gives each person a Unix user the repo is one person's checkout worked in by
 /// all of them, which git refuses as somebody else's unless told the folder is safe.
-fn git_command(repo_path: &Path) -> Result<Command> {
+pub(crate) fn git_command(repo_path: &Path) -> Result<Command> {
     let mut command = crate::unix_users::command("git")?;
     command
         .current_dir(repo_path)

@@ -8,6 +8,11 @@
 // types it is told about them in.
 #[cfg(not(target_arch = "wasm32"))]
 mod repo_side;
+#[cfg(not(target_arch = "wasm32"))]
+mod staging_everything;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use staging_everything::stage_every_unstaged_path;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use repo_side::{

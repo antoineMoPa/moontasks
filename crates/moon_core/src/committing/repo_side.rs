@@ -81,7 +81,8 @@ pub fn read_commit_state(
         None => (0, 0),
     };
 
-    let (staged_files, unstaged_count) = read_status(repo_path, pathspec)?;
+    let (staged_files, unstaged_paths) = read_status(repo_path, pathspec)?;
+    let unstaged_count = unstaged_paths.len();
     Ok(CommitState {
         branch_name,
         on_default_branch,
@@ -215,7 +216,13 @@ fn parse_ahead_behind(counts: &str) -> (usize, usize) {
     }
 }
 
-fn read_status(repo_path: &Path, pathspec: Option<&str>) -> Result<(Vec<StagedFile>, usize)> {
+/// What is staged, and the paths with work the index does not have yet. The status is the one
+/// the review beside the pane is drawn from, so a submodule the repo is set to ignore is in
+/// neither.
+pub(super) fn read_status(
+    repo_path: &Path,
+    pathspec: Option<&str>,
+) -> Result<(Vec<StagedFile>, Vec<String>)> {
     let mut args = vec!["status", "--porcelain", "-z", "--no-renames"];
     git::append_pathspec(&mut args, pathspec);
     let output = git::run_git_bytes(repo_path, &args)?;
@@ -225,9 +232,9 @@ fn read_status(repo_path: &Path, pathspec: Option<&str>) -> Result<(Vec<StagedFi
 /// `git status --porcelain -z` is a run of NUL-terminated records, each a two-letter status
 /// and the path it is the status of. The first letter is what the index has, the second what
 /// the working tree has beyond it; `??` is a file git has never been told about.
-fn parse_status(output: &str) -> (Vec<StagedFile>, usize) {
+fn parse_status(output: &str) -> (Vec<StagedFile>, Vec<String>) {
     let mut staged = Vec::new();
-    let mut unstaged = 0;
+    let mut unstaged = Vec::new();
 
     for record in output.split('\0').filter(|record| record.len() > 3) {
         let mut letters = record.chars();
@@ -236,11 +243,11 @@ fn parse_status(output: &str) -> (Vec<StagedFile>, usize) {
         let file_path = record[3..].to_string();
 
         if index == '?' {
-            unstaged += 1;
+            unstaged.push(file_path);
             continue;
         }
         if worktree != ' ' {
-            unstaged += 1;
+            unstaged.push(file_path.clone());
         }
         if index == ' ' {
             continue;
@@ -680,7 +687,7 @@ mod tests {
     fn the_status_reads_a_change_kind_and_a_path_per_staged_file() {
         let (staged, unstaged) = parse_status("M  src/git.rs\0A  src/committing.rs\0D  old.rs\0");
 
-        assert_eq!(unstaged, 0);
+        assert!(unstaged.is_empty());
         assert_eq!(
             staged,
             vec![
@@ -711,7 +718,11 @@ mod tests {
                 change_kind: FileChangeKind::Modified
             }]
         );
-        assert_eq!(unstaged, 3, "each of the three has work outside the index");
+        assert_eq!(
+            unstaged,
+            ["src/git.rs", "src/lib.rs", "new.rs"],
+            "each of the three has work outside the index"
+        );
     }
 
     #[test]
