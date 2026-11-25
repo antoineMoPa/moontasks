@@ -23,6 +23,18 @@ fi
 gh auth status
 git push --dry-run --follow-tags
 
+# The window-free `moon` and moon-mux are workspaces of their own, and build-release.sh builds
+# them with --locked. A lockfile behind its manifests would fail there, after the tag is pushed.
+check_standalone_lockfiles_are_current() {
+    for manifest in crates/moon_tui/Cargo.toml crates/moon_mux/Cargo.toml; do
+        if ! cargo metadata --locked --format-version 1 --manifest-path "$manifest" >/dev/null; then
+            echo "$(dirname "$manifest")/Cargo.lock is stale: run \`cargo check --manifest-path $manifest\` and commit it" >&2
+            exit 1
+        fi
+    done
+}
+check_standalone_lockfiles_are_current
+
 # The release version is the crate's, so the bump is a commit on Cargo.toml and its lockfile
 # entry, tagged the way the release assets are named.
 VERSION="$(bash scripts/_internal/version.sh)"
