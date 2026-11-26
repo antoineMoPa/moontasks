@@ -153,14 +153,6 @@ pub(crate) fn commands_for(app: &App) -> Vec<Command> {
     });
     #[cfg(target_arch = "wasm32")]
     commands.push(Command {
-        title: "show qr code".to_string(),
-        description: "Open this page on another device, logged in: a QR code of its address"
-            .to_string(),
-        action: CommandAction::ShowPageQr,
-        shortcut: None,
-    });
-    #[cfg(target_arch = "wasm32")]
-    commands.push(Command {
         title: "account".to_string(),
         description: "Manage your GitHub account".to_string(),
         action: CommandAction::ShowWebAccount,
@@ -172,36 +164,6 @@ pub(crate) fn commands_for(app: &App) -> Vec<Command> {
         title: "open in web".to_string(),
         description: "Open this repo in a browser, on the page moon serves at /moon".to_string(),
         action: CommandAction::OpenInWeb,
-        shortcut: None,
-    });
-    #[cfg(not(target_arch = "wasm32"))]
-    commands.push(Command {
-        title: "start cloudflare tunnel".to_string(),
-        description:
-            "Reach this window's server from another device: a tunnel, its address and a QR code"
-                .to_string(),
-        action: CommandAction::StartCloudflareTunnel,
-        shortcut: None,
-    });
-    #[cfg(not(target_arch = "wasm32"))]
-    commands.push(Command {
-        title: "stop cloudflare tunnel".to_string(),
-        description: "Close the tunnel to this window's server".to_string(),
-        action: CommandAction::StopCloudflareTunnel,
-        shortcut: None,
-    });
-    #[cfg(not(target_arch = "wasm32"))]
-    commands.push(Command {
-        title: "view cloudflare tunnel link".to_string(),
-        description: "Show the tunnel's address and QR code again".to_string(),
-        action: CommandAction::ViewCloudflareTunnelLink,
-        shortcut: None,
-    });
-    #[cfg(not(target_arch = "wasm32"))]
-    commands.push(Command {
-        title: "open cloudflare tunnel in browser".to_string(),
-        description: "Open the tunnel's address in this machine's browser".to_string(),
-        action: CommandAction::OpenCloudflareTunnelInBrowser,
         shortcut: None,
     });
     #[cfg(not(target_arch = "wasm32"))]

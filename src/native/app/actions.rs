@@ -508,19 +508,9 @@ impl App {
             CommandAction::StartApplication(command) => self.start_application(command),
             CommandAction::EndDisplay => self.end_display(),
             #[cfg(target_arch = "wasm32")]
-            CommandAction::ShowPageQr => self.show_page_qr(),
-            #[cfg(target_arch = "wasm32")]
             CommandAction::ShowWebAccount => self.showing_web_account = true,
             #[cfg(not(target_arch = "wasm32"))]
             CommandAction::OpenInWeb => self.open_in_web(),
-            #[cfg(not(target_arch = "wasm32"))]
-            CommandAction::StartCloudflareTunnel => self.start_tunnel(),
-            #[cfg(not(target_arch = "wasm32"))]
-            CommandAction::StopCloudflareTunnel => self.stop_tunnel(),
-            #[cfg(not(target_arch = "wasm32"))]
-            CommandAction::ViewCloudflareTunnelLink => self.view_tunnel_link(),
-            #[cfg(not(target_arch = "wasm32"))]
-            CommandAction::OpenCloudflareTunnelInBrowser => self.open_tunnel_in_browser(),
             #[cfg(not(target_arch = "wasm32"))]
             CommandAction::GeneratePassKey => self.generate_pass_key(ctx),
             #[cfg(not(target_arch = "wasm32"))]

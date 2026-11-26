@@ -134,9 +134,6 @@ pub(crate) struct App {
     /// Moving the window by an empty part of the tab strip - see [`crate::native::window_drag`].
     #[cfg(target_os = "macos")]
     pub(crate) window_drag: crate::native::window_drag::WindowDrag,
-    /// The quick tunnel to another device, while there is one - see [`crate::native::tunnel`].
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) tunnel: Option<crate::native::tunnel::Tunnel>,
     /// The chord that raises each tab within cmd+1..cmd+9's reach - the active frame's tabs -
     /// worked out before the strips are drawn and worn at the right of their titles.
     pub(crate) tab_shortcuts: HashMap<PaneId, String>,
@@ -385,8 +382,6 @@ impl App {
                 file_editors: HashMap::new(),
                 file_tree: Default::default(),
                 work_log_entries_waiting: HashMap::new(),
-                #[cfg(target_arch = "wasm32")]
-                page_qr: Default::default(),
                 server_display: None,
                 display_wants_showing: false,
                 #[cfg(not(target_arch = "wasm32"))]
@@ -450,8 +445,6 @@ impl App {
             #[cfg(target_os = "macos")]
             window_drag: Default::default(),
             pending_tab_action: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            tunnel: None,
             tab_shortcuts: HashMap::new(),
             #[cfg(target_arch = "wasm32")]
             pending_tab_focus: None,

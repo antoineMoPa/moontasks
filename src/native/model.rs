@@ -226,10 +226,6 @@ pub(crate) struct Model {
     /// tab's text is still on its way - see [`crate::native::work_log`]. The tab is opened
     /// by the answer to a call that makes the file, which has no editor to put it in yet.
     pub(crate) work_log_entries_waiting: HashMap<PaneId, crate::native::work_log::NewEntry>,
-    /// The QR code that opens this page on another device, while it is up - see
-    /// [`crate::native::login_link::page_qr`].
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) page_qr: crate::native::login_link::page_qr::PageQr,
     /// The server's desktop, as far as this window has heard: started by it, or found
     /// running when it last asked, which it does on its clock - see
     /// [`crate::native::display_pane`].

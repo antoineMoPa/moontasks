@@ -292,8 +292,6 @@ impl App {
                 MenuAction::OpenWorkLog => CommandAction::OpenWorkLog,
                 MenuAction::OpenWire => CommandAction::OpenWire,
                 #[cfg(target_arch = "wasm32")]
-                MenuAction::ShowPageQr => CommandAction::ShowPageQr,
-                #[cfg(target_arch = "wasm32")]
                 MenuAction::ShowWebAccount => CommandAction::ShowWebAccount,
                 #[cfg(any(target_arch = "wasm32", target_os = "linux", test))]
                 MenuAction::StartApplication(place) => CommandAction::StartApplication(
@@ -306,16 +304,6 @@ impl App {
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 MenuAction::OpenInWeb => CommandAction::OpenInWeb,
-                #[cfg(not(target_arch = "wasm32"))]
-                MenuAction::StartCloudflareTunnel => CommandAction::StartCloudflareTunnel,
-                #[cfg(not(target_arch = "wasm32"))]
-                MenuAction::StopCloudflareTunnel => CommandAction::StopCloudflareTunnel,
-                #[cfg(not(target_arch = "wasm32"))]
-                MenuAction::ViewCloudflareTunnelLink => CommandAction::ViewCloudflareTunnelLink,
-                #[cfg(not(target_arch = "wasm32"))]
-                MenuAction::OpenCloudflareTunnelInBrowser => {
-                    CommandAction::OpenCloudflareTunnelInBrowser
-                }
                 #[cfg(not(target_arch = "wasm32"))]
                 MenuAction::GeneratePassKey => CommandAction::GeneratePassKey,
                 #[cfg(not(target_arch = "wasm32"))]
@@ -450,7 +438,6 @@ impl App {
                 .unwrap_or_default();
             self.apply_menu_actions(picked);
             if let Some(menu) = &self.menu {
-                menu.show_tunnel_running(self.tunnel.is_some());
                 menu.show_project(&self.model.project, self.model.last_target.as_deref());
             }
         }
@@ -478,8 +465,6 @@ impl App {
             self.poll_visualizations();
             self.poll_language_server_work();
             self.poll_board();
-            #[cfg(not(target_arch = "wasm32"))]
-            self.poll_tunnel(ctx);
         }
         // Text a shell copied with OSC 52: the last one is what the clipboard holds.
         for text in std::mem::take(&mut self.model.shell_copies) {
@@ -557,10 +542,6 @@ impl App {
         crate::native::file_picker::draw(self, ctx);
         find::draw(self, ctx);
         self.draw_armed_prefix(ctx);
-        #[cfg(not(target_arch = "wasm32"))]
-        self.draw_tunnel(ctx);
-        #[cfg(target_arch = "wasm32")]
-        self.draw_page_qr(ctx);
         self.draw_toasts(ctx, crate::native::status_bar::BAR_HEIGHT);
 
         // The file in front into the back / forward history, before any action this frame

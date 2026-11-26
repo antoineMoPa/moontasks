@@ -105,8 +105,7 @@ pub(crate) trait Backend: Send + Sync + 'static {
     /// A login ticket for the server this window reads through, good for `lifetime` and one
     /// login, to open a browser with - see `crate::pass_keys`. Made here for a window of this
     /// machine, whose server's secret is this machine's, and asked of the far side for one
-    /// reading another - which a browser's window always is: its QR code logs another device
-    /// into the server the page came from, see `crate::native::login_link::page_qr`.
+    /// reading another.
     fn mint_login_ticket(&self, lifetime: std::time::Duration) -> Result<String>;
 
     fn open_session(&self, request: OpenSessionRequest) -> Result<SessionOpened>;

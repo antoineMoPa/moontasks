@@ -6,8 +6,6 @@
 //! machine the window runs on - new windows, restarting, launchers - which a page has no
 //! machine for, and in a page less the two that pick a file. Drawn each frame, so it lists
 //! only the commands each target has set, the way the palette does.
-//! And one item more than that bar has: the QR code of the page's own address - see
-//! `crate::native::login_link::page_qr`.
 //!
 //! A chord written beside an item is the one its keyboard binding has, so the bar doubles as
 //! the place to learn them - the browser keeps a few for itself (⌘T, ⌘W, ⌘N), which is why
@@ -185,13 +183,11 @@ fn menus(
             MenuAction::OpenSubmodules,
             picked,
         );
-        // The one item of the bar that is the page's alone: the code is of the address the
-        // page came from, which a window that is no page has none of.
+        // The page's alone: a window that is no page has no account to manage.
         #[cfg(target_arch = "wasm32")]
         {
             ui.separator();
             item(ui, "Account…", None, MenuAction::ShowWebAccount, picked);
-            item(ui, "Show QR Code", None, MenuAction::ShowPageQr, picked);
         }
     });
     ui.menu_button("Window", |ui| {

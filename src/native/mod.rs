@@ -83,7 +83,6 @@ pub(crate) mod tasks;
 mod text_without_a_key;
 pub(crate) mod theme;
 #[cfg(not(target_arch = "wasm32"))]
-mod tunnel;
 #[cfg(test)]
 pub(crate) mod ui_tests;
 #[cfg(not(target_arch = "wasm32"))]

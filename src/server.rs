@@ -139,9 +139,9 @@ pub(crate) fn router(state: AppState, users: Users) -> Router {
         .with_state(served)
 }
 
-/// Nothing this server answers with belongs in a search engine. A server is reachable from
-/// the internet whenever it is behind a tunnel - see `crate::native::tunnel` - and its login
-/// page, and every error page, would otherwise be indexed if the address ever leaked.
+/// Nothing this server answers with belongs in a search engine. A server may be reachable
+/// from the internet, and its login page, and every error page, would otherwise be indexed if
+/// the address ever leaked.
 async fn ask_not_to_be_indexed(mut response: axum::response::Response) -> axum::response::Response {
     response.headers_mut().insert(
         "x-robots-tag",

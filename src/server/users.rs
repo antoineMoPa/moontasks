@@ -119,8 +119,7 @@ pub(crate) struct UserList {
 pub(crate) struct User {
     pub(crate) id: UserId,
     pub(crate) kind: UserKind,
-    /// Where the last request came from: the address of whoever is on the far end of a tunnel
-    /// when the request came through one - see `auth::client_ip`.
+    /// Where the last request came from.
     pub(crate) ip: IpAddr,
     /// What the last request said it was made by, when it said: a browser's name and version,
     /// `curl`, the window's HTTP client. Said by the client, so a hint at who is who and no
