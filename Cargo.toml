@@ -16,22 +16,25 @@ name = "moon"
 path = "src/bin/moon.rs"
 
 [dependencies]
+# The crates under `crates/` are named by path alone, with no `version`: most are submodules
+# released on their own, and a release of theirs must not be a requirement to bump here.
+# `Cargo.lock` still names their versions - `cargo update --workspace --offline` refreshes them.
 anyhow = "1"
 base64 = "0.22"
 eframe = { version = "0.36", features = ["persistence"] }
 egui = "0.36"
 egui_commonmark = "0.25"
 egui_extras = { version = "0.36", features = ["image"] }
-egui_frames = { version = "0.4", path = "crates/egui_frames", features = ["serde"] }
-egui_tty = { version = "0.2", path = "crates/egui_tty" }
-egui_moon_editor = { version = "0.1", path = "crates/egui_moon_editor", features = ["serde"] }
-egui_command_palette = { version = "0.1", path = "crates/egui_command_palette" }
-egui_moon_code_ide = { version = "0.1", path = "crates/egui_moon_code_ide" }
-moon_toggle_switch = { version = "0.1", path = "crates/moon_toggle_switch" }
+egui_frames = { path = "crates/egui_frames", features = ["serde"] }
+egui_tty = { path = "crates/egui_tty" }
+egui_moon_editor = { path = "crates/egui_moon_editor", features = ["serde"] }
+egui_command_palette = { path = "crates/egui_command_palette" }
+egui_moon_code_ide = { path = "crates/egui_moon_code_ide" }
+moon_toggle_switch = { path = "crates/moon_toggle_switch" }
 futures = "0.3.33"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
-moon_lsp = { version = "0.1", path = "crates/moon_lsp" }
-moon_core = { version = "0.1", path = "crates/moon_core" }
+moon_lsp = { path = "crates/moon_lsp" }
+moon_core = { path = "crates/moon_core" }
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 qrcode = { version = "0.14", default-features = false }
 serde = { version = "1", features = ["derive"] }
@@ -48,11 +51,11 @@ rhai = { version = "1.25.1", features = ["serde"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # `moon tui`: the board in a terminal - see crates/moon_tui, which is also a `moon` of its own.
-moon_tui = { version = "0.1", path = "crates/moon_tui" }
+moon_tui = { path = "crates/moon_tui" }
 # Minerve, served from moon's own executable (`moon __minerve`) and drawn in a pane - see
 # `native::minerve_pane`. Submodules, edited together with moon.
-minerve = { version = "0.12", path = "crates/minerve" }
-minerve-gui = { version = "0.3", path = "crates/minerve-egui" }
+minerve = { path = "crates/minerve" }
+minerve-gui = { path = "crates/minerve-egui" }
 # minerve's MCP client brings rustls's aws-lc-rs backend beside the ring one moon's TLS uses;
 # with two, rustls panics unless one is installed as the default - see `run()`.
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
@@ -77,8 +80,8 @@ wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Document", "Location", "Window", "Storage", "XmlHttpRequest", "WebSocket", "BinaryType", "MessageEvent", "UrlSearchParams", "console", "HtmlCanvasElement", "History", "Request", "RequestInit", "Headers", "Navigator", "Clipboard", "HtmlDocument", "HtmlTextAreaElement", "Selection", "Range", "Blob", "BlobPropertyBag", "Url"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-moon_launcher = { version = "0.1", path = "crates/moon_launcher" }
-moon_display = { version = "0.1", path = "crates/moon_display" }
+moon_launcher = { path = "crates/moon_launcher" }
+moon_display = { path = "crates/moon_display" }
 raw-window-handle = "0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -93,7 +96,7 @@ wasm-bindgen-cli-support = "=0.2.126"
 flate2 = "1"
 
 [dev-dependencies]
-moon_core = { version = "0.1", path = "crates/moon_core", features = ["test-support"] }
+moon_core = { path = "crates/moon_core", features = ["test-support"] }
 flate2 = "1"
 egui_kittest = { version = "0.36", features = ["wgpu", "snapshot"] }
 

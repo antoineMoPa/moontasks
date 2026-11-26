@@ -18,9 +18,9 @@ path = "src/bin/moon.rs"
 
 [dependencies]
 anyhow = "1"
-moon_core = { version = "0.1", path = "../moon_core" }
-moon_tui_frames = { version = "0.1", path = "../moon_tui_frames" }
-moon_tui_terminal = { version = "0.1", path = "../moon_tui_terminal" }
+moon_core = { path = "../moon_core" }
+moon_tui_frames = { path = "../moon_tui_frames" }
+moon_tui_terminal = { path = "../moon_tui_terminal" }
 # Its own crossterm is the one used, re-exported as `ratatui::crossterm`, so there is one.
 ratatui = "0.29"
 

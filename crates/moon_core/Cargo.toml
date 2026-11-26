@@ -15,7 +15,7 @@ test-support = []
 [dependencies]
 anyhow = "1"
 base64 = "0.22"
-moon_lsp = { version = "0.1", path = "../moon_lsp" }
+moon_lsp = { path = "../moon_lsp" }
 pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
 shlex = "1.3"

@@ -2,7 +2,7 @@
   "targets": [
     {
       "name": "moontasks",
-      "build": "cargo install --locked --path . && moon install-launchers",
+      "build": "cargo update --workspace --offline && cargo install --locked --path . && moon install-launchers",
       "run": "@restart"
     },
     {
