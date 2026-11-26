@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Without a named GLAMOUR_STYLE, gh asks the terminal for its background colour; an answer that
+# comes back after gh exits is typed into the shell as `11;rgb:0000/0000/0000;1R`.
+export GLAMOUR_STYLE=dark
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
